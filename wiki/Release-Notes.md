@@ -117,6 +117,11 @@ reverse proxy, plus one place to set where each app opens.
   `AUTH_LOGIN_URL` is only used under `AUTH_COOKIE_DOMAIN`.
 - With AuthTunnel and no domain on the Reverse proxy page, the links follow
   `AUTH_COOKIE_DOMAIN`.
+- **VPN: "has Redirect on" warnings you couldn't clear.** With Prowlarr in the
+  tunnel and the arrs outside it, wranglarr asked you to turn Redirect off for
+  Usenet indexers, which Prowlarr refuses ("Redirect must be enabled for Usenet
+  indexers"), and for torrent indexers where the box is greyed out. It now warns
+  only for torrent indexers where Redirect is on and can be turned off.
 
 ## 1.0.0 — 2026-10-27
 
