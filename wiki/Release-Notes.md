@@ -24,8 +24,8 @@ How to write an entry:
 
 ## 1.1.0 — not released yet
 
-Fixes from the first days of 1.0.0, mostly around opening the apps through a
-reverse proxy, plus one place to set where each app opens.
+Fixes from the first days of 1.0.0, mostly around reverse proxies and the VPN,
+plus one place to set where each app opens.
 
 ### Before you update
 
@@ -35,9 +35,8 @@ reverse proxy, plus one place to set where each app opens.
   `https://example.com/radarr` to `https://wranglarr.example.com/radarr`. To
   keep `example.com/radarr`, put wranglarr at **The domain itself** or **Path on
   the domain** under Dashboard → Links (for the latter, set the matching
-  `WRANGLARR_URL_BASE`). Either way,
-  copy the new config into your proxy after updating. Each app's URL Base
-  (`/radarr`) stays the same.
+  `WRANGLARR_URL_BASE`). Either way, copy the new config into your proxy after
+  updating. Each app's URL Base (`/radarr`) stays the same.
 - **Optional:** add `HOST_IP=<this machine's IP>` to `.env`, or run
   `./scripts/init.sh` to fill it in, and recreate wranglarr. The links and the
   proxy config use it for the apps that aren't proxied. Without it, wranglarr
@@ -62,16 +61,13 @@ reverse proxy, plus one place to set where each app opens.
 - **`HOST_IP`**: the setup wizard and `./scripts/init.sh` find this machine's IP
   and write it to `.env`. Change it only if you take that `.env` to another
   machine.
-- **Wranglarr at a path on your domain.** Set `WRANGLARR_URL_BASE=/wranglarr`
-  and choose **Path on the domain** in Dashboard → Links to serve wranglarr at
-  `https://myhouse.com/wranglarr`. The proxy passes the prefix through unchanged.
-  App paths are siblings (`https://myhouse.com/radarr`), sharing the certificate
-  and sign-in cookie. With AuthTunnel, include the base in `AUTH_LOGIN_URL`.
-  Browser links, login redirects, assets and live status use the base; internal
-  gate checks, webhooks and healthchecks keep their bare URLs. Cookies stay
-  `Path=/`, and passkeys still belong to the hostname. The default is blank,
-  so existing root and subdomain installs need no change.
-  [Setup instructions](Reverse-Proxy.md#wranglarr-at-a-path-on-the-domain).
+- **wranglarr at a path on your domain**, e.g. `https://myhouse.com/wranglarr`:
+  set `WRANGLARR_URL_BASE=/wranglarr` and choose **Path on the domain** under
+  Dashboard → Links. The apps on a path sit beside it
+  (`https://myhouse.com/radarr`) and share its certificate and sign-in. With
+  AuthTunnel, `AUTH_LOGIN_URL` includes the path. Passkeys keep working, and
+  installs that don't set it need no change.
+  [How to set it up](Reverse-Proxy.md#wranglarr-at-a-path-on-the-domain).
 - **`proxy-setup`** prints the reverse proxy config from a shell, straight into
   a file: `docker compose exec -T wranglarr proxy-setup > Caddyfile.wranglarr`
   (`--kind nginx` for another proxy). See
@@ -95,7 +91,6 @@ reverse proxy, plus one place to set where each app opens.
 - The wranglarr image labels point at the source repository and the docs, so
   update checkers can find the release notes. A locally built image has them
   too.
-- Built on Rust 1.99.1 and Alpine 3.24.
 - **VPN port forwarding is wired up.** With `VPN_PORT_FORWARDING=on`, gluetun
   now pushes the forwarded port into qBittorrent and binds it to the tunnel
   (tick "Bypass authentication for clients on localhost" in qBittorrent).
@@ -105,6 +100,7 @@ reverse proxy, plus one place to set where each app opens.
   image resets the port to 6881, and gluetun only pushes it when it changes).
 - **Importing existing apps** explains copying the arrs' `MediaCover` folder,
   so a library brought over doesn't show grey posters for weeks.
+- Built on Rust 1.99.1 and Alpine 3.24.
 
 ### Fixed
 
@@ -113,13 +109,15 @@ reverse proxy, plus one place to set where each app opens.
 - **Opened through the proxy, posters and cards linked to wranglarr's name and
   the app's port** (`wranglarr.example.com:7878`). They now open each app at its
   name on the proxy, or at this machine's address when the app isn't proxied.
-- **App links follow explicit placement.** Choose Direct IP for apps not on the
-  proxy. DNS failures and shared login pages no longer change configured links.
-- **Links saves are atomic.** Browser addresses and proxy placement are validated
-  together; a failed save changes neither. Conflicting routes, reserved paths and
-  unsupported proxy/access combinations are rejected before a config is generated.
-- IPv6 upstream addresses are bracketed correctly, and path routes match path
-  boundaries rather than similarly named prefixes.
+- **Download-client cards linked to proxy names that didn't exist.** The cards
+  now open each app where it's set under Links, whatever DNS says at the time:
+  choose **Direct IP** for an app you haven't added to your proxy.
+- **A Links save that failed could leave half of it saved.** The addresses and
+  each app's place are now checked and saved together. Two apps on one route, a
+  path wranglarr uses itself, and settings your proxy can't do are refused
+  before a config is written.
+- In the proxy configs, IPv6 addresses are bracketed, and a path like `/radarr`
+  no longer also catches `/radarr4k`.
 - **AuthTunnel: apps opened by IP couldn't sign in** once `AUTH_LOGIN_URL` was
   set: the sign-in happened on the domain, and its cookie never reached the IP.
   Opened by IP, an app now signs in at wranglarr on that same address.
