@@ -126,14 +126,21 @@ impl QbittorrentClient {
 
     /// GET /api/v2/<path>, signing in (again) as needed. The body as text.
     async fn get(&self, path: &str, query: &[(&str, &str)]) -> ArrResult<String> {
+        self.send(path, || self.core.http.get(format!("{}/api/v2/{path}", self.core.base)).query(query)).await
+    }
+
+    /// POST a form to /api/v2/<path>, signing in (again) as needed.
+    async fn post_form(&self, path: &str, form: &[(&str, &str)]) -> ArrResult<String> {
+        self.send(path, || self.core.http.post(format!("{}/api/v2/{path}", self.core.base)).form(form)).await
+    }
+
+    /// The request `build` makes, with the session; signs in again once when the
+    /// session has ended. The body as text.
+    async fn send(&self, path: &str, build: impl Fn() -> reqwest::RequestBuilder) -> ArrResult<String> {
         let mut attempt = 1;
         let (status, body) = loop {
             self.login(path).await?;
-            let r = self
-                .core
-                .http
-                .get(format!("{}/api/v2/{path}", self.core.base))
-                .query(query)
+            let r = build()
                 .header("Cookie", self.sid())
                 .header("Referer", &self.core.base)
                 .send()
@@ -176,6 +183,18 @@ impl QbittorrentClient {
         let version = self.get("app/version", &[]).await?.trim().to_string();
         let webapi = self.get("app/webapiVersion", &[]).await?.trim().to_string();
         Ok(status_map(json!(version), "qBittorrent", json!(webapi)))
+    }
+
+    /// The port it listens on for peers.
+    pub async fn listen_port(&self) -> ArrResult<u64> {
+        Ok(self.get_json("app/preferences", &[]).await?["listen_port"].as_u64().unwrap_or(0))
+    }
+
+    /// Listen on `port` for peers, with no random port and no UPnP: the port a
+    /// VPN forwards, as gluetun's port-forwarding command sets it.
+    pub async fn set_listen_port(&self, port: u16) -> ArrResult<()> {
+        let prefs = json!({"listen_port": port, "random_port": false, "upnp": false}).to_string();
+        self.post_form("app/setPreferences", &[("json", &prefs)]).await.map(|_| ())
     }
 
     pub async fn download_root(&self) -> ArrResult<String> {

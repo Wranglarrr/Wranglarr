@@ -299,7 +299,8 @@ weekly and manual runs, and every release tag, add the slow black-box tests
   `WRANGLARR_LOG`, the login and AuthTunnel variables, `FORWARDED_ALLOW_IPS`,
   `WRANGLARR_HOST_BACKUPS`, `WRANGLARR_IMAGE`, what a restore stack copies,
   `PUID`/`PGID`, `UMASK`, `WRANGLARR_PRE_RESTORE`, and the updater's
-  `WRANGLARR_UPDATE_POLL`, `WRANGLARR_UPDATE_STABLE` and `HOSTNAME`), and
+  `WRANGLARR_UPDATE_POLL`, `WRANGLARR_UPDATE_STABLE` and `HOSTNAME`, and
+  `WRANGLARR_VPN_PORT_POLL`, how often the forwarded port is checked), and
   `service::apps::load(path, env)` reads wranglarr.toml with a variable lookup
   (`${VAR}`, `WRANGLARR_ENABLED_APPS`, `WRANGLARR_VPN_APPS`).
   `App::new(cfg, deployment)` takes both, so tests pass their own instead of

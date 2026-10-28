@@ -100,6 +100,9 @@ reverse proxy, plus one place to set where each app opens.
   now pushes the forwarded port into qBittorrent and binds it to the tunnel
   (tick "Bypass authentication for clients on localhost" in qBittorrent).
   `VPN_PORT_FORWARD_ONLY=on` picks only servers that can forward a port.
+  wranglarr also checks every minute that qBittorrent still listens on the
+  forwarded port, and sets it again after qBittorrent restarts on its own (its
+  image resets the port to 6881, and gluetun only pushes it when it changes).
 - **Importing existing apps** explains copying the arrs' `MediaCover` folder,
   so a library brought over doesn't show grey posters for weeks.
 

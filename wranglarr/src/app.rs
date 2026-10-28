@@ -139,6 +139,7 @@ impl App {
         crate::connect::start(self);
         crate::events::start(self);
         crate::keys::start(self);
+        crate::vpn::start(self);
         crate::indexers::start(self).await;
     }
 
@@ -255,6 +256,7 @@ impl App {
         self.0.connect.shutdown().await;
         self.0.events.shutdown().await;
         self.0.keys.shutdown().await;
+        self.0.vpn.shutdown().await;
         self.0.indexers.shutdown().await;
         let worker = self.0.jobs.join().await;
         self.notifier().shutdown().await;

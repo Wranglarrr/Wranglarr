@@ -7,7 +7,7 @@ NZBGet nzbget / secretpw; gluetun X-API-Key gluekey."""
 import json, sys, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
-state = {"restarts": 0}
+state = {"restarts": 0, "prefs": {"listen_port": 6881, "random_port": False, "upnp": True}}
 class Base(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def out(self, code, body=b"", ctype="application/json"):
@@ -21,12 +21,16 @@ class Qbit(Base):
         if p == "/api/v2/auth/login":
             if "username=admin" in data and "password=qbpass" in data: self.send_response(200); self.send_header("Set-Cookie", "SID=abc"); self.end_headers(); self.wfile.write(b"Ok."); return
             return self.out(200, b"Fails.", "text/plain")
+        if self.headers.get("Cookie", "").find("SID=abc") < 0: return self.out(403, b"Forbidden", "text/plain")
+        if p == "/api/v2/app/setPreferences":
+            state["prefs"].update(json.loads(parse_qs(data)["json"][0])); return self.out(200, b"", "text/plain")
         self.out(404)
     def do_GET(self):
         p = urlparse(self.path).path
         if p == "/api/v2/app/version": return self.out(200, b"v5.0.3", "text/plain")
         if self.headers.get("Cookie", "").find("SID=abc") < 0: return self.out(403, b"Forbidden", "text/plain")
         if p == "/api/v2/app/webapiVersion": return self.out(200, b"2.11.2", "text/plain")
+        if p == "/api/v2/app/preferences": return self.out(200, state["prefs"])
         if p == "/api/v2/torrents/info": return self.out(200, [{"state": "downloading", "completed": 100}, {"state": "stalledUP", "completed": 5000}, {"state": "pausedDL", "completed": 0}])
         self.out(404)
 class Sab(Base):

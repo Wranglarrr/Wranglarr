@@ -3,8 +3,9 @@
 //! (<https://github.com/qdm12/gluetun-wiki>), and what goes around the shared
 //! tunnel when only some apps are in it.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
@@ -12,6 +13,7 @@ use serde_json::{Value, json};
 use crate::config::{AppConfig, VpnConfig};
 use crate::service::AppConfigExt;
 use crate::service::Roles;
+use crate::service::qbittorrent::QbittorrentClient;
 use crate::value::{head, truthy};
 
 const TTL: Duration = Duration::from_secs(30);
@@ -24,11 +26,45 @@ pub fn url_host(url: &str) -> String {
 pub struct Vpn {
     pub cfg: Option<VpnConfig>,
     cache: Mutex<Option<(Instant, Value)>>,
+    started: AtomicBool,
+    tasks: crate::background::Background,
+    /// qBittorrent clients in the tunnel, kept for their sessions.
+    qbits: tokio::sync::Mutex<HashMap<String, QbittorrentClient>>,
+    /// The last problem logged per app, so a lasting one is logged once.
+    said: Mutex<HashMap<String, String>>,
 }
 
 impl Vpn {
     pub fn new(cfg: Option<VpnConfig>) -> Vpn {
-        Vpn { cfg, cache: Mutex::new(None) }
+        Vpn {
+            cfg,
+            cache: Mutex::new(None),
+            started: AtomicBool::new(false),
+            tasks: crate::background::Background::default(),
+            qbits: tokio::sync::Mutex::default(),
+            said: Mutex::default(),
+        }
+    }
+
+    /// Stop the forwarded-port task.
+    pub async fn shutdown(&self) {
+        self.tasks.shutdown().await;
+    }
+
+    /// Log `msg` for `app` unless it was the last thing logged for it; `None`
+    /// clears it (all well again).
+    fn say(&self, app: &str, msg: Option<String>) {
+        let Ok(mut said) = self.said.lock() else { return };
+        match msg {
+            Some(m) if said.get(app) != Some(&m) => {
+                tracing::warn!("{m}");
+                said.insert(app.to_string(), m);
+            }
+            Some(_) => {}
+            None => {
+                said.remove(app);
+            }
+        }
     }
 
     pub async fn status(&self, refresh: bool) -> Value {
@@ -86,6 +122,84 @@ impl Vpn {
             *c = Some((Instant::now(), out.clone()));
         }
         out
+    }
+}
+
+/// How often qBittorrent's listening port is checked against the forwarded one
+/// (`Deployment::vpn_port_poll` changes it).
+pub const PORT_EVERY: Duration = Duration::from_secs(60);
+
+/// Keep qBittorrent in the tunnel listening on the port the VPN forwards.
+/// gluetun's port-forwarding command sets it when the port changes, but
+/// qBittorrent's image resets it (TORRENTING_PORT) each time it restarts on its
+/// own, and nothing would set it back until the next change.
+pub fn start(app: &crate::app::App) {
+    let v = app.vpn();
+    if v.cfg.is_none() || v.started.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let every = app.deployment().vpn_port_poll;
+    let me = app.clone();
+    v.tasks.spawn("vpn: forwarded port", async move {
+        loop {
+            me.keep_forwarded_port().await;
+            tokio::time::sleep(every).await;
+        }
+    });
+}
+
+impl crate::app::App {
+    /// One round of [`start`]'s task: each enabled qBittorrent in the tunnel
+    /// that listens on another port than the forwarded one is set to it.
+    pub(crate) async fn keep_forwarded_port(&self) {
+        let Some(cfg) = self.cfg().vpn.as_ref() else { return };
+        let apps: Vec<AppConfig> = self
+            .cfg()
+            .all_apps()
+            .filter(|a| a.enabled && a.kind == crate::service::qbittorrent::DEF.id && in_tunnel(Some(cfg), a))
+            .cloned()
+            .collect();
+        if apps.is_empty() {
+            return;
+        }
+        let st = self.vpn().status(false).await;
+        let Some(port) = st["forwarded_port"].as_u64().and_then(|p| u16::try_from(p).ok()).filter(|p| *p > 0) else {
+            return;
+        };
+        let mut clients = self.vpn().qbits.lock().await;
+        for a in apps {
+            if !clients.contains_key(&a.name) {
+                let (u, p) = crate::service::credentials(&a).await;
+                clients.insert(a.name.clone(), QbittorrentClient::new(&a.name, &a.url, &u, &p, &a.config_dir));
+            }
+            let Some(c) = clients.get(&a.name) else { continue };
+            let now = match c.listen_port().await {
+                Ok(n) => n,
+                Err(e) => {
+                    // down (restarting) or the login changed: a new client next round
+                    clients.remove(&a.name);
+                    tracing::debug!("vpn: {}: listening port: {e}", a.name);
+                    continue;
+                }
+            };
+            if now == u64::from(port) {
+                self.vpn().say(&a.name, None);
+                continue;
+            }
+            match c.set_listen_port(port).await {
+                Ok(()) => {
+                    self.vpn().say(&a.name, None);
+                    tracing::info!("vpn: {} listened on port {now}, not the VPN's forwarded {port}: set it", a.name);
+                }
+                Err(e) => self.vpn().say(
+                    &a.name,
+                    Some(format!(
+                        "vpn: {} listens on port {now}, not the VPN's forwarded {port}, and setting it failed: {e}",
+                        a.name
+                    )),
+                ),
+            }
+        }
     }
 }
 
