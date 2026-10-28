@@ -108,3 +108,27 @@ def test_links_follow_the_proxy_when_wranglarr_is_opened_through_it(srv):
         sab = c.get("/api/links", headers={"Host": "wranglarr.example.com"}).json()["links"]["sabnzbd"]
         assert sab["url"] == "https://wranglarr.example.com/sabnzbd/" and sab["how"] == "proxy", sab
         c.delete("/api/links")
+
+
+def test_proxy_setup_command_prints_the_saved_config(srv):
+    """`docker compose exec -T wranglarr proxy-setup > file`: the page's text on stdout,
+    the notes on stderr, and --kind for another proxy without saving it."""
+    import subprocess
+
+    from harness import WRANGLARR_CMD
+    cmd = list(WRANGLARR_CMD)[:-1] + ["proxy-setup"]
+    run = lambda *a: subprocess.run(cmd + list(a), env=srv.env, capture_output=True, text=True, timeout=60)
+    with srv.client() as c:
+        r = c.put("/api/proxy", json={"kind": "caddy", "domain": "example.com", "upstream": "host",
+                                      "upstream_host": "192.168.1.10", "apps": APPS})
+        assert r.status_code == 200, r.text
+        page = c.get("/api/proxy").json()["text"]
+        p = run()
+        assert p.returncode == 0, p.stderr
+        assert p.stdout == page, "the same text as the Reverse proxy page"
+        assert p.stderr.startswith("# "), "the notes, as comments, on stderr"
+        n = run("--kind", "nginx")
+        assert n.returncode == 0 and "server_name" in n.stdout and "192.168.1.10" in n.stdout, n.stderr
+        assert c.get("/api/proxy").json()["settings"]["kind"] == "caddy", "--kind isn't saved"
+        bad = run("--kind", "apache")
+        assert bad.returncode == 2 and "one of caddy" in bad.stderr, bad.stderr

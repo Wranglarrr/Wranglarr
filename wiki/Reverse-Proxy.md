@@ -179,6 +179,30 @@ it is corrected. IPv6 upstream addresses are supported.
   proxy (at the domain or a name under it), and the Direct IP apps by this
   machine's address.
 
+## From a shell
+
+`proxy-setup` prints the same config as the page, for the settings saved there
+and under Dashboard → Links, so it can go straight into a file. The notes go to
+the terminal (stderr), not into the file:
+
+```sh
+docker compose exec -T wranglarr proxy-setup > Caddyfile.wranglarr
+docker compose exec -T wranglarr proxy-setup --kind nginx | sudo tee /etc/nginx/sites-available/wranglarr >/dev/null
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+- `-T` matters: without it Compose gives the command a terminal, and the file
+  gets Windows line endings.
+- Use `>` (or `tee`), not `>>`: each run prints the whole config, so appending
+  repeats it.
+- `--kind` writes it for another proxy (`caddy`, `nginx`, `traefik-file`,
+  `traefik-labels`, `caddy-labels`, `cloudflared`, `npm`) without changing the
+  saved choice.
+- When the settings need attention (the page says what), it prints nothing to
+  stdout and exits 1. `>` empties the file before the command runs, so to keep a
+  working config, write a new file and move it into place only on success:
+  `docker compose exec -T wranglarr proxy-setup > new.conf && mv new.conf wranglarr.conf`.
+
 ## HTTP API
 
 ```

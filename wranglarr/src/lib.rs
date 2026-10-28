@@ -29,6 +29,7 @@ pub mod mediaservers;
 pub mod notify;
 pub(crate) mod overview;
 pub mod proxy;
+pub mod proxy_setup;
 pub(crate) mod restore_plan;
 pub(crate) mod sched;
 pub mod serve;

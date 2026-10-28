@@ -72,6 +72,11 @@ reverse proxy, plus one place to set where each app opens.
   `Path=/`, and passkeys still belong to the hostname. The default is blank,
   so existing root and subdomain installs need no change.
   [Setup instructions](Reverse-Proxy.md#wranglarr-at-a-path-on-the-domain).
+- **`proxy-setup`** prints the reverse proxy config from a shell, straight into
+  a file: `docker compose exec -T wranglarr proxy-setup > Caddyfile.wranglarr`
+  (`--kind nginx` for another proxy). See
+  [Reverse proxy](Reverse-Proxy.md#from-a-shell).
+
 ### Changed
 
 - The Reverse proxy page keeps the proxy's own settings (which proxy, how it

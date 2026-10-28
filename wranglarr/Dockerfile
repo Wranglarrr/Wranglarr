@@ -20,8 +20,10 @@ FROM alpine:3.24
 # pg_dump / pg_restore / psql matching the Postgres 17 server in compose.yaml
 RUN apk add --no-cache postgresql17-client tzdata ca-certificates
 COPY --from=build /wranglarr /usr/local/bin/wranglarr
-# one binary, five names (it picks the command from the name it's run as)
-RUN for n in setup prepare auth apps-auth; do ln -s wranglarr "/usr/local/bin/wranglarr-$n"; done
+# one binary, several names (it picks the command from the name it's run as); proxy-setup
+# also bare, for `docker compose exec -T wranglarr proxy-setup > …`
+RUN for n in setup prepare auth apps-auth proxy-setup; do ln -s wranglarr "/usr/local/bin/wranglarr-$n"; done && \
+    ln -s wranglarr /usr/local/bin/proxy-setup
 # the image's own name: the setup wizard writes it to .env as WRANGLARR_IMAGE, so the stack
 # runs the image the wizard came from (the release workflow passes the hosted name)
 ARG WRANGLARR_IMAGE=wranglarr:local

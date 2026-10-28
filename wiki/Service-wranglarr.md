@@ -81,6 +81,8 @@ and the job model, is in the [API reference](API.md).
 | `wranglarr-apps-auth` | what the `wranglarr-apps-auth` one-shot runs for `init.sh`: sets the apps' logins the way `APPS_AUTH` says ([App logins](App-Logins.md)) |
 | `wranglarr-prepare` | what `wranglarr-init` runs: hands `/config` and `/backups` to `PUID:PGID` ([Security](Security.md)) |
 | `wranglarr-auth` | recover the login from a shell: `status`, `set-password`, `disable-2fa`, `remove-passkeys`, `sign-out-all`, `reset` ([Login](Login.md#locked-out)) |
+| `proxy-setup` (or `wranglarr-proxy-setup`) | print the reverse proxy config for the saved settings, for `docker compose exec -T wranglarr proxy-setup > file`; `--kind nginx` for another proxy ([Reverse proxy](Reverse-Proxy.md#from-a-shell)) |
+| `wranglarr --version` | the version |
 
 ## The setup wizard
 
