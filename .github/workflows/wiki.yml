@@ -23,7 +23,7 @@ jobs:
   sync:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build the wiki
         run: python3 scripts/build-wiki.py "$RUNNER_TEMP/built"
