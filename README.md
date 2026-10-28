@@ -21,7 +21,7 @@ plus the app that sets it up, wires it together, backs it up and keeps it update
   <img alt="Podman" src="https://img.shields.io/badge/Podman-rootless-892CA0?logo=podman&logoColor=white">
   <img alt="TrueNAS SCALE" src="https://img.shields.io/badge/TrueNAS_SCALE-24.10%2B-0095D5?logo=truenas&logoColor=white">
   <img alt="Postgres 17" src="https://img.shields.io/badge/Postgres-17-4169E1?logo=postgresql&logoColor=white">
-  <img alt="Status: pre-release" src="https://img.shields.io/badge/status-pre--release_1.0.0-e5a00d">
+  <a href="https://github.com/Wranglarrr/Wranglarr/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Wranglarrr/Wranglarr?label=release&color=e5a00d"></a>
 </p>
 
 <p align="center"><img src="wiki/images/readme/hero.png" alt="The wranglarr dashboard, half in the light theme and half in the dark theme" width="100%"></p>
@@ -250,7 +250,7 @@ The [GitHub wiki](https://github.com/Wranglarrr/Wranglarr/wiki) is a copy of `wi
 <details>
 <summary><b>Project status and testing</b></summary>
 
-1.0.0 is the first release. What it brings is in the [release notes](https://github.com/Wranglarrr/Wranglarr/wiki/Release-Notes).
+wranglarr has stable releases since 1.0.0. What each one brings, and anything to do before updating, is in the [release notes](https://github.com/Wranglarrr/Wranglarr/wiki/Release-Notes).
 
 **Tested against mocks.** Everything has been run end to end against mock Radarr, Bazarr, qBittorrent, SABnzbd, NZBGet and gluetun servers with fake Postgres tools. That covers backups, restores, retention, shared sync, the restore plan, every page and the wizard. Container updates were run against a mock Docker Engine API that enforces the daemon's create-time conflict rules.
 
