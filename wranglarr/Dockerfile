@@ -26,6 +26,14 @@ RUN for n in setup prepare auth apps-auth; do ln -s wranglarr "/usr/local/bin/wr
 # runs the image the wizard came from (the release workflow passes the hosted name)
 ARG WRANGLARR_IMAGE=wranglarr:local
 ENV WRANGLARR_CONFIG=/config/wranglarr.toml WRANGLARR_IN_DOCKER=1 WRANGLARR_IMAGE=${WRANGLARR_IMAGE}
+# where it comes from, for update checkers and release-note lookups (the release workflow
+# sets the same, plus the version and commit: keep the two in step)
+LABEL org.opencontainers.image.title="wranglarr" \
+      org.opencontainers.image.description="Backup, version, restore and update a *arr stack on Postgres" \
+      org.opencontainers.image.source="https://github.com/Wranglarrr/Wranglarr" \
+      org.opencontainers.image.url="https://wranglarrr.github.io/Wranglarr/" \
+      org.opencontainers.image.documentation="https://wranglarrr.github.io/Wranglarr/" \
+      org.opencontainers.image.licenses="GPL-3.0-or-later"
 EXPOSE 8787 8788
 STOPSIGNAL SIGTERM
 CMD ["wranglarr"]
