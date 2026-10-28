@@ -4,7 +4,10 @@
 //! A link comes from, in order:
 //!   1. a per-app address set on the home page (Links), e.g. `https://radarr.example.com`
 //!   2. the domain pattern, e.g. https://{name}.home.example.com
-//!   3. otherwise: the host the browser used to reach wranglarr (or a fixed one) plus the
+//!   3. the app's name on the reverse proxy (the Reverse proxy page), e.g.
+//!      https://radarr.example.com, when wranglarr itself was opened through it (at
+//!      that page's domain or a name under it) and no fixed host is set
+//!   4. otherwise: the host the browser used to reach wranglarr (or a fixed one) plus the
 //!      port Docker publishes the app on, e.g. http://192.168.1.10:7878
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -201,7 +204,7 @@ pub struct Published {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Link {
     pub url: Option<String>,
-    /// "set" | "domain" | "port" | "none"
+    /// "set" | "domain" | "proxy" | "port" | "none"
     pub how: &'static str,
     pub note: String,
 }
@@ -227,10 +230,12 @@ pub fn unique_apps<'a>(apps: impl Iterator<Item = &'a AppConfig>) -> Vec<&'a App
     apps.filter(|a| seen.insert(a.name.clone())).collect()
 }
 
-/// The links, from the settings and the published ports.
+/// The links, from the settings, the apps' addresses through the reverse proxy
+/// (`proxied`: used in port mode without a fixed host) and the published ports.
 pub fn resolve_with(
     s: &LinkSettings,
     apps: &[&AppConfig],
+    proxied: &BTreeMap<String, String>,
     ports: &BTreeMap<String, Published>,
     browser_host: &str,
 ) -> BTreeMap<String, Link> {
@@ -242,6 +247,8 @@ pub fn resolve_with(
         } else if s.mode == "domain" {
             let url = format_pattern(&s.pattern, &a.name, &a.kind).unwrap_or_else(|_| s.pattern.clone());
             Link { url: Some(url), how: "domain", note: "from the domain pattern".into() }
+        } else if let Some(u) = proxied.get(&a.name).filter(|_| s.host.is_empty()) {
+            Link { url: Some(u.clone()), how: "proxy", note: "its name on the reverse proxy".into() }
         } else {
             match ports.get(&a.name).filter(|p| p.port.is_some_and(|n| n != 0)) {
                 None => {
@@ -408,8 +415,18 @@ impl<'a> Links<'a> {
     /// app -> where it opens, for a browser that reached wranglarr at `browser_host`.
     pub async fn resolve(&self, browser_host: &str) -> BTreeMap<String, Link> {
         let s = self.settings().await;
-        let ports = if s.mode == "port" { self.published(false).await } else { BTreeMap::new() };
-        resolve_with(&s, &self.apps(), &ports, browser_host)
+        let apps = self.apps();
+        let (proxied, ports) = if s.mode == "port" {
+            let proxied = if s.host.is_empty() {
+                crate::proxy::public_urls(&self.0.proxy().settings().await, &apps, browser_host)
+            } else {
+                BTreeMap::new()
+            };
+            (proxied, self.published(false).await)
+        } else {
+            (BTreeMap::new(), BTreeMap::new())
+        };
+        resolve_with(&s, &apps, &proxied, &ports, browser_host)
     }
 
     // ---- logos -----------------------------------------------------------------------
@@ -569,8 +586,9 @@ mod tests {
             "qb".to_string(),
             Published { port: None, how: "not published on the host".into(), ..Default::default() },
         );
+        let none = BTreeMap::new();
         let s = LinkSettings::default();
-        let l = resolve_with(&s, &refs, &ports, "192.168.1.10");
+        let l = resolve_with(&s, &refs, &none, &ports, "192.168.1.10");
         assert_eq!(
             l["radarr"],
             Link { url: Some("http://192.168.1.10:7878/".into()), how: "port", note: "published port".into() }
@@ -590,7 +608,7 @@ mod tests {
             apps: [("qb".to_string(), "https://qb.example.com".to_string())].into(),
             ..Default::default()
         };
-        let l = resolve_with(&s, &refs, &ports, "ignored");
+        let l = resolve_with(&s, &refs, &none, &ports, "ignored");
         assert_eq!(l["radarr"].url.as_deref(), Some("https://[::1]:7878/"));
         assert_eq!(l["sonarr"].note, "published port", "loopback is fine from the host itself");
         assert_eq!(
@@ -598,8 +616,38 @@ mod tests {
             Link { url: Some("https://qb.example.com".into()), how: "set", note: "set on this page".into() }
         );
         // no host at all
-        let l = resolve_with(&LinkSettings::default(), &refs, &ports, "");
+        let l = resolve_with(&LinkSettings::default(), &refs, &none, &ports, "");
         assert_eq!(l["radarr"].url.as_deref(), Some("http://localhost:7878/"));
+    }
+
+    #[test]
+    fn the_reverse_proxy_wins_over_the_port_but_not_over_a_choice() {
+        let apps = [app("radarr", "radarr", "http://radarr:7878"), app("qb", "qbittorrent", "http://qb:8090")];
+        let refs: Vec<&AppConfig> = apps.iter().collect();
+        let ports: BTreeMap<String, Published> =
+            [("radarr".to_string(), port(7878, false)), ("qb".to_string(), port(8090, false))].into();
+        let proxied: BTreeMap<String, String> =
+            [("radarr".to_string(), "https://radarr.example.com/".to_string())].into();
+        let l = resolve_with(&LinkSettings::default(), &refs, &proxied, &ports, "wranglarr.example.com");
+        assert_eq!(
+            l["radarr"],
+            Link {
+                url: Some("https://radarr.example.com/".into()),
+                how: "proxy",
+                note: "its name on the reverse proxy".into()
+            }
+        );
+        // not proxied: its port, as before
+        assert_eq!(l["qb"].url.as_deref(), Some("http://wranglarr.example.com:8090/"));
+        // a fixed host, a per-app address and the domain pattern all come first
+        let fixed = LinkSettings { host: "192.168.1.10".into(), ..Default::default() };
+        let l = resolve_with(&fixed, &refs, &proxied, &ports, "wranglarr.example.com");
+        assert_eq!(l["radarr"].url.as_deref(), Some("http://192.168.1.10:7878/"));
+        let set = LinkSettings {
+            apps: [("radarr".to_string(), "http://10.0.0.5:7878".to_string())].into(),
+            ..Default::default()
+        };
+        assert_eq!(resolve_with(&set, &refs, &proxied, &ports, "x")["radarr"].how, "set");
     }
 
     #[test]
@@ -612,7 +660,7 @@ mod tests {
             apps: [("qb".to_string(), "http://192.168.1.20:8080".to_string())].into(),
             ..Default::default()
         };
-        let l = resolve_with(&s, &refs, &BTreeMap::new(), "h");
+        let l = resolve_with(&s, &refs, &BTreeMap::new(), &BTreeMap::new(), "h");
         assert_eq!(
             l["radarr4k"],
             Link {

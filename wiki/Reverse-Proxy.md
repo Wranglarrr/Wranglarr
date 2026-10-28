@@ -124,8 +124,9 @@ wranglarr and Seerr always get a name of their own (`wranglarr.example.com`,
 - **Passkeys** belong to the name you added them at. One added at
   `192.168.1.10` won't work at `wranglarr.example.com`; add another under Account
   once you're signed in there.
-- **Posters**: set Dashboard → Links to `https://{name}.example.com` so the posters
-  open the proxied names.
+- **Posters** open the proxied names when you've opened wranglarr through the
+  proxy (at the domain above or a name under it). For a proxy set up without
+  this page, set Dashboard → Links to `https://{name}.example.com`.
 
 ## HTTP API
 

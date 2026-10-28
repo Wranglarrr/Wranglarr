@@ -54,3 +54,25 @@ def test_bad_values(srv):
                      {"upstream": "moon"}, {"lan": "not-a-range"}, {"apps": {"radarr": {"expose": "everyone"}}}):
             r = c.put("/api/proxy", json=body)
             assert r.status_code == 400 and r.json().get("error"), (body, r.text)
+
+
+def test_links_follow_the_proxy_when_wranglarr_is_opened_through_it(srv):
+    with srv.client() as c:
+        c.delete("/api/links")
+        r = c.put("/api/proxy", json={"kind": "caddy", "style": "subdomain", "domain": "example.com",
+                                      "upstream": "host", "apps": {"radarr": {"expose": "public", "sub": "movies"},
+                                                                   "sabnzbd": {"expose": "off"}}})
+        assert r.status_code == 200, r.text
+        proxied = c.get("/api/links", headers={"Host": "wranglarr.example.com"}).json()["links"]
+        assert proxied["radarr"]["url"] == "https://movies.example.com/" and proxied["radarr"]["how"] == "proxy"
+        assert proxied["qbittorrent"]["url"] == "https://qbittorrent.example.com/", "not set: proxied, LAN only"
+        assert proxied["sabnzbd"]["how"] != "proxy", "not proxied"
+        # opened by IP: the apps open by IP and port, as before
+        direct = c.get("/api/links", headers={"Host": "192.168.1.10:8787"}).json()["links"]
+        assert direct["radarr"]["how"] != "proxy" and "192.168.1.10" in (direct["radarr"]["url"] or "192.168.1.10")
+        # a fixed address on the Links panel wins
+        r = c.put("/api/links", json={"mode": "port", "scheme": "http", "host": "10.0.0.5", "pattern": "", "apps": {}})
+        assert r.status_code == 200, r.text
+        fixed = c.get("/api/links", headers={"Host": "wranglarr.example.com"}).json()["links"]
+        assert fixed["radarr"]["how"] != "proxy"
+        c.delete("/api/links")

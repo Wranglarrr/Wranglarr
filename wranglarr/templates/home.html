@@ -36,7 +36,8 @@
           <input name="host" value="{{ links.host }}" placeholder="{{ browser_host }}" spellcheck="false" style="max-width:300px">
         </div>
         <div class="hint">An IP address or host name, without a port. Blank: the address you opened wranglarr at (now <code>{{ browser_host }}</code>).
-          The port is the one Docker publishes each app on, read from the container.</div>
+          The port is the one Docker publishes each app on, read from the container.
+          Opened through your reverse proxy (the Reverse proxy page's domain or a name under it), the apps it proxies open at their names there instead.</div>
       </div>
     </div>
     <div class="form-row" data-mode-only="domain">

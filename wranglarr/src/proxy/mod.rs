@@ -17,7 +17,7 @@ mod service;
 mod settings;
 
 pub use notes::Note;
-pub use plan::{Entry, Plan, ProxyEnv, plan};
+pub use plan::{Entry, Plan, ProxyEnv, plan, public_urls};
 pub use render::{Rendered, render};
 pub use service::Proxy;
 pub use settings::{AppExpose, ProxySettings, check};

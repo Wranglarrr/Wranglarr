@@ -102,6 +102,12 @@ Docker publishes the app on**:
 - you open wranglarr at `http://192.168.1.10:8787`;
 - Radarr opens at `http://192.168.1.10:7878`, SABnzbd at `http://192.168.1.10:8085`.
 
+Through your reverse proxy it follows the proxy instead. Open wranglarr at the
+**Reverse proxy** page's domain or a name under it (`https://wranglarr.example.com`),
+and each app the proxy serves opens at its name there (`https://radarr.example.com`).
+An app set to **Not proxied** keeps its port. Open wranglarr by IP and the apps open by
+IP and port too. A fixed **Address** below turns this off.
+
 wranglarr reads each port from the container, so changing `RADARR_PORT` in
 `.env` needs nothing here. In the VPN setups the ports belong to the VPN
 container, and with AuthTunnel to wranglarr-gate; wranglarr reads them from there.

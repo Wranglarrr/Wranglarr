@@ -166,6 +166,24 @@ pub fn plan(
     out
 }
 
+/// app -> its address through the proxy (`https://radarr.example.com/`), for a browser
+/// that opened wranglarr at `browser_host`: only when that's the proxy's domain or a name
+/// under it (so wranglarr itself came through the proxy), and only for proxied apps.
+/// Empty otherwise: by IP and port, the apps open by IP and port too.
+pub fn public_urls(s: &ProxySettings, apps: &[&AppConfig], browser_host: &str) -> BTreeMap<String, String> {
+    let domain = s.domain.trim().trim_end_matches('.').to_lowercase();
+    let host = browser_host.trim().trim_end_matches('.').to_lowercase();
+    if domain.is_empty() || !(host == domain || host.ends_with(&format!(".{domain}"))) {
+        return BTreeMap::new();
+    }
+    let entries: Vec<Entry> = apps.iter().map(|a| Entry::for_app(a)).collect();
+    plan(&entries, s, "", &BTreeMap::new(), &ProxyEnv::default())
+        .into_iter()
+        .filter(|p| p.expose != "off")
+        .map(|p| (p.name, format!("https://{}{}/", p.fqdn, p.path)))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,5 +217,40 @@ mod tests {
         assert_eq!(p[2].note, "seerr doesn't run under a path: it gets its own name");
         assert!(p[3].strip && p[3].up.is_empty());
         assert_eq!(p[3].note, "not published on this machine: use “the proxy is a container on the stack's network”");
+    }
+
+    #[test]
+    fn public_urls_only_when_wranglarr_came_through_the_proxy() {
+        let cfg = |name: &str, kind: &str, url: &str| AppConfig {
+            name: name.into(),
+            kind: kind.into(),
+            url: url.into(),
+            ..Default::default()
+        };
+        let apps = [
+            cfg("radarr", "radarr", "http://radarr:7878"),
+            cfg("sab", "sabnzbd", "http://sabnzbd:8080"),
+            cfg("seerr", "seerr", "http://seerr:5055"),
+        ];
+        let refs: Vec<&AppConfig> = apps.iter().collect();
+        let mut s = ProxySettings { domain: "example.com".into(), ..Default::default() };
+        s.apps.insert("sab".into(), super::super::AppExpose { expose: "off".into(), sub: String::new() });
+        s.apps.insert("radarr".into(), super::super::AppExpose { expose: "public".into(), sub: "movies".into() });
+        let u = public_urls(&s, &refs, "Wranglarr.Example.com");
+        assert_eq!(u.get("radarr").map(String::as_str), Some("https://movies.example.com/"));
+        assert_eq!(u.get("seerr").map(String::as_str), Some("https://seerr.example.com/"), "unset: lan, proxied");
+        assert!(!u.contains_key("sab"), "not proxied");
+        assert_eq!(public_urls(&s, &refs, "example.com.").len(), 2, "the domain itself counts");
+        for other in ["192.168.1.10", "notexample.com", "example.com.evil.net", ""] {
+            assert!(public_urls(&s, &refs, other).is_empty(), "{other}");
+        }
+        // a path each; Seerr still gets a name of its own
+        s.style = "path".into();
+        let u = public_urls(&s, &refs, "example.com");
+        assert_eq!(u.get("radarr").map(String::as_str), Some("https://example.com/movies/"));
+        assert_eq!(u.get("seerr").map(String::as_str), Some("https://seerr.example.com/"));
+        // no domain on the Reverse proxy page: nothing to go on
+        let blank = ProxySettings::default();
+        assert!(public_urls(&blank, &refs, "wranglarr.example.com").is_empty());
     }
 }
