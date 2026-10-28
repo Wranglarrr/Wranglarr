@@ -71,8 +71,18 @@ pub struct App(Arc<Inner>);
 
 impl App {
     /// The service on `cfg`, deployed as `deployment`: opens the state database
-    /// and the backup store.
-    pub async fn new(cfg: Config, mut deployment: Deployment) -> Result<App> {
+    /// and the backup store, and closes the runs a previous process left open.
+    pub async fn new(cfg: Config, deployment: Deployment) -> Result<App> {
+        let app = App::open(cfg, deployment).await?;
+        // a self-update's run stays open for this process to finish (see updates::start)
+        let handed_over = crate::updates::handed_over(&app.cfg().state_db);
+        app.state().abandon_stale_runs(handed_over).await?;
+        Ok(app)
+    }
+
+    /// The service's state, for a command run beside the running service
+    /// (`wranglarr-proxy-setup`): like [`App::new`], but leaves its runs alone.
+    pub async fn open(cfg: Config, mut deployment: Deployment) -> Result<App> {
         deployment.proxy.url_base = crate::url_base::check(&deployment.proxy.url_base)?;
         let (cfg, deployment, state, store, auth) = tokio::task::spawn_blocking(move || -> Result<_> {
             let state = State::open(&cfg.state_db)?;
@@ -82,9 +92,6 @@ impl App {
             Ok((cfg, deployment, state, store, auth))
         })
         .await??;
-        // a self-update's run stays open for this process to finish (see updates::start)
-        let handed_over = crate::updates::handed_over(&cfg.state_db);
-        state.abandon_stale_runs(handed_over).await?;
         let pg = Postgres::new(cfg.postgres.clone());
         let docker = (!cfg.docker_socket.is_empty()).then(|| Docker::new(&cfg.docker_socket));
         let plan_path =
