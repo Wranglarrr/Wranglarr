@@ -165,11 +165,11 @@
         field('Ask for it', sel('apps_auth_required', S.apps_auth_required, [['enabled', 'everywhere'], ['disabledForLocalAddresses', 'not on the local network (arrs and Prowlarr)']]),
           '"Not on the local network" can mean never: behind Docker\'s port forwarding every visitor can look local to the app.');
     } else if (m === 'tunnel') {
-      h += field('You open the apps', `<label class="check-line"><input type="radio" name="access" value="lan" ${proxy ? '' : 'checked'}> by this machine's address and their ports, e.g. http://192.168.1.10:7878</label>
-        <label class="check-line"><input type="radio" name="access" value="proxy" ${proxy ? 'checked' : ''}> through a reverse proxy, at names like https://radarr.example.com</label>`,
-        'The sign-in is a cookie, and a browser only sends it to the address it came from (any port) or, when told, to every name under one domain.');
-      if (proxy) h += field('Cookie domain', inp('auth_cookie_domain', S.auth_cookie_domain, 'placeholder="example.com" spellcheck="false"'), 'the domain all the apps and wranglarr live under; the cookie then reaches every *.example.com') +
-        field('wranglarr\'s address', inp('auth_login_url', S.auth_login_url, 'placeholder="https://wranglarr.example.com" spellcheck="false"'), 'where the gate sends you to sign in');
+      h += field('You open the apps', `<label class="check-line"><input type="radio" name="access" value="lan" ${proxy ? '' : 'checked'}> only by this machine's address and their ports, e.g. http://192.168.1.10:7878</label>
+        <label class="check-line"><input type="radio" name="access" value="proxy" ${proxy ? 'checked' : ''}> also through a reverse proxy, at names like https://radarr.example.com</label>`,
+        'By this machine\'s IP and port always works, and needs nothing here. Pick the second only if you have a reverse proxy with a name for each app: its sign-in is a cookie for your whole domain, so it gets the two settings below.');
+      if (proxy) h += field('Cookie domain', inp('auth_cookie_domain', S.auth_cookie_domain, 'placeholder="example.com" spellcheck="false"'), 'your domain, not an IP: the apps and wranglarr all have names under it on the proxy, and the cookie reaches every *.example.com') +
+        field('wranglarr on the proxy', inp('auth_login_url', S.auth_login_url, 'placeholder="https://wranglarr.example.com" spellcheck="false"'), 'wranglarr\'s full name on your reverse proxy, not this machine\'s IP. The gate sends you there to sign in when you came through the proxy; by IP and port you sign in at wranglarr on that address.');
       h += chk({ cls: 'warn', msg: 'qBittorrent\'s web UI has no API key, so its mobile apps can\'t get past the gate. The arrs, Prowlarr, Bazarr and SABnzbd apps use API keys and keep working.' });
     } else {
       if (S.services.includes('nzbget')) h += field('NZBGet login', `${inp('nzbget_user', S.nzbget_user, 'placeholder="user"')} ${inp('nzbget_pass', S.nzbget_pass, 'placeholder="password"')} <button class="btn small" data-gen="password:nzbget_pass">generate</button>`, 'the image applies it at every start');
@@ -199,7 +199,7 @@
     }
     if (S.apps_auth === 'tunnel') {
       if (S.auth_login_url === 'https://') S.auth_login_url = '';
-      if (!!S.auth_cookie_domain !== !!S.auth_login_url) return 'reverse proxy: fill in both the cookie domain and wranglarr\'s address';
+      if (!!S.auth_cookie_domain !== !!S.auth_login_url) return 'reverse proxy: fill in both the cookie domain and wranglarr on the proxy';
     }
     return null;
   }

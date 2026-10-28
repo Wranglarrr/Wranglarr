@@ -506,7 +506,11 @@ async fn api_gate(State(app): State<App>, r: AuthReq) -> ApiResult<Response> {
         uri = "/".into();
     }
     let name = host_name(&host);
-    let base = if !o.login_url.is_empty() {
+    // AUTH_LOGIN_URL is wranglarr on the reverse proxy: its cookie reaches only names under
+    // AUTH_COOKIE_DOMAIN. An app opened another way (by IP and port) signs in at wranglarr
+    // on that same address instead, so both ways in keep working.
+    let via_proxy = o.cookie_domain.is_empty() || name.is_empty() || under(&name, &o.cookie_domain);
+    let base = if !o.login_url.is_empty() && via_proxy {
         o.login_url.clone()
     } else if !name.is_empty() {
         let n = if name.contains(':') { format!("[{name}]") } else { name };

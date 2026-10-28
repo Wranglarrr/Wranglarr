@@ -406,6 +406,12 @@ pub fn check_auth(a: &Answers) -> Result<()> {
     }
     if a.apps_auth == "tunnel" {
         let d = a.auth_cookie_domain.trim().trim_start_matches('.').to_lowercase();
+        let by_ip = "by this machine's IP and port the apps already work, with this left blank";
+        if d.parse::<std::net::IpAddr>().is_ok() {
+            return Err(Error::invalid(format!(
+                "cookie domain {d:?}: your domain, like example.com, not an IP: {by_ip}"
+            )));
+        }
         if !d.is_empty() && !HOST_RE.is_match(&d) {
             return Err(Error::invalid(format!("cookie domain {d:?}: a domain like example.com, no scheme or port")));
         }
@@ -414,6 +420,17 @@ pub fn check_auth(a: &Answers) -> Result<()> {
             return Err(Error::invalid(
                 "wranglarr's address: like https://wranglarr.example.com, nothing after the host",
             ));
+        }
+        let host = crate::links::parse_url(u).as_ref().and_then(crate::links::url_host).unwrap_or_default();
+        if host.parse::<std::net::IpAddr>().is_ok() {
+            return Err(Error::invalid(format!(
+                "wranglarr's address: its name on your reverse proxy, like https://wranglarr.example.com, not an IP: {by_ip}"
+            )));
+        }
+        if !d.is_empty() && !host.is_empty() && host != d && !host.ends_with(&format!(".{d}")) {
+            return Err(Error::invalid(format!(
+                "wranglarr's address: {host} isn't under the cookie domain {d}, so the sign-in wouldn't reach the apps"
+            )));
         }
         if !d.is_empty() && u.is_empty() {
             return Err(Error::invalid(
@@ -536,7 +553,11 @@ pub fn auth_steps(a: &Answers, auth_only: bool) -> Vec<String> {
         let where_ = if a.auth_cookie_domain.trim().is_empty() {
             "sign in to wranglarr at the same address you open the apps at".to_string()
         } else {
-            format!("sign in at {} and the cookie covers *.{}", a.auth_login_url.trim(), a.auth_cookie_domain.trim())
+            format!(
+                "through the proxy you sign in at {} and the cookie covers *.{}; by IP and port, at wranglarr on that address",
+                a.auth_login_url.trim().trim_end_matches('/'),
+                a.auth_cookie_domain.trim().trim_start_matches('.').to_lowercase()
+            )
         };
         s.push(format!("AuthTunnel: the apps' ports now belong to wranglarr-gate, which asks for your wranglarr sign-in; {where_}. Point your reverse proxy at the same ports as before (wiki: Reverse-Proxy)."));
     } else {
@@ -888,6 +909,22 @@ mod tests {
             check_auth(&a).expect_err("bad").to_string(),
             r#"cookie domain "http://x": a domain like example.com, no scheme or port"#
         );
+        // the machine's IP where the proxy's names go: by IP it works without them
+        let tunnel = |d: &str, u: &str| Answers {
+            apps_auth: "tunnel".into(),
+            auth_cookie_domain: d.into(),
+            auth_login_url: u.into(),
+            ..Default::default()
+        };
+        let e = check_auth(&tunnel("example.com", "http://192.168.1.10:8787")).expect_err("ip").to_string();
+        assert!(e.starts_with("wranglarr's address: its name on your reverse proxy") && e.contains("not an IP"), "{e}");
+        let e = check_auth(&tunnel("192.168.1.10", "https://wranglarr.example.com")).expect_err("ip").to_string();
+        assert!(e.starts_with(r#"cookie domain "192.168.1.10": your domain"#), "{e}");
+        assert_eq!(
+            check_auth(&tunnel("example.com", "https://wranglarr.other.net")).expect_err("elsewhere").to_string(),
+            "wranglarr's address: wranglarr.other.net isn't under the cookie domain example.com, so the sign-in wouldn't reach the apps"
+        );
+        assert!(check_auth(&tunnel("example.com", "https://wranglarr.example.com")).is_ok());
         let a = Answers {
             apps_auth: "tunnel".into(),
             auth_cookie_domain: ".Example.COM".into(),

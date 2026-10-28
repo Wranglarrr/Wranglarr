@@ -70,10 +70,14 @@ came from, on any port, or, when told, to every name under one domain.
 | You open the apps at | Set |
 | --- | --- |
 | `http://192.168.1.10:7878`, the same address as wranglarr (`http://192.168.1.10:8787`) | nothing |
-| `https://radarr.example.com`, `https://sonarr.example.com`… through your reverse proxy | `AUTH_COOKIE_DOMAIN=example.com` and `AUTH_LOGIN_URL=https://wranglarr.example.com`; proxy wranglarr too |
+| also `https://radarr.example.com`, `https://sonarr.example.com`… through your reverse proxy | `AUTH_COOKIE_DOMAIN=example.com` and `AUTH_LOGIN_URL=https://wranglarr.example.com`; proxy wranglarr too |
 
-The wizard asks which. With a cookie domain, sign in at the domain name, not the
-IP address: a cookie set at the IP doesn't reach `*.example.com`.
+The wizard asks which. Both settings are names on your proxy, never this
+machine's IP: by IP and port the apps work with them blank, and keep working
+with them set. The gate sends you to `AUTH_LOGIN_URL` only when you came
+through the proxy (an address under `AUTH_COOKIE_DOMAIN`). An app opened by IP
+sends you to wranglarr on that IP, since a cookie set at the IP doesn't reach
+`*.example.com`, and one set at the domain doesn't reach the IP.
 [Reverse proxy](Reverse-Proxy.md) writes the proxy config for you.
 
 ## Changing it later
@@ -107,7 +111,7 @@ arr and in Prowlarr too.
 | `APPS_LOGIN_USER`, `APPS_LOGIN_PASSWORD` | | `apps`: the login |
 | `APPS_AUTH_REQUIRED` | `enabled` | `apps`: `enabled` (everywhere) or `disabledForLocalAddresses` |
 | `AUTH_COOKIE_DOMAIN` | empty | `tunnel`: e.g. `example.com` |
-| `AUTH_LOGIN_URL` | empty | `tunnel`: wranglarr's address, e.g. `https://wranglarr.example.com`; empty = the address you opened the app at, port `WRANGLARR_PORT` |
+| `AUTH_LOGIN_URL` | empty | `tunnel`: wranglarr's name on your reverse proxy, e.g. `https://wranglarr.example.com`, used for apps opened under `AUTH_COOKIE_DOMAIN`; otherwise (and when empty) the address you opened the app at, port `WRANGLARR_PORT` |
 | `GATE_IMAGE` | `docker.io/nginxinc/nginx-unprivileged:1.27-alpine` | `tunnel`: the gate's image |
 
 init writes `/config/apps-auth.json` (no passwords) with what it did per app;

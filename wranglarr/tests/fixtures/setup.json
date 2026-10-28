@@ -179,7 +179,7 @@
    },
    "auth_steps": [
     "Apply it, in the stack directory: ./scripts/init.sh --auth  (it sets each app's login, and starts or removes wranglarr-gate for AuthTunnel).",
-    "AuthTunnel: the apps' ports now belong to wranglarr-gate, which asks for your wranglarr sign-in; sign in at https://w.example.com/ and the cookie covers *..Example.com. Point your reverse proxy at the same ports as before (wiki: Reverse-Proxy)."
+    "AuthTunnel: the apps' ports now belong to wranglarr-gate, which asks for your wranglarr sign-in; through the proxy you sign in at https://w.example.com and the cookie covers *.example.com; by IP and port, at wranglarr on that address. Point your reverse proxy at the same ports as before (wiki: Reverse-Proxy)."
    ],
    "next_steps": [
     "Review ./.env (it holds secrets; mode 600).",
@@ -189,7 +189,7 @@
     "Open wranglarr at http://<this host>:8787 and create its admin account. It asks for a one-time setup code from its log: docker compose logs wranglarr. Then, under Account, turn on two-factor or add a passkey.",
     "wranglarr will show a pending restore plan (2 item(s)); run it from the banner once the apps are up.",
     "SQLite databases were found for: radarr, sonarr. Their config.xml is reused; after the first start, copy each database into Postgres (one command per app): see Importing-Existing-Apps in the docs (wiki/Importing-Existing-Apps.md).",
-    "AuthTunnel: the apps' ports now belong to wranglarr-gate, which asks for your wranglarr sign-in; sign in at https://w.example.com/ and the cookie covers *..Example.com. Point your reverse proxy at the same ports as before (wiki: Reverse-Proxy).",
+    "AuthTunnel: the apps' ports now belong to wranglarr-gate, which asks for your wranglarr sign-in; through the proxy you sign in at https://w.example.com and the cookie covers *.example.com; by IP and port, at wranglarr on that address. Point your reverse proxy at the same ports as before (wiki: Reverse-Proxy).",
     "Nothing to wire by hand: on first start wranglarr connects download clients into the arrs (System > App connections).",
     "Trackers: add them on wranglarr's Indexers page (Torznab/Newznab feeds, Jackett, NZBHydra2, a Prowlarr) and pick which arrs get them."
    ],

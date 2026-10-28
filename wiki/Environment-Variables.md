@@ -76,7 +76,7 @@ Set by the setup wizard (`wranglarr-setup --auth` to change them) and applied by
 | `APPS_LOGIN_USER`, `APPS_LOGIN_PASSWORD` | `admin`, empty | init (`wranglarr-apps-auth`) | `apps`: the login. The wizard makes `QBITTORRENT_*` and `NZBGET_*` the same |
 | `APPS_AUTH_REQUIRED` | `enabled` | init | `apps`: the arrs ask `enabled` (everywhere) or `disabledForLocalAddresses` |
 | `AUTH_COOKIE_DOMAIN` | empty | wranglarr | `tunnel`: the sign-in cookie's domain, e.g. `example.com`, so it reaches `radarr.example.com` … |
-| `AUTH_LOGIN_URL` | empty | wranglarr | `tunnel`: wranglarr's address for the gate's login redirect, e.g. `https://wranglarr.example.com`; empty = the app's address on `WRANGLARR_PORT` |
+| `AUTH_LOGIN_URL` | empty | wranglarr | `tunnel`: wranglarr's name on your reverse proxy for the gate's login redirect, e.g. `https://wranglarr.example.com` (not this machine's IP), used for apps opened under `AUTH_COOKIE_DOMAIN`; otherwise, and when empty, the app's address on `WRANGLARR_PORT` |
 | `GATE_IMAGE` | `docker.io/nginxinc/nginx-unprivileged:1.27-alpine` | wranglarr-gate | `tunnel`: the gate's image |
 
 ## VPN, shared tunnel (`compose.vpn.yaml`) → [VPN: Shared Tunnel](VPN-Shared-Tunnel.md)

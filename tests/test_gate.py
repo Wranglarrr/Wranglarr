@@ -56,6 +56,18 @@ def test_gate_session(srv, session):
     assert gate(srv, {"X-Api-Key": "x"}).status_code == 401, "an X-Api-Key header doesn't count as a session"
 
 
+def test_gate_by_ip_signs_in_on_that_address(srv, session):
+    # an app opened by IP and port: the domain cookie from the proxy's sign-in would never
+    # reach it, so the gate sends it to wranglarr on the same address (WRANGLARR_PORT)
+    r = gate(srv, {"X-Original-Proto": "http", "X-Original-Host": "192.168.1.10:7878", "X-Original-URI": "/"})
+    want = "http://192.168.1.10:8787/login?next=" + quote("http://192.168.1.10:7878/", safe="")
+    assert r.status_code == 401 and r.headers["x-wranglarr-login"] == want, r.headers.get("x-wranglarr-login")
+    with srv.client() as c:              # signed in there, the login page sends you back to the app
+        r = c.get("/login", params={"next": "http://192.168.1.10:7878/"},
+                  headers={"Host": "192.168.1.10:8787", "Cookie": f"wranglarr_session={session}"})
+        assert r.status_code == 303 and r.headers["location"] == "http://192.168.1.10:7878/", r.headers.get("location")
+
+
 def test_gate_app_keys(srv, session):
     ga = {"X-Wranglarr-App": "radarr"}
     assert gate(srv, {**ga, "X-Wranglarr-Key": "x"}).status_code == 204, "the app's real API key (header)"
