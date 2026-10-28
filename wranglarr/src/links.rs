@@ -5,10 +5,10 @@
 //!   1. a per-app address set on the home page (Links), e.g. `https://radarr.example.com`
 //!   2. the domain pattern, e.g. https://{name}.home.example.com
 //!   3. when wranglarr itself was opened through the reverse proxy (at its domain or a
-//!      name under it): the app's name there, e.g. https://radarr.example.com, or for an
+//!      name under it): the app's name there, e.g. `https://radarr.example.com`, or for an
 //!      app without one, this machine's local address and the app's port (local only).
 //!      The domain and names come from the Reverse proxy page; without a domain there,
-//!      AuthTunnel's AUTH_COOKIE_DOMAIN with a name each ({name}.<domain>). The local
+//!      AuthTunnel's `AUTH_COOKIE_DOMAIN` with a name each (`{name}.<domain>`). The local
 //!      address is the Links panel's, else the Reverse proxy page's "this machine's address"
 //!   4. otherwise: the host the browser used to reach wranglarr (or the Links panel's
 //!      address) plus the port Docker publishes the app on, e.g. http://192.168.1.10:7878
@@ -313,7 +313,7 @@ fn local_address(s: &LinkSettings, page: &crate::proxy::ProxySettings, proxy: &c
 
 /// The proxy the links follow: the Reverse proxy page's, or, when it names no domain,
 /// AuthTunnel's cookie domain (`cookie_domain`, empty unless APPS_AUTH=tunnel), whose
-/// apps the wizard puts at a name each: https://radarr.example.com.
+/// apps the wizard puts at a name each: `https://radarr.example.com`.
 fn proxy_for_links(page: crate::proxy::ProxySettings, cookie_domain: &str) -> crate::proxy::ProxySettings {
     if !page.domain.trim().is_empty() || cookie_domain.is_empty() {
         return page;
