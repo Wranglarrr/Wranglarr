@@ -41,12 +41,10 @@ pub(super) fn caddyfile(on: &[&Plan], s: &ProxySettings, lan: &[String]) -> Out 
                 l.extend(body);
             } else {
                 let d = if p.strip { "handle_path" } else { "handle" };
-                let m = if p.strip { format!("{}/*", p.path) } else { format!("{}*", p.path) };
+                let m = format!("{}/*", p.path);
                 l.push(String::new());
                 l.push(format!("\t# {} ({})", p.name, tag(p)));
-                if p.strip {
-                    l.push(format!("\tredir {} {}/", p.path, p.path));
-                }
+                l.push(format!("\tredir {} {}/", p.path, p.path));
                 l.push(format!("\t{d} {m} {{"));
                 l.extend(lan_line.into_iter().chain(body).map(|x| format!("\t{x}")));
                 l.push("\t}".into());
@@ -80,11 +78,8 @@ pub(super) fn labels(on: &[&Plan], s: &ProxySettings, lan: &[String]) -> Out {
             if !p.path.is_empty() {
                 let d = if p.strip { "handle_path" } else { "handle" };
                 pre = format!("{c}.{d}");
-                l.push(if p.strip {
-                    format!("      {pre}: \"{}/*\"", p.path)
-                } else {
-                    format!("      {pre}: \"{}*\"", p.path)
-                });
+                l.push(format!("      {c}.redir: \"{} {}/ 308\"", p.path, p.path));
+                l.push(format!("      {pre}: \"{}/*\"", p.path));
             }
             if p.expose == "lan" {
                 l.push(format!("      {c}.{}: \"not remote_ip {rng}\"", matcher(p)));

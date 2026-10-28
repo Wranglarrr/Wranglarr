@@ -3,17 +3,18 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="wranglarr-base" content="{{ base }}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ 'Set up' if mode == 'setup' else 'Sign in' }} · wranglarr</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/static/brand/favicon-32.png">
-<link rel="icon" type="image/png" sizes="64x64" href="/static/brand/favicon-64.png">
-<link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
-<link rel="stylesheet" href="/static/style.css?v={{ asset_v }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ base }}/static/brand/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="{{ base }}/static/brand/favicon-64.png">
+<link rel="apple-touch-icon" href="{{ base }}/static/brand/apple-touch-icon.png">
+<link rel="stylesheet" href="{{ base }}/static/style.css?v={{ asset_v }}">
 <script>try{var t=localStorage.getItem('wranglarr-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body class="auth-page">
 <main class="auth-card">
-  <div class="auth-logo"><img src="/static/brand/wordmark.png" alt="wranglarr" class="wordmark"></div>
+  <div class="auth-logo"><img src="{{ base }}/static/brand/wordmark.png" alt="wranglarr" class="wordmark"></div>
 
   {% if mode == 'setup' %}
   <h1>Create the admin account</h1>
@@ -69,7 +70,7 @@
   </div>
   {% endif %}
 </main>
-<script src="/static/app.js?v={{ asset_v }}"></script>
-<script src="/static/auth.js?v={{ asset_v }}"></script>
+<script src="{{ base }}/static/app.js?v={{ asset_v }}"></script>
+<script src="{{ base }}/static/auth.js?v={{ asset_v }}"></script>
 </body>
 </html>

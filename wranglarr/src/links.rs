@@ -9,7 +9,8 @@
 //!      app without one, this machine's local address and the app's port (local only).
 //!      The domain and names come from the Reverse proxy page; without a domain there,
 //!      AuthTunnel's `AUTH_COOKIE_DOMAIN` with a name each (`{name}.<domain>`). The local
-//!      address is the Links panel's, else the Reverse proxy page's "this machine's address"
+//!      address is the Links panel's, else the Reverse proxy page's "this machine's address".
+//!      Placement is explicit: DNS, availability and login responses never change a link.
 //!   4. otherwise: the host the browser used to reach wranglarr (or the Links panel's
 //!      address) plus the port Docker publishes the app on, e.g. http://192.168.1.10:7878
 
@@ -233,54 +234,84 @@ pub fn unique_apps<'a>(apps: impl Iterator<Item = &'a AppConfig>) -> Vec<&'a App
     apps.filter(|a| seen.insert(a.name.clone())).collect()
 }
 
-/// wranglarr was opened through the reverse proxy: each proxied app's address there, and
-/// this machine's local address for the others ("" when it isn't known).
+/// What the links are made from, besides the settings.
 #[derive(Debug, Clone, Default)]
-pub struct Through {
-    pub urls: BTreeMap<String, String>,
+pub struct Where {
+    /// app -> where Docker publishes it
+    pub ports: BTreeMap<String, Published>,
+    /// This machine's address for the apps' own ports: the Links panel's, else the host
+    /// the browser used, or, through the proxy, the Reverse proxy page's address ("" when
+    /// none is known).
     pub local: String,
+    /// Opened through the proxy: the configured app addresses. None for direct access.
+    pub through: Option<BTreeMap<String, String>>,
 }
 
-/// The links, from the settings, the published ports and, when wranglarr was opened
-/// through the reverse proxy (port mode), the apps' addresses there (`through`).
-pub fn resolve_with(
-    s: &LinkSettings,
-    apps: &[&AppConfig],
-    through: Option<&Through>,
-    ports: &BTreeMap<String, Published>,
-    browser_host: &str,
-) -> BTreeMap<String, Link> {
-    let host = [s.host.as_str(), browser_host].into_iter().find(|h| !h.is_empty()).unwrap_or("localhost");
-    let mut out = BTreeMap::new();
-    for a in apps {
-        let link = if let Some(u) = s.apps.get(&a.name) {
-            Link { url: Some(u.clone()), how: "set", note: "set on this page".into() }
-        } else if s.mode == "domain" {
-            let url = format_pattern(&s.pattern, &a.name, &a.kind).unwrap_or_else(|_| s.pattern.clone());
-            Link { url: Some(url), how: "domain", note: "from the domain pattern".into() }
-        } else if let Some(t) = through {
-            match t.urls.get(&a.name) {
-                Some(u) => Link { url: Some(u.clone()), how: "proxy", note: "its name on the reverse proxy".into() },
-                None if t.local.is_empty() => Link {
-                    url: None,
-                    how: "none",
-                    note: "local only, not on the reverse proxy: put this machine's address under Address to link it"
-                        .into(),
-                },
-                None => {
-                    let mut l = port_link(s, a, ports, &t.local);
-                    if l.url.is_some() {
-                        l.note = format!("local only, not on the reverse proxy ({})", l.note);
-                    }
-                    l
-                }
-            }
-        } else {
-            port_link(s, a, ports, host)
-        };
-        out.insert(a.name.clone(), link);
+/// The links, from the settings and `w`.
+pub fn resolve_with(s: &LinkSettings, apps: &[&AppConfig], w: &Where) -> BTreeMap<String, Link> {
+    apps.iter().map(|a| (a.name.clone(), link_for(s, a, w))).collect()
+}
+
+/// Where `a` opens: its address set on the page; else the domain pattern (settings from
+/// before the Links panel had the proxy); else, opened through the proxy, its name there
+/// as configured, or this machine local only; otherwise this machine and its port.
+fn link_for(s: &LinkSettings, a: &AppConfig, w: &Where) -> Link {
+    if let Some(u) = s.apps.get(&a.name) {
+        return Link { url: Some(u.clone()), how: "set", note: "set on this page".into() };
     }
-    out
+    if s.mode == "domain" {
+        let url = format_pattern(&s.pattern, &a.name, &a.kind).unwrap_or_else(|_| s.pattern.clone());
+        return Link { url: Some(url), how: "domain", note: "from the domain pattern".into() };
+    }
+    let Some(t) = &w.through else { return local_link(s, a, w, "") };
+    if let Some(u) = t.get(&a.name) {
+        return Link { url: Some(u.clone()), how: "proxy", note: "its name on the reverse proxy".into() };
+    }
+    local_link(s, a, w, "direct IP, local only")
+}
+
+/// This machine's address and the port Docker publishes `a` on; `why`, if any, leads the note.
+fn local_link(s: &LinkSettings, a: &AppConfig, w: &Where, why: &str) -> Link {
+    if w.local.is_empty() {
+        let lead = if why.is_empty() { "no address for this machine".to_string() } else { why.to_string() };
+        return Link {
+            url: None,
+            how: "none",
+            note: format!("{lead}: put this machine's address under This machine to link it"),
+        };
+    }
+    let mut l = port_link(s, a, &w.ports, &w.local);
+    if l.url.is_some() && !why.is_empty() {
+        l.note = format!("{why} ({})", l.note);
+    }
+    l
+}
+
+/// An app's row on the Links panel: its port, its address on this machine, and where
+/// its card opens now.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Row {
+    pub port: Option<u16>,
+    /// where the port came from ("published port", "through wranglarr-gate"…)
+    pub port_how: String,
+    pub direct: Link,
+    pub now: Link,
+}
+
+/// app -> its [`Row`].
+pub fn rows_with(s: &LinkSettings, apps: &[&AppConfig], w: &Where) -> BTreeMap<String, Row> {
+    apps.iter()
+        .map(|a| {
+            let p = w.ports.get(&a.name).cloned().unwrap_or_default();
+            let row = Row {
+                port: p.port.filter(|n| *n != 0),
+                port_how: p.how,
+                direct: local_link(s, a, w, ""),
+                now: link_for(s, a, w),
+            };
+            (a.name.clone(), row)
+        })
+        .collect()
 }
 
 /// `host` plus the port Docker publishes `a` on.
@@ -300,25 +331,32 @@ fn port_link(s: &LinkSettings, a: &AppConfig, ports: &BTreeMap<String, Published
 }
 
 /// This machine's local address for links through the proxy: the Links panel's, else
-/// the Reverse proxy page's "this machine's address", when it is one (not loopback, not
-/// a name on the proxy itself).
-fn local_address(s: &LinkSettings, page: &crate::proxy::ProxySettings, proxy: &crate::proxy::ProxySettings) -> String {
+/// the one setup found (`found`, HOST_IP), else the Reverse proxy page's "the proxy
+/// reaches them" address, when it is one (not loopback, not a name on the proxy itself).
+fn local_address(
+    s: &LinkSettings,
+    found: &str,
+    page: &crate::proxy::ProxySettings,
+    proxy: &crate::proxy::ProxySettings,
+) -> String {
     if !s.host.is_empty() {
         return s.host.clone();
+    }
+    if !found.is_empty() {
+        return found.to_string();
     }
     let h = page.upstream_host.trim();
     let loopback = h.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback()) || h.eq_ignore_ascii_case("localhost");
     if h.is_empty() || loopback || crate::proxy::under_domain(proxy, h) { String::new() } else { h.to_string() }
 }
 
-/// The proxy the links follow: the Reverse proxy page's, or, when it names no domain,
-/// AuthTunnel's cookie domain (`cookie_domain`, empty unless APPS_AUTH=tunnel), whose
-/// apps the wizard puts at a name each: `https://radarr.example.com`.
-fn proxy_for_links(page: crate::proxy::ProxySettings, cookie_domain: &str) -> crate::proxy::ProxySettings {
+/// The proxy the links follow: the saved settings, with AuthTunnel's cookie domain
+/// (`cookie_domain`, empty unless APPS_AUTH=tunnel) when they name no domain.
+pub fn proxy_for_links(page: crate::proxy::ProxySettings, cookie_domain: &str) -> crate::proxy::ProxySettings {
     if !page.domain.trim().is_empty() || cookie_domain.is_empty() {
         return page;
     }
-    crate::proxy::ProxySettings { domain: cookie_domain.to_string(), ..Default::default() }
+    crate::proxy::ProxySettings { domain: cookie_domain.to_string(), ..page }
 }
 
 /// The first host binding of `<inner>/tcp` in a container's inspect.
@@ -362,7 +400,7 @@ impl<'a> Links<'a> {
     }
 
     /// Check and save; a bad value is a 400 with the reason.
-    pub async fn save(&self, body: &LinkSettings) -> Result<LinkSettings> {
+    pub fn check(&self, body: &LinkSettings) -> Result<LinkSettings> {
         let mode = body.mode.as_str();
         if mode != "port" && mode != "domain" {
             return Err(Error::invalid("mode: port or domain"));
@@ -394,6 +432,11 @@ impl<'a> Links<'a> {
             pattern,
             apps,
         };
+        Ok(s)
+    }
+
+    pub async fn save(&self, body: &LinkSettings) -> Result<LinkSettings> {
+        let s = self.check(body)?;
         self.0.state().put(KEY, &s).await?;
         Ok(s)
     }
@@ -465,14 +508,90 @@ impl<'a> Links<'a> {
     pub async fn resolve(&self, browser_host: &str) -> BTreeMap<String, Link> {
         let s = self.settings().await;
         let apps = self.apps();
-        if s.mode != "port" {
-            return resolve_with(&s, &apps, None, &BTreeMap::new(), browser_host);
+        resolve_with(&s, &apps, &self.where_(&s, &apps, browser_host).await)
+    }
+
+    /// app -> its row on the Links panel.
+    pub async fn rows(&self, browser_host: &str) -> BTreeMap<String, Row> {
+        let s = self.settings().await;
+        let apps = self.apps();
+        rows_with(&s, &apps, &self.where_(&s, &apps, browser_host).await)
+    }
+
+    /// What the Links panel shows, for a browser at `browser_host`: the proxy's domain and
+    /// LAN ranges, this machine's address, and wranglarr and each app: where it is on the
+    /// proxy, its port, its direct address and where its card opens now.
+    pub async fn panel(&self, browser_host: &str) -> Value {
+        let s = self.settings().await;
+        let apps = self.apps();
+        let w = self.where_(&s, &apps, browser_host).await;
+        let rows = rows_with(&s, &apps, &w);
+        let page = self.0.proxy().settings().await;
+        let auth = self.0.auth().options();
+        let place = |name: &str, kind: &str| {
+            let p = crate::proxy::placement(&page, name, kind);
+            serde_json::json!({"name": name, "kind": kind, "at": p.at, "local": p.local, "sub": p.sub,
+                               "own_name": kind != "wranglarr" && crate::proxy::own_name(kind),
+                               // AuthTunnel: behind wranglarr-gate, signed in with wranglarr's cookie
+                               "gated": auth.tunnel && kind != "wranglarr" && !crate::proxy::ungated(kind)})
+        };
+        let port = self.0.deployment().proxy.wranglarr_port;
+        let base = &self.0.deployment().proxy.url_base;
+        let mut me = place("wranglarr", "wranglarr");
+        me["port"] = port.into();
+        me["base"] = base.clone().into();
+        me["direct"] = match w.local.as_str() {
+            "" => Value::Null,
+            h => format!("{}://{}:{port}{base}/", s.scheme, host_part(h)).into(),
+        };
+        let effective = proxy_for_links(page.clone(), &auth.cookie_domain);
+        let planned = crate::proxy::plan(
+            &[crate::proxy::Entry::wranglarr()],
+            &effective,
+            browser_host,
+            &BTreeMap::new(),
+            &self.0.deployment().proxy,
+        );
+        let p = &planned[0];
+        me["now"] = if crate::proxy::under_domain(&effective, browser_host) && p.expose != "off" {
+            serde_json::json!({"url": format!("https://{}{}/", p.fqdn, if p.path.is_empty() { base } else { &p.path }),
+                "how": "proxy", "note": "its address on the reverse proxy"})
+        } else {
+            serde_json::json!({"url": me["direct"], "how": "port", "note": "this machine and wranglarr's port"})
+        };
+        let mut list = vec![me];
+        for a in &apps {
+            let mut v = place(&a.name, &a.kind);
+            let r = &rows[&a.name];
+            v["port"] = serde_json::json!(r.port);
+            v["port_how"] = r.port_how.clone().into();
+            v["direct"] = serde_json::json!(r.direct.url);
+            v["now"] = serde_json::json!(r.now);
+            v["custom"] = serde_json::json!(s.apps.get(&a.name));
+            v["base"] =
+                parse_url(&a.url).map(|u| u.path().trim_end_matches('/').to_string()).unwrap_or_default().into();
+            list.push(v);
         }
+        serde_json::json!({
+            "apps": list, "domain": page.domain, "lan": page.lan, "this_machine": w.local,
+            "tunnel": auth.tunnel, "cookie_domain": auth.cookie_domain, "login_url": auth.login_url,
+            "host_ip": self.0.deployment().proxy.host_ip,
+            "url_base": base,
+        })
+    }
+
+    async fn where_(&self, s: &LinkSettings, apps: &[&AppConfig], browser_host: &str) -> Where {
         let page = self.0.proxy().settings().await;
         let proxy = proxy_for_links(page.clone(), &self.0.auth().options().cookie_domain);
-        let through = crate::proxy::public_urls(&proxy, &apps, browser_host)
-            .map(|urls| Through { urls, local: local_address(&s, &page, &proxy) });
-        resolve_with(&s, &apps, through.as_ref(), &self.published(false).await, browser_host)
+        let names = crate::proxy::proxy_urls(&proxy, apps);
+        let via_proxy = crate::proxy::under_domain(&proxy, browser_host);
+        let local = if via_proxy {
+            local_address(s, &self.0.deployment().proxy.host_ip, &page, &proxy)
+        } else {
+            [s.host.as_str(), browser_host].into_iter().find(|h| !h.is_empty()).unwrap_or("localhost").to_string()
+        };
+        let through = (via_proxy && s.mode == "port").then_some(names);
+        Where { ports: self.published(false).await, local, through }
     }
 
     // ---- logos -----------------------------------------------------------------------
@@ -633,7 +752,7 @@ mod tests {
             Published { port: None, how: "not published on the host".into(), ..Default::default() },
         );
         let s = LinkSettings::default();
-        let l = resolve_with(&s, &refs, None, &ports, "192.168.1.10");
+        let l = resolve_with(&s, &refs, &at(&ports, "192.168.1.10"));
         assert_eq!(
             l["radarr"],
             Link { url: Some("http://192.168.1.10:7878/".into()), how: "port", note: "published port".into() }
@@ -653,16 +772,43 @@ mod tests {
             apps: [("qb".to_string(), "https://qb.example.com".to_string())].into(),
             ..Default::default()
         };
-        let l = resolve_with(&s, &refs, None, &ports, "ignored");
+        let l = resolve_with(&s, &refs, &at(&ports, "::1"));
         assert_eq!(l["radarr"].url.as_deref(), Some("https://[::1]:7878/"));
         assert_eq!(l["sonarr"].note, "published port", "loopback is fine from the host itself");
         assert_eq!(
             l["qb"],
             Link { url: Some("https://qb.example.com".into()), how: "set", note: "set on this page".into() }
         );
-        // no host at all
-        let l = resolve_with(&LinkSettings::default(), &refs, None, &ports, "");
-        assert_eq!(l["radarr"].url.as_deref(), Some("http://localhost:7878/"));
+    }
+
+    fn at(ports: &BTreeMap<String, Published>, local: &str) -> Where {
+        Where { ports: ports.clone(), local: local.into(), ..Default::default() }
+    }
+
+    #[test]
+    fn panel_rows_show_the_port_the_direct_address_and_the_card() {
+        let apps = [app("radarr", "radarr", "http://radarr:7878"), app("qb", "qbittorrent", "http://qb:8090")];
+        let refs: Vec<&AppConfig> = apps.iter().collect();
+        let ports: BTreeMap<String, Published> = [
+            ("radarr".to_string(), port(7878, false)),
+            (
+                "qb".to_string(),
+                Published { port: Some(8090), how: "through wranglarr-gate".into(), ..Default::default() },
+            ),
+        ]
+        .into();
+        let names: BTreeMap<String, String> = [
+            ("radarr".to_string(), "https://radarr.example.com/".to_string()),
+            ("qb".to_string(), "https://qb.example.com/".to_string()),
+        ]
+        .into();
+        let w = Where { through: Some(names), ..at(&ports, "192.168.1.10") };
+        let r = rows_with(&LinkSettings::default(), &refs, &w);
+        assert_eq!((r["qb"].port, r["qb"].port_how.as_str()), (Some(8090), "through wranglarr-gate"));
+        assert_eq!(r["qb"].direct.url.as_deref(), Some("http://192.168.1.10:8090/"));
+        assert_eq!(r["qb"].now.url.as_deref(), Some("https://qb.example.com/"));
+        assert_eq!(r["radarr"].now.url.as_deref(), Some("https://radarr.example.com/"));
+        assert_eq!(r["radarr"].direct.note, "published port");
     }
 
     #[test]
@@ -672,8 +818,9 @@ mod tests {
         let ports: BTreeMap<String, Published> =
             [("radarr".to_string(), port(7878, false)), ("qb".to_string(), port(8090, false))].into();
         let urls: BTreeMap<String, String> = [("radarr".to_string(), "https://radarr.example.com/".to_string())].into();
-        let through = Through { urls, local: "192.168.1.10".into() };
-        let l = resolve_with(&LinkSettings::default(), &refs, Some(&through), &ports, "wranglarr.example.com");
+        let through = urls;
+        let w = Where { through: Some(through.clone()), ..at(&ports, "192.168.1.10") };
+        let l = resolve_with(&LinkSettings::default(), &refs, &w);
         assert_eq!(
             l["radarr"],
             Link {
@@ -688,20 +835,20 @@ mod tests {
             Link {
                 url: Some("http://192.168.1.10:8090/".into()),
                 how: "port",
-                note: "local only, not on the reverse proxy (published port)".into()
+                note: "direct IP, local only (published port)".into()
             }
         );
         // ... and without a local address to use, no link rather than a wrong one
-        let unknown = Through { local: String::new(), ..through.clone() };
-        let l = resolve_with(&LinkSettings::default(), &refs, Some(&unknown), &ports, "wranglarr.example.com");
+        let unknown = Where { local: String::new(), ..w.clone() };
+        let l = resolve_with(&LinkSettings::default(), &refs, &unknown);
         assert_eq!((l["qb"].url.as_ref(), l["qb"].how), (None, "none"));
-        assert!(l["qb"].note.starts_with("local only"), "{}", l["qb"].note);
+        assert!(l["qb"].note.contains("local only"), "{}", l["qb"].note);
         // a per-app address and the domain pattern still come first
         let set = LinkSettings {
             apps: [("radarr".to_string(), "http://10.0.0.5:7878".to_string())].into(),
             ..Default::default()
         };
-        assert_eq!(resolve_with(&set, &refs, Some(&through), &ports, "x")["radarr"].how, "set");
+        assert_eq!(resolve_with(&set, &refs, &w)["radarr"].how, "set");
     }
 
     #[test]
@@ -710,11 +857,16 @@ mod tests {
         let proxy = ProxySettings { domain: "example.com".into(), ..Default::default() };
         let page = |h: &str| ProxySettings { upstream_host: h.into(), ..Default::default() };
         let fixed = LinkSettings { host: "nas.lan".into(), ..Default::default() };
-        assert_eq!(local_address(&fixed, &page("192.168.1.10"), &proxy), "nas.lan", "the Links panel's first");
+        assert_eq!(
+            local_address(&fixed, "10.0.0.9", &page("192.168.1.10"), &proxy),
+            "nas.lan",
+            "the Links panel's first"
+        );
         let blank = LinkSettings::default();
-        assert_eq!(local_address(&blank, &page("192.168.1.10"), &proxy), "192.168.1.10");
+        assert_eq!(local_address(&blank, "10.0.0.9", &page("192.168.1.10"), &proxy), "10.0.0.9", "then setup's");
+        assert_eq!(local_address(&blank, "", &page("192.168.1.10"), &proxy), "192.168.1.10");
         for not_local in ["", "127.0.0.1", "localhost", "::1", "wranglarr.example.com"] {
-            assert_eq!(local_address(&blank, &page(not_local), &proxy), "", "{not_local}");
+            assert_eq!(local_address(&blank, "", &page(not_local), &proxy), "", "{not_local}");
         }
     }
 
@@ -726,6 +878,11 @@ mod tests {
         let page = ProxySettings { domain: "home.net".into(), style: "path".into(), ..Default::default() };
         assert_eq!(proxy_for_links(page.clone(), "example.com"), page, "the page's own domain comes first");
         assert_eq!(proxy_for_links(ProxySettings::default(), ""), ProxySettings::default(), "no tunnel: nothing");
+        // the apps' places still count with AuthTunnel's domain
+        let mut apps = ProxySettings::default();
+        apps.apps
+            .insert("qb".into(), crate::proxy::AppExpose { at: "direct".into(), local: false, sub: String::new() });
+        assert_eq!(proxy_for_links(apps.clone(), "example.com").apps, apps.apps);
     }
 
     #[test]
@@ -738,7 +895,7 @@ mod tests {
             apps: [("qb".to_string(), "http://192.168.1.20:8080".to_string())].into(),
             ..Default::default()
         };
-        let l = resolve_with(&s, &refs, None, &BTreeMap::new(), "h");
+        let l = resolve_with(&s, &refs, &at(&BTreeMap::new(), "h"));
         assert_eq!(
             l["radarr4k"],
             Link {

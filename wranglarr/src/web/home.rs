@@ -26,6 +26,7 @@ pub fn routes() -> Router<App> {
     Router::new()
         .route("/", get(home))
         .route("/api/links", get(links).put(links_save).delete(links_reset))
+        .route("/api/links/configuration", axum::routing::put(links_configuration_save))
         .route("/api/home/settings", get(home_settings).put(home_settings_save).delete(home_settings_reset))
         .route("/api/home/feeds", get(home_feeds))
         .route("/api/app-logins", get(app_logins))
@@ -87,6 +88,7 @@ async fn home(State(app): State<App>, ctx: Ctx) -> Page {
         "home",
         json!({
             "groups": home_groups(&suites), "links": app.links().settings().await, "suites": suites,
+            "panel": app.links().panel(&ctx.host).await,
             "home_settings": app.feeds().settings().await, "apps_auth": mode, "apps_auth_text": mode_text(&mode),
             "rerun": rerun(&app.deployment().image), "browser_host": ctx.host,
             "own": app.updates().own_row().await,
@@ -100,7 +102,9 @@ async fn home(State(app): State<App>, ctx: Ctx) -> Page {
 
 async fn links_answer(app: &App, ctx: &Ctx) -> axum::Json<Value> {
     let resolved = app.links().resolve(&ctx.host).await;
-    axum::Json(json!({"settings": app.links().settings().await, "links": resolved}))
+    axum::Json(
+        json!({"settings": app.links().settings().await, "links": resolved, "panel": app.links().panel(&ctx.host).await}),
+    )
 }
 
 async fn links(State(app): State<App>, ctx: Ctx) -> axum::Json<Value> {
@@ -109,6 +113,23 @@ async fn links(State(app): State<App>, ctx: Ctx) -> axum::Json<Value> {
 
 async fn links_save(State(app): State<App>, ctx: Ctx, Body(body): Body<LinkSettings>) -> ApiResult<axum::Json<Value>> {
     app.links().save(&body).await?;
+    app.links().published(true).await;
+    Ok(links_answer(&app, &ctx).await)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LinksConfiguration {
+    proxy: Map<String, Value>,
+    links: LinkSettings,
+}
+
+async fn links_configuration_save(
+    State(app): State<App>,
+    ctx: Ctx,
+    Body(body): Body<LinksConfiguration>,
+) -> ApiResult<axum::Json<Value>> {
+    app.proxy().save_with_links(&body.proxy, &body.links).await?;
     app.links().published(true).await;
     Ok(links_answer(&app, &ctx).await)
 }

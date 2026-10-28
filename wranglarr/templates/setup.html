@@ -3,17 +3,18 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="wranglarr-base" content="{{ base }}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>wranglarr setup</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/static/brand/favicon-32.png">
-<link rel="icon" type="image/png" sizes="64x64" href="/static/brand/favicon-64.png">
-<link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
-<link rel="stylesheet" href="/static/style.css?v={{ asset_v }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ base }}/static/brand/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="{{ base }}/static/brand/favicon-64.png">
+<link rel="apple-touch-icon" href="{{ base }}/static/brand/apple-touch-icon.png">
+<link rel="stylesheet" href="{{ base }}/static/style.css?v={{ asset_v }}">
 <script>try{var t=localStorage.getItem('wranglarr-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body>
 <header class="hdr">
-  <a class="logo" href="/"><img src="/static/brand/wordmark.png" alt="wranglarr" class="wordmark"></a>
+  <a class="logo" href="{{ base }}/"><img src="{{ base }}/static/brand/wordmark.png" alt="wranglarr" class="wordmark"></a>
   <div class="hdr-mid">{{ "App logins" if auth_only else "First-run setup" }} · writing to <code style="color:#ddd">{{ target }}</code></div>
   <div class="hdr-right"><button class="ibtn theme-btn" data-theme title="Light or dark" aria-label="Switch light or dark">{{ i.icon('theme') }}</button></div>
 </header>
@@ -32,7 +33,7 @@
   </main>
 </div>
 <div id="toast" class="toast" hidden></div>
-<script src="/static/app.js?v={{ asset_v }}"></script>
-<script src="/static/setup.js?v={{ asset_v }}"></script>
+<script src="{{ base }}/static/app.js?v={{ asset_v }}"></script>
+<script src="{{ base }}/static/setup.js?v={{ asset_v }}"></script>
 </body>
 </html>

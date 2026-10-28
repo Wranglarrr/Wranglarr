@@ -279,6 +279,9 @@ services:
       AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:-}
       AUTH_LOGIN_URL: ${AUTH_LOGIN_URL:-}
       WRANGLARR_PORT: ${WRANGLARR_PORT:-8787}
+      WRANGLARR_URL_BASE: ${WRANGLARR_URL_BASE:-}
+      # this machine's address on the network (setup or init.sh finds it)
+      HOST_IP: ${HOST_IP:-}
     ports:
       - ${WRANGLARR_PORT:-8787}:8787
     volumes:

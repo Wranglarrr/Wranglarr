@@ -48,7 +48,7 @@
   <thead><tr><th>Run</th>{% if show_suite %}<th>Suite</th>{% endif %}<th>Kind</th><th>Status</th><th>Started</th><th>Result</th></tr></thead>
   <tbody>
   {% for r in runs %}
-  <tr><td><a href="/runs/{{ r.id }}">#{{ r.id }}</a></td>{% if show_suite %}<td>{{ r.suite }}</td>{% endif %}<td>{{ r.kind }} {{ r.target }}</td>
+  <tr><td><a href="{{ base }}/runs/{{ r.id }}">#{{ r.id }}</a></td>{% if show_suite %}<td>{{ r.suite }}</td>{% endif %}<td>{{ r.kind }} {{ r.target }}</td>
       <td>{{ status_pill(r.status) }}</td><td class="muted small">{{ r.started|fmt_ts }}</td>
       <td class="muted small">{{ r.result.version or r.result.error or (r.result.done|join(', ') if r.result.done) or (r.result.results|items|map('join', '=')|join(', ') if r.result.results is mapping) or '' }}</td></tr>
   {% endfor %}
@@ -58,7 +58,7 @@
 
 {# an app's own logo (asked from the app), its kind's shipped one if that fails #}
 {% macro app_logo(name, kind, cls="ico-logo app") -%}
-<img class="{{ cls }}" src="/api/apps/{{ name|urlencode }}/logo" alt="" title="{{ name }}" loading="lazy" data-fallback="{{ KIND_ICON[kind]|default('') }}">
+<img class="{{ cls }}" src="{{ base }}/api/apps/{{ name|urlencode }}/logo" alt="" title="{{ name }}" loading="lazy" data-fallback="{{ KIND_ICON[kind]|default('') }}">
 {%- endmacro %}
 
 {# the last backups as bars: height = size, colour only where something went wrong #}
@@ -67,7 +67,7 @@
 <div class="hist-wrap"><span class="hist-cap">last {{ rows|length }} backup{{ '' if rows|length == 1 else 's' }} · size</span>
 <div class="hist{{ ' big' if big }}" role="list" aria-label="last {{ rows|length }} backups of {{ suite }}, oldest first">
   {% for r in rows %}
-  <a role="listitem" class="hist-bar s-{{ r.status }}" href="/suites/{{ suite }}/versions/{{ r.version }}"
+  <a role="listitem" class="hist-bar s-{{ r.status }}" href="{{ base }}/suites/{{ suite }}/versions/{{ r.version }}"
      data-tip="{{ r.version|fmt_ts }} · {{ r.bytes|human_bytes }} · {{ r.status }}{{ ' · ' ~ r.trigger if r.trigger }}"
      aria-label="{{ r.version|fmt_ts }}, {{ r.bytes|human_bytes }}, {{ r.status }}"><i style="height: {{ r.h }}%"></i>{% if r.status != 'ok' %}<b>!</b>{% endif %}</a>
   {% endfor %}
@@ -91,8 +91,8 @@
 {% macro suite_facts(s, last) -%}
 <dl class="sfacts">
   <div><dt>Last backup</dt>
-    <dd>{% if s.active_run %}<a href="/runs/{{ s.active_run.id }}">{{ s.active_run.kind }} running now…</a>
-        {% elif last %}<a href="/suites/{{ s.name }}/versions/{{ last.version }}">{{ last.version|human_age }}</a> {{ status_pill(last.status) }}
+    <dd>{% if s.active_run %}<a href="{{ base }}/runs/{{ s.active_run.id }}">{{ s.active_run.kind }} running now…</a>
+        {% elif last %}<a href="{{ base }}/suites/{{ s.name }}/versions/{{ last.version }}">{{ last.version|human_age }}</a> {{ status_pill(last.status) }}
         {% else %}<span class="muted">never</span>{% endif %}</dd>
     <dd class="sub">{% if last %}{{ last.version|fmt_ts }} · {{ last.trigger or 'manual' }}{% else %}nothing stored yet{% endif %}</dd></div>
   <div><dt>Schedule</dt>

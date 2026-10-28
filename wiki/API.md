@@ -611,6 +611,7 @@ What the Dashboard shows ([Dashboard](Dashboard.md)).
 | --- | --- | --- | --- |
 | GET | `/api/links` | | `{"settings": …, "links": {"<app>": {"url", "how", "note"}}}` |
 | PUT | `/api/links` | link settings (below) | as GET; `400` |
+| PUT | `/api/links/configuration` | `{"proxy": {…}, "links": {…}}` | as GET; atomic save of both; `400` |
 | DELETE | `/api/links` | | back to the defaults; as GET |
 | GET | `/api/apps/{app}/logo` | | the app's own logo (`image/svg+xml` or `image/png`), else the one wranglarr ships; `404` |
 | GET | `/api/home/settings` | | what the Dashboard lists show |
@@ -622,19 +623,31 @@ What the Dashboard shows ([Dashboard](Dashboard.md)).
 Link settings. A PUT replaces them all:
 
 ```json
-{"mode": "domain", "scheme": "https", "host": "",
- "pattern": "https://{name}.home.example.com", "apps": {"seerr": "https://requests.example.com"}}
+{"mode": "port", "scheme": "http", "host": "192.168.1.10",
+ "pattern": "", "apps": {"seerr": "https://requests.example.com"}}
 ```
 
-`mode` is `port` (the host plus each app's published port; `host` is that
-host, empty = the one the browser used) or `domain` (`pattern`, with
-`{name}` or `{kind}`). `apps` sets one app's address outright. In the
+`host` is this machine's address for the direct links (empty = the one the
+browser used); `apps` sets one app's address outright. `mode` is `port`, or
+`domain` for a `pattern` with `{name}` or `{kind}` saved before the Links panel
+had the proxy settings (the panel saves `port`). Where each app is on the proxy
+is `/api/proxy`'s `apps`. The GET answer also has `panel`: the proxy domain, the
+local network, this machine's address, and wranglarr and each app with its
+place (`at`, `local`, `sub`), its `port`, its `direct` address and where its card
+opens `now`. In the
 answer, `how` is `set`, `domain`, `proxy` (its name on the reverse proxy: the
 request came in at the Reverse proxy page's domain, AuthTunnel's cookie
 domain, or a name under it), `port` or `none` (not published: set an address
-for it). Through the proxy, an app without a name there gets `port` at `host`
-(else the Reverse proxy page's address), with a note starting `local only`. Links are built from the host the request was sent to, so
+for it). Through the proxy, an app configured as Direct IP gets `port` at `host`
+(else `HOST_IP`, else the Reverse proxy page's address), with a note saying
+`local only`. Configured proxy URLs are used without network probing. Links are built from the host the request was sent to, so
 a script gets the addresses for the name it used.
+
+The Links panel uses `PUT /api/links/configuration`: `proxy` has the same patch
+semantics as `PUT /api/proxy`, while `links` replaces the link settings. Both
+objects are required and validated before either is written. They are committed
+in one SQLite transaction, so validation or database failure changes neither.
+Use the individual endpoints when changing only one set of settings.
 
 Dashboard settings and their defaults:
 
@@ -685,6 +698,11 @@ bytes per second, `eta` seconds. `arr` is the arr the category belongs to, or
 
 No passwords are returned.
 
+With `WRANGLARR_URL_BASE=/wranglarr`, every API route also accepts the
+`/wranglarr` prefix, while bare endpoints stay available for internal callers.
+Browser URLs and redirects include the base. Authentication and origin checks
+apply identically to both forms.
+
 ### Reverse proxy
 
 Config text for a reverse proxy, built from the stack as it is now
@@ -693,24 +711,33 @@ is changed in your proxy.
 
 | Method | Path | Body | Answer |
 | --- | --- | --- | --- |
-| GET | `/api/proxy` | | `{"settings", "text", "filename", "how", "plan", "notes"}` |
+| GET | `/api/proxy` | | `{"settings", "valid", "text", "filename", "how", "plan", "notes"}` |
 | PUT | `/api/proxy` | the settings (below) | as GET; `400` |
 
 ```json
-{"kind": "caddy", "style": "subdomain", "domain": "example.com", "upstream": "host", "upstream_host": "",
+{"kind": "caddy", "domain": "example.com", "upstream": "host", "upstream_host": "",
  "lan": "192.168.1.0/24", "network": "proxy", "entrypoint": "websecure", "resolver": "letsencrypt",
- "apps": {"radarr": {"expose": "lan", "sub": ""}, "seerr": {"expose": "public", "sub": "requests"}}}
+ "apps": {"wranglarr": {"at": "subdomain", "local": false, "sub": ""},
+          "radarr": {"at": "path", "local": true, "sub": ""},
+          "seerr": {"at": "subdomain", "local": false, "sub": "requests"},
+          "qbittorrent": {"at": "direct", "local": true, "sub": ""}}}
 ```
 
 - `kind`: `caddy`, `nginx`, `traefik-file`, `traefik-labels`, `caddy-labels`, `cloudflared`, `npm`.
-- `style`: `subdomain` or `path`. `upstream`: `host` (the published ports) or `docker` (the proxy is a container on the stack's network).
-- `lan`: the networks a `lan` app answers; empty = the private ranges.
+- `upstream`: `host` (the published ports) or `docker` (the proxy is a container on the stack's network).
+- `lan`: the networks a local-only app answers; empty = the private ranges.
+- `domain`: empty with AuthTunnel = `AUTH_COOKIE_DOMAIN`.
 - `network`, `entrypoint`, `resolver`: Traefik's and caddy-docker-proxy's names.
-- `apps`: per app (and `wranglarr`), `expose` is `public`, `lan` or `off`, and `sub` its name (default: the app's name).
+- `apps`: per app (and `wranglarr`), `at` is `subdomain` (its own name), `path` (under wranglarr's name) or `direct` (not proxied); wranglarr's is `subdomain`, `domain` (the domain itself), `path` (at `/{sub}` on the domain, requiring the same `WRANGLARR_URL_BASE`) or `direct`. `local`: only the `lan` networks get through. `sub`: its name (default: the app's name). Unset, an app is where `style` puts it (`subdomain`, or `path` for a path each), local only. The older `{"expose": "public" | "lan" | "off"}` still reads.
 
 A PUT merges with the saved settings: a field left out keeps its value. The answer's
 `plan` says, per app, its address and where the proxy sends it; `notes`
-lists what to do by hand (URL bases, DNS, …).
+lists what to do by hand (URL bases, DNS, …). Duplicate routes, reserved wranglarr
+paths and unsupported placements are `400` errors and are not saved. NPM requires
+one access policy per hostname. Cloudflare Tunnel rejects local-only routes and
+paths that require stripping. An existing invalid configuration returns
+`valid: false`, an empty `text`, and an explanation in `notes`, keeping the editor
+accessible without producing an unsafe scaffold.
 
 ### Community configs
 

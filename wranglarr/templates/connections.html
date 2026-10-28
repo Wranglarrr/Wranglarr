@@ -56,7 +56,7 @@
   <div id="seerr"><p class="muted">loading…</p></div>
 </section>
 
-<p class="muted small">Between the stack's own apps (download clients, Prowlarr, Bazarr): <a href="/system">System → App connections</a>.
-  Notifications to your phone: <a href="/notifications">Notifications</a>.</p>
+<p class="muted small">Between the stack's own apps (download clients, Prowlarr, Bazarr): <a href="{{ base }}/system">System → App connections</a>.
+  Notifications to your phone: <a href="{{ base }}/notifications">Notifications</a>.</p>
 {% endblock %}
-{% block scripts %}<script src="/static/connections.js?v={{ asset_v }}"></script>{% endblock %}
+{% block scripts %}<script src="{{ base }}/static/connections.js?v={{ asset_v }}"></script>{% endblock %}

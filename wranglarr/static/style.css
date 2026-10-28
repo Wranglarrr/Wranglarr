@@ -227,7 +227,10 @@ a.poster:hover .poster-open, a.poster:focus-visible .poster-open { opacity: 1 }
 .note-login { font-size: 12px; margin-top: 2px }
 table.logins-table { width: auto } table.logins-table td, table.logins-table th { padding: 3px 14px 3px 0; border: 0; vertical-align: top; text-align: left }
 #logins-panel .check-line, #step-body .check-line { display: flex; gap: 8px; align-items: baseline; margin: 4px 0; font-weight: 400; flex-wrap: wrap }
-.links-table input { width: 100%; min-width: 260px; max-width: 440px }
+.links-table th { text-align: left; font-weight: 500; color: var(--muted); padding: 3px 12px 3px 0 }
+.links-addr { white-space: nowrap } .links-addr input[name=sub] { width: auto; padding: 1px 4px }
+.links-table select[name=at] { width: auto } .links-local { white-space: nowrap }
+.links-addr input[name=custom] { width: 100%; min-width: 260px; max-width: 440px }
 #links-panel .check-line { display: flex; gap: 8px; align-items: baseline; margin: 4px 0; font-weight: 400; flex-wrap: wrap }
 table.proxy-table td, table.proxy-table th { padding: 4px 14px 4px 0; border: 0; vertical-align: middle; text-align: left }
 .proxy-table label.inline { display: inline-flex; margin-right: 10px; font-weight: 400 }
@@ -408,7 +411,10 @@ a.card:hover .card-open, a.card:focus-visible .card-open { opacity: 1 }
   .fi-when { width: 54px; font-size: 10.5px; white-space: normal; line-height: 1.25 }
   .fi > a, .fi-row { gap: 8px; padding: 5px 8px }
   .toolbar .tb-text { display: none }
-  .links-table input { min-width: 0 }
+  .links-table input[name=custom] { min-width: 0 } .links-addr { white-space: normal }
+  .links-table, .links-table tbody { display: block; width: 100% } .links-table thead { display: none }
+  .links-table tr { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid var(--line) }
+  table.links-table td { padding: 0 } .links-table td:nth-child(5) { grid-column: 1 / -1 }
 }
 
 /* crumbs */

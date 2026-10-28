@@ -97,7 +97,7 @@ Prowlarr is registered in every arr for you. Trackers, usenet indexers, Jackett,
 <td width="50%" valign="top">
 <picture><source media="(prefers-color-scheme: dark)" srcset="wiki/images/readme/proxy-dark.png"><img src="wiki/images/readme/proxy-light.png" alt="The reverse-proxy config generator"></picture>
 <h3>Reverse-proxy config, written for you</h3>
-Caddy, nginx, Traefik, caddy-docker-proxy, Cloudflare Tunnel or Nginx Proxy Manager, generated from the stack as it is. Each app public, LAN only or not proxied, at a name or a path.
+Caddy, nginx, Traefik, caddy-docker-proxy, Cloudflare Tunnel or Nginx Proxy Manager, generated from the stack as it is. Each app at a name of its own, a path under wranglarr's, or direct IP, public or local only, set on the dashboard with the links. Wranglarr itself can also live at a path such as `https://myhouse.com/wranglarr` (`WRANGLARR_URL_BASE=/wranglarr`), with app paths alongside it.
 <br><a href="https://github.com/Wranglarrr/Wranglarr/wiki/Reverse-Proxy">Reverse proxy →</a> · <a href="https://github.com/Wranglarrr/Wranglarr/wiki/Remote-Access">Tailscale and Cloudflare →</a>
 </td>
 <td width="50%" valign="top">

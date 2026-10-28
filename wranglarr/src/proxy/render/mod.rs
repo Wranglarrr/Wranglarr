@@ -28,7 +28,8 @@ pub struct Rendered {
 }
 
 /// The config for a plan in the settings' kind of proxy, with its notes.
-pub fn render(plan: Vec<Plan>, s: &ProxySettings, env: &ProxyEnv) -> Rendered {
+pub fn render(plan: Vec<Plan>, s: &ProxySettings, env: &ProxyEnv) -> crate::error::Result<Rendered> {
+    super::validation::validate_plan(&plan, s)?;
     let on: Vec<&Plan> = plan.iter().filter(|p| p.expose != "off" && !p.up.is_empty()).collect();
     let lan: Vec<String> = if s.lan.is_empty() {
         PRIVATE.iter().map(|r| r.to_string()).collect()
@@ -45,7 +46,7 @@ pub fn render(plan: Vec<Plan>, s: &ProxySettings, env: &ProxyEnv) -> Rendered {
         _ => caddy::caddyfile(&on, s, &lan),
     };
     let notes = notes(&plan, s, env);
-    Rendered { text, filename, how, plan, notes }
+    Ok(Rendered { text, filename, how, plan, notes })
 }
 
 /// The http:// address of an upstream.

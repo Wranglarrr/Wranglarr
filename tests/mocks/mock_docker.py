@@ -94,6 +94,9 @@ def start(c):
         raise ValueError("cannot join network of a non running container")
     c["State"] = {"Running": True, "Restarting": False, "ExitCode": 0, "_started": time.time()}
     if c["Config"].get("Healthcheck"): c["State"]["Health"] = {"Status": "starting"}
+    # like Docker: a running container's published ports
+    c["NetworkSettings"]["Ports"] = {k: [{"HostIp": b.get("HostIp") or "0.0.0.0", "HostPort": b.get("HostPort", "")} for b in v]
+                                     for k, v in (c["HostConfig"].get("PortBindings") or {}).items()}
 
 def tick():
     for c in CONTAINERS.values():
@@ -198,6 +201,7 @@ class H(BaseHTTPRequestHandler):
 
 class S(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
     daemon_threads = True
+    request_queue_size = 64       # wranglarr asks about every app at once
 
 def seed_updates():
     gl = add_image("qmcgaw/gluetun:v3.41.3", "sha256:" + "a1" * 32, "v3.41.3", health={"Test": ["CMD", "/gluetun-entrypoint", "healthcheck"]}, exposed={"8000/tcp": {}})

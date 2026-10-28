@@ -37,7 +37,13 @@ impl Object for Kinds {
 }
 
 async fn proxy_page(State(app): State<App>, ctx: Ctx) -> Page {
-    let base = shell(&app, &ctx, "proxy", json!({"expose": EXPOSE, "browser_host": ctx.host})).await?;
+    let base = shell(
+        &app,
+        &ctx,
+        "proxy",
+        json!({"expose": EXPOSE, "browser_host": ctx.host, "host_ip": app.deployment().proxy.host_ip}),
+    )
+    .await?;
     let v =
         minijinja::context! { kinds => minijinja::Value::from_object(Kinds), ..minijinja::Value::from(Serde(&base)) };
     tpl::render("proxy.html", v).map(Html).map_err(Into::into)

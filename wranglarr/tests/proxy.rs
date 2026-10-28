@@ -125,7 +125,10 @@ fn render(case: &Value) -> Value {
     };
     let env = env_of(&case["env"]);
     let host = case["browser_host"].as_str().unwrap_or("");
-    let r = proxy::render(proxy::plan(&entries, &s, host, &ports(), &env), &s, &env);
+    let r = match proxy::render(proxy::plan(&entries, &s, host, &ports(), &env), &s, &env) {
+        Ok(r) => r,
+        Err(e) => return json!({"error": e.to_string()}),
+    };
     let mut v = serde_json::to_value(&r).expect("json");
     v["settings"] = serde_json::to_value(&s).expect("json");
     v
@@ -133,8 +136,17 @@ fn render(case: &Value) -> Value {
 
 #[test]
 fn renders_the_expected_configs() {
-    let want: Vec<Value> = serde_json::from_str(include_str!("fixtures/proxy.json")).expect("fixture");
     let cases = cases();
+    if std::env::var("WRANGLARR_UPDATE_PROXY_FIXTURES").as_deref() == Ok("1") {
+        let actual = cases.iter().map(render).collect::<Vec<_>>();
+        std::fs::write(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/proxy.json"),
+            serde_json::to_string(&actual).expect("json"),
+        )
+        .expect("write fixture");
+        return;
+    }
+    let want: Vec<Value> = serde_json::from_str(include_str!("fixtures/proxy.json")).expect("fixture");
     assert_eq!(want.len(), cases.len());
     let mut bad = vec![];
     for (i, (case, want)) in cases.iter().zip(&want).enumerate() {
@@ -153,6 +165,32 @@ fn renders_the_expected_configs() {
         }
     }
     assert!(bad.is_empty(), "{} of {} cases differ; first:\n{}", bad.len(), cases.len(), bad[0]);
-    let errors = want.iter().filter(|w| w.get("error").is_some()).count();
-    assert_eq!(errors, 12, "every bad body is refused");
+    assert!(want.iter().rev().take(12).all(|w| w.get("error").is_some()), "every bad body is refused");
+}
+
+#[test]
+fn path_rules_respect_segment_boundaries() {
+    let entries = [Entry::wranglarr(), Entry::for_app(&apps()[0])];
+    for kind in ["caddy", "caddy-labels", "traefik-file", "traefik-labels"] {
+        let s = proxy::check(
+            &ProxySettings::default(),
+            json!({"kind": kind, "upstream": "docker", "domain": "example.com",
+            "apps": {"radarr": {"at": "path", "sub": "apiary"}}})
+            .as_object()
+            .expect("body"),
+            &["wranglarr".into(), "radarr".into()],
+        )
+        .expect("settings");
+        proxy::validate(&entries, &s).expect("/apiary does not overlap /api");
+        let env = ProxyEnv::default();
+        let rendered = proxy::render(proxy::plan(&entries, &s, "", &ports(), &env), &s, &env).expect("render");
+        if kind.starts_with("caddy") {
+            assert!(rendered.text.contains("/apiary/*"));
+            assert!(!rendered.text.contains("/apiary*"));
+            assert!(rendered.text.contains("/apiary /apiary/"), "redirect the bare path");
+        } else {
+            assert!(rendered.text.contains("Path(`/apiary`) || PathPrefix(`/apiary/`)"));
+            assert!(!rendered.text.contains("PathPrefix(`/apiary`)"));
+        }
+    }
 }

@@ -14,24 +14,15 @@
   <form id="proxy-form" autocomplete="off">
     <div class="form-row"><label class="l">Proxy</label>
       <div><select name="kind" style="width:auto">{% for k, v in kinds|items %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div></div>
-    <div class="form-row"><label class="l">Domain</label>
-      <div><input name="domain" placeholder="example.com" spellcheck="false" style="max-width:300px">
-        <div class="hint">The domain your DNS points at this proxy.</div></div></div>
-    <div class="form-row"><label class="l">Apps at</label>
-      <div>
-        <label class="check-line"><input type="radio" name="style" value="subdomain"> a name each <span class="muted small">https://radarr.example.com (works for every app)</span></label>
-        <label class="check-line"><input type="radio" name="style" value="path"> a path each <span class="muted small">https://example.com/radarr (the arrs, Bazarr and SABnzbd need their URL Base set to match)</span></label>
-      </div></div>
+    <p class="small" data-only="npm">Nginx Proxy Manager uses one access list per hostname. wranglarr and apps under its paths must share the same local-only setting; use separate subdomains for different access rules.</p>
+    <p class="small" data-only="cloudflared">Cloudflare Tunnel requires public routes. Choose Direct IP for local-only apps, and subdomains for qBittorrent and NZBGet (the tunnel cannot strip their paths).</p>
     <div class="form-row"><label class="l">The proxy reaches them</label>
       <div>
         <label class="check-line"><input type="radio" name="upstream" value="host"> at this machine's address and the published ports
-          <input name="upstream_host" placeholder="{{ browser_host or '192.168.1.10' }}" spellcheck="false" style="max-width:200px"></label>
+          <input name="upstream_host" placeholder="{{ host_ip or browser_host or '192.168.1.10' }}" spellcheck="false" style="max-width:200px"></label>
         <label class="check-line"><input type="radio" name="upstream" value="docker"> it's a container on the stack's network (<code>arrs</code>), so by service name</label>
         <div class="hint">Proxy on this machine outside Docker: 127.0.0.1. On another machine: this one's LAN address.</div>
       </div></div>
-    <div class="form-row"><label class="l">LAN</label>
-      <div><input name="lan" placeholder="private ranges: 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 127.0.0.0/8 fc00::/7" spellcheck="false">
-        <div class="hint">Who counts as local for “LAN only”. Blank: every private address range. Or yours, e.g. <code>192.168.1.0/24</code>.</div></div></div>
     <div class="form-row" data-only="traefik-file traefik-labels"><label class="l">Traefik</label>
       <div class="row">entry point <input name="entrypoint" style="max-width:140px"> cert resolver <input name="resolver" style="max-width:140px"></div></div>
     <div class="form-row" data-only="traefik-labels caddy-labels"><label class="l">Proxy network</label>
@@ -40,16 +31,10 @@
 </section>
 
 <section class="panel">
-  <h2>Which apps, and for whom</h2>
-  <div class="row small" style="margin-bottom:8px">Quick:
-    <button class="btn small ghost" type="button" data-preset="all">everything public</button>
-    <button class="btn small ghost" type="button" data-preset="arrs">the arrs public, the rest LAN only</button>
-    <button class="btn small ghost" type="button" data-preset="lan">everything LAN only</button>
-    <button class="btn small ghost" type="button" data-preset="off">nothing</button>
-  </div>
-  <table class="compact proxy-table"><thead><tr><th>App</th><th>Reach it</th><th>Name</th><th>At</th><th>Proxy sends it to</th></tr></thead>
-    <tbody id="proxy-apps"><tr><td class="muted" colspan="5">loading…</td></tr></tbody></table>
-  <p class="muted small">Public: from anywhere. LAN only: through the proxy, but only from your network. Not proxied: only at this machine's address and port, as now.</p>
+  <h2>The apps</h2>
+  <p class="small">The domain, the local network and where each app is (subdomain, wranglarr path or direct IP, and who gets through) are set on the dashboard: <a href="{{ base }}/#links">Dashboard → Links</a>.</p>
+  <table class="compact proxy-table"><thead><tr><th>App</th><th>At</th><th>Who</th><th>Proxy sends it to</th></tr></thead>
+    <tbody id="proxy-apps"><tr><td class="muted" colspan="4">loading…</td></tr></tbody></table>
 </section>
 
 <section class="panel">
@@ -60,4 +45,4 @@
   <pre class="env" id="proxy-text" style="max-height:none"></pre>
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/proxy.js?v={{ asset_v }}"></script>{% endblock %}
+{% block scripts %}<script src="{{ base }}/static/proxy.js?v={{ asset_v }}"></script>{% endblock %}

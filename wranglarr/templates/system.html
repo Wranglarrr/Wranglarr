@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "_icons.html" as i %}
-{% import "_macros.html" as ui %}
+{% import "_macros.html" as ui with context %}
 {% block title %}System · wranglarr{% endblock %}
 {% block crumbs %}System{% endblock %}
 {% block toolbar %}<button class="tb" data-vpn-refresh><span class="i">{{ i.icon('refresh') }}</span>Refresh</button>{% endblock %}
@@ -32,7 +32,7 @@
       <span class="muted small">it doesn't need root: run it as PUID:PGID (compose.yaml does; wiki: Security)</span>
       {% elif process.root %}<span class="pill">root in the container</span> <span class="muted small">your own user on the host (rootless Podman/Docker)</span>
       {% else %}<span class="pill pill-ok">{{ process.user }}</span> <span class="muted small">not root</span>{% endif %}</dd>
-    <dt>Login</dt><dd>{% if auth_on %}<span class="pill pill-ok">on</span> <a href="/account">Account</a>{% else %}<span class="pill pill-failed">off</span>
+    <dt>Login</dt><dd>{% if auth_on %}<span class="pill pill-ok">on</span> <a href="{{ base }}/account">Account</a>{% else %}<span class="pill pill-failed">off</span>
       <span class="muted small">WRANGLARR_AUTH=off: anyone who can reach this port controls wranglarr. Only behind a reverse proxy that asks for a login.</span>{% endif %}</dd>
     <dt>Backup store</dt><dd>{{ store_root }} · {{ total_bytes|human_bytes }}</dd>
   </dl>
@@ -64,7 +64,7 @@
     <div class="form-row"><label class="l">Items per list</label>
       <div><input type="number" name="limit" min="3" max="200" value="{{ home.limit }}" style="width:90px"> <span class="muted small">for coming up and for missing each; the tables scroll when they get long</span></div></div>
     <div class="row" style="margin-top:12px"><button class="btn primary" type="submit">Save</button>
-      <a class="btn ghost" href="/">Dashboard</a><span class="spacer" style="flex:1"></span>
+      <a class="btn ghost" href="{{ base }}/">Dashboard</a><span class="spacer" style="flex:1"></span>
       <button class="btn ghost" type="button" data-home-reset>Reset to defaults</button></div>
   </form>
 </section>
@@ -140,4 +140,4 @@
   {% endif %}
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/connmap.js?v={{ asset_v }}"></script>{% endblock %}
+{% block scripts %}<script src="{{ base }}/static/connmap.js?v={{ asset_v }}"></script>{% endblock %}

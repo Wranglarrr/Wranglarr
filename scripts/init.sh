@@ -215,6 +215,31 @@ if [[ -z "$(envget DOCKER_GID)" ]]; then
   fi
 fi
 
+# This machine's IP address on the network, for wranglarr's links and the reverse
+# proxy config: found once and kept in .env (the setup wizard may have filled it in).
+if [[ -z "$(envget HOST_IP)" ]]; then
+  ip=""
+  if command -v ip >/dev/null; then
+    ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "src") { print $(i + 1); exit }}')"
+  fi
+  if [[ -z "$ip" ]] && command -v ipconfig >/dev/null; then      # macOS
+    ip="$(ipconfig getifaddr "$(route -n get default 2>/dev/null | awk '/interface:/ {print $2}')" 2>/dev/null || true)"
+  fi
+  if [[ -z "$ip" ]] && command -v hostname >/dev/null; then
+    ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  fi
+  if [[ -n "$ip" ]]; then
+    if grep -q '^[[:space:]]*HOST_IP=' .env; then
+      awk -v ip="$ip" '/^[[:space:]]*HOST_IP=/ { print "HOST_IP=" ip; next } { print }' .env > .env.tmp && cat .env.tmp > .env && rm -f .env.tmp
+    else
+      printf '\n# this machine'"'"'s IP address on the network; change it only if this .env goes to another machine (init.sh)\nHOST_IP=%s\n' "$ip" >> .env
+    fi
+    echo "init: HOST_IP=$ip written to .env (this machine's IP; change it only if this .env goes to another machine)"
+  else
+    echo "init: could not find this machine's IP; set HOST_IP in .env for the dashboard's links" >&2
+  fi
+fi
+
 mkdir -p "$APPDATA"/{postgres,backups,wranglarr,radarr,sonarr,lidarr,prowlarr,bazarr,qbittorrent,sabnzbd,nzbget,seerr,vpn/wireguard}
 # Seerr runs as PUID:PGID itself (no PUID variable of its own), so its folder must be theirs
 if [[ ",$PROFILES," == *",seerr,"* ]]; then

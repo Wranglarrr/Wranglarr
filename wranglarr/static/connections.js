@@ -11,14 +11,14 @@
   }
 
   const kindButtons = () => Object.entries(D.media.kinds).map(([k, v]) =>
-    `<button class="kind-btn" type="button" data-kind="${esc(k)}"><span class="k-ico"><img class="ico-logo" src="${esc(v.icon)}" alt=""></span>${esc(v.label)}</button>`).join('');
+    `<button class="kind-btn" type="button" data-kind="${esc(k)}"><span class="k-ico"><img class="ico-logo" src="${esc(W.url(v.icon))}" alt=""></span>${esc(v.label)}</button>`).join('');
 
   function renderServers() {
     const box = $('servers'), M = D.media;
     if (!M.servers.length) { box.innerHTML = `<p class="muted">None yet. Add yours:</p><div class="kind-grid">${kindButtons()}</div>`; return; }
     box.innerHTML = `<table class="compact channels"><tbody>${M.servers.map(m => {
       const k = M.kinds[m.kind];
-      return `<tr data-id="${esc(m.id)}"><td class="k-ico"><img class="ico-logo" src="${esc(k.icon)}" alt=""></td>
+      return `<tr data-id="${esc(m.id)}"><td class="k-ico"><img class="ico-logo" src="${esc(W.url(k.icon))}" alt=""></td>
         <td><b>${esc(m.name)}</b> <span class="muted small">${esc(k.label)} · ${esc(m.url)}</span>
           <div class="muted small">${m.arrs.length ? 'in ' + m.arrs.map(esc).join(', ') : 'in no arr yet'}${m.map_from ? ` · ${esc(m.map_from)} → ${esc(m.map_to)}` : ''}${m.update_library ? '' : ' · no library rescan'}</div></td>
         <td class="num"><button class="btn small" data-act="test">Test</button> <button class="btn small" data-act="edit">Edit</button>
@@ -72,7 +72,7 @@
     el.map_from.value = m ? m.map_from : ''; el.map_to.value = m ? m.map_to : '';
     const on = new Set(m ? m.arrs : D.media.arrs.map(a => a.name));
     $('ms-arrs').innerHTML = D.media.arrs.map(a => `<label class="check-line"><input type="checkbox" name="arr" value="${esc(a.name)}" ${on.has(a.name) ? 'checked' : ''}>
-      <img class="mini-logo" src="/api/apps/${encodeURIComponent(a.name)}/logo" alt="" onerror="this.remove()"> ${esc(a.name)}</label>`).join('') || '<span class="muted small">no arrs</span>';
+      <img class="mini-logo" src="${esc(W.url(`/api/apps/${encodeURIComponent(a.name)}/logo`))}" alt="" onerror="this.remove()"> ${esc(a.name)}</label>`).join('') || '<span class="muted small">no arrs</span>';
   }
   function body() {
     const el = form.elements;

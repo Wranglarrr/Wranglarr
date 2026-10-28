@@ -6,7 +6,7 @@ use crate::proxy::{Plan, ProxySettings};
 
 fn rule(p: &Plan) -> String {
     let r = format!("Host(`{}`)", p.fqdn);
-    if p.path.is_empty() { r } else { format!("{r} && PathPrefix(`{}`)", p.path) }
+    if p.path.is_empty() { r } else { format!("{r} && (Path(`{}`) || PathPrefix(`{}/`))", p.path, p.path) }
 }
 
 fn middlewares(p: &Plan) -> Vec<String> {

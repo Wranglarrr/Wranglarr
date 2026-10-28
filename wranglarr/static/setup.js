@@ -9,7 +9,9 @@
     appdata: E.APPDATA || './appdata', data_root: E.DATA_ROOT || '/mnt/data', data_root_2: E.DATA_ROOT_2 || '',
     postgres_user: E.POSTGRES_USER || 'arr', postgres_password: E.POSTGRES_PASSWORD || '',
     ports: Object.fromEntries(D.services.map(s => [s.id, +(E[s.id.toUpperCase() + '_PORT'] || s.port)])),
-    wranglarr_port: +(E.WRANGLARR_PORT || 8787), gluetun_api_key: E.GLUETUN_API_KEY || '',
+    wranglarr_port: +(E.WRANGLARR_PORT || 8787), wranglarr_url_base: E.WRANGLARR_URL_BASE || '', gluetun_api_key: E.GLUETUN_API_KEY || '',
+    // this machine's address: the one this page was opened at, when that's one on the network
+    host_ip: E.HOST_IP || (/^(\d+\.){3}\d+$|:/.test(location.hostname) && !/^(127\.|\[?::1)/.test(location.hostname) ? location.hostname.replace(/^\[|\]$/g, '') : ''),
     nzbget_user: E.NZBGET_USER || 'nzbget', nzbget_pass: E.NZBGET_PASS || '',
     qbittorrent_user: E.QBITTORRENT_USER || 'admin', qbittorrent_password: E.QBITTORRENT_PASSWORD || '',
     // app logins: an existing .env without APPS_AUTH has been manual all along
@@ -169,7 +171,7 @@
         <label class="check-line"><input type="radio" name="access" value="proxy" ${proxy ? 'checked' : ''}> also through a reverse proxy, at names like https://radarr.example.com</label>`,
         'By this machine\'s IP and port always works, and needs nothing here. Pick the second only if you have a reverse proxy with a name for each app: its sign-in is a cookie for your whole domain, so it gets the two settings below.');
       if (proxy) h += field('Cookie domain', inp('auth_cookie_domain', S.auth_cookie_domain, 'placeholder="example.com" spellcheck="false"'), 'your domain, not an IP: the apps and wranglarr all have names under it on the proxy, and the cookie reaches every *.example.com') +
-        field('wranglarr on the proxy', inp('auth_login_url', S.auth_login_url, 'placeholder="https://wranglarr.example.com" spellcheck="false"'), 'wranglarr\'s full name on your reverse proxy, not this machine\'s IP. The gate sends you there to sign in when you came through the proxy; by IP and port you sign in at wranglarr on that address.');
+        field('wranglarr on the proxy', inp('auth_login_url', S.auth_login_url, 'placeholder="https://wranglarr.example.com" spellcheck="false"'), 'wranglarr\'s full address on your reverse proxy, including its URL base (e.g. https://example.com/wranglarr), not this machine\'s IP. The gate sends you there to sign in when you came through the proxy; by IP and port you sign in at wranglarr on that address.');
       h += chk({ cls: 'warn', msg: 'qBittorrent\'s web UI has no API key, so its mobile apps can\'t get past the gate. The arrs, Prowlarr, Bazarr and SABnzbd apps use API keys and keep working.' });
     } else {
       if (S.services.includes('nzbget')) h += field('NZBGet login', `${inp('nzbget_user', S.nzbget_user, 'placeholder="user"')} ${inp('nzbget_pass', S.nzbget_pass, 'placeholder="password"')} <button class="btn small" data-gen="password:nzbget_pass">generate</button>`, 'the image applies it at every start');
@@ -222,7 +224,10 @@
     const providers = [['custom', 'custom (own keys / wg0.conf / .ovpn)'], ['mullvad', 'Mullvad'], ['protonvpn', 'ProtonVPN'], ['private internet access', 'Private Internet Access'], ['airvpn', 'AirVPN'], ['ivpn', 'IVPN'], ['nordvpn', 'NordVPN'], ['surfshark', 'Surfshark'], ['windscribe', 'Windscribe']];
     let h = '<h2>Network &amp; VPN</h2>' +
       field('VPN', sel('vpn.mode', v.mode, [['none', 'none'], ['shared', 'one shared tunnel (gluetun)'], ['per-app', 'a tunnel per app (hotio images)']]), 'shared: one WireGuard/OpenVPN peer, kill switch, UIs still reachable on the LAN') +
-      field('Ports', D.services.filter(s => S.services.includes(s.id)).map(s => `${s.name} ${inp('ports.' + s.id, S.ports[s.id], 'type="number"')}`).join(' ') + ` wranglarr ${inp('wranglarr_port', S.wranglarr_port, 'type="number"')}`, 'published on the host');
+      field('Ports', D.services.filter(s => S.services.includes(s.id)).map(s => `${s.name} ${inp('ports.' + s.id, S.ports[s.id], 'type="number"')}`).join(' ') + ` wranglarr ${inp('wranglarr_port', S.wranglarr_port, 'type="number"')}`, 'published on the host') +
+      field('wranglarr URL base', inp('wranglarr_url_base', S.wranglarr_url_base, 'placeholder="/wranglarr (blank at the root)" spellcheck="false"'), 'Optional browser path. Your proxy must pass it through unchanged; bare internal endpoints stay available.') +
+      field('This machine\'s IP', inp('host_ip', S.host_ip, 'placeholder="found by ./scripts/init.sh" spellcheck="false"'),
+        'its IP address on your network (not a domain name), for the dashboard\'s links and the reverse proxy config. Filled in for you (blank: ./scripts/init.sh finds it): change it only if you\'re taking this .env to another machine.');
     if (v.mode === 'shared') {
       const hasP = S.services.includes('prowlarr');
       if (!hasP && v.scope === 'prowlarr') v.scope = 'all';

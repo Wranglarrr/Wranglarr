@@ -13,21 +13,21 @@ result into your proxy.
 | Setting | |
 | --- | --- |
 | **Proxy** | Caddy, nginx, Traefik (file provider or Docker labels), caddy-docker-proxy (Docker labels), Cloudflare Tunnel, Nginx Proxy Manager |
-| **Domain** | the domain your DNS points at the proxy, e.g. `example.com` |
-| **Apps at** | a name each, `https://radarr.example.com` (works for every app), or a path each, `https://example.com/radarr` |
 | **The proxy reaches them** | at this machine's address and the published ports (the proxy runs on the host, or on another machine), or by service name (the proxy is a container on the stack's `arrs` network) |
-| **LAN** | which addresses count as local for **LAN only**; blank = every private range |
 
-Then, per app and for wranglarr itself:
+The domain, the local network, and where each app is are set on the dashboard,
+under **Links** ([Dashboard](Dashboard.md#where-the-apps-open)), so the cards
+and the config agree. Per app, and for wranglarr itself:
 
 | | |
 | --- | --- |
-| **Public** | reachable from anywhere |
-| **LAN only** | proxied, at its name, but only for addresses on your network (an IP allowlist in the proxy) |
-| **Not proxied** | only at `http://<this machine>:<port>`, as now |
+| **Subdomain** | its own name, `https://radarr.example.com` |
+| **Path on the domain** (wranglarr) | `https://myhouse.com/wranglarr`, with `WRANGLARR_URL_BASE=/wranglarr` |
+| **wranglarr path** | under wranglarr's name, `https://wranglarr.example.com/radarr` |
+| **Direct IP** | not proxied: only `http://<this machine>:<port>` |
+| **local only** | proxied, but only for addresses on your local network (an IP allowlist in the proxy) |
 
-The quick buttons cover the usual cases: everything public; the arrs public and
-the download clients LAN only; everything LAN only.
+This page lists them, with where the proxy sends each.
 
 When proxying wranglarr, set `FORWARDED_ALLOW_IPS` in `.env` to the proxy's exact
 source IP as seen by wranglarr, then recreate its container. It defaults to
@@ -94,16 +94,53 @@ keeps it there when it adds or removes AuthTunnel's file.
 
 **Cloudflare Tunnel.** Merge the `ingress:` rules into cloudflared's
 `config.yml`, add the DNS names (`cloudflared tunnel route dns <tunnel> radarr.example.com`),
-restart cloudflared. A tunnel is public by design, so LAN-only apps are left out;
-put Cloudflare Access in front if you want them through it.
+restart cloudflared. The generated tunnel config cannot enforce **local only**:
+set those apps to **Direct IP**, or use another proxy. Paths that need stripping
+(qBittorrent and NZBGet) must use subdomains instead. Unsupported combinations
+are rejected when saving.
 
 **Nginx Proxy Manager.** It's set up in its web UI; the page lists the steps per
-host (forward host and port, websockets, the LAN-only access list).
+host (forward host and port, websockets, the LAN-only access list). Access lists
+apply to the whole hostname: wranglarr and apps under its paths must all have the
+same **local only** setting. Use separate subdomains for different access rules.
+
+## Wranglarr at a path on the domain
+
+To serve wranglarr at `https://myhouse.com/wranglarr`:
+
+1. Set `WRANGLARR_URL_BASE=/wranglarr` in `.env` (blank by default).
+2. Recreate wranglarr so it reads the new setting:
+
+   ```sh
+   docker compose up -d --force-recreate wranglarr
+   ```
+
+3. Under Dashboard → Links, set **Proxy domain** to `myhouse.com`, and choose
+   **Path on the domain** for wranglarr, with name `wranglarr` (without `/`).
+   The resulting path must match `WRANGLARR_URL_BASE`.
+4. Copy the generated config from **Reverse proxy** into your proxy and reload it.
+   Pass `/wranglarr` through unchanged; do not strip it.
+
+You can still open the dashboard directly by IP and port while configuring the
+proxy. For AuthTunnel, set the login address below before recreating wranglarr.
+
+Apps set to **wranglarr path** are siblings on that domain:
+`https://myhouse.com/radarr`, rather than `/wranglarr/radarr`. With AuthTunnel,
+set `AUTH_LOGIN_URL=https://myhouse.com/wranglarr` and
+`AUTH_COOKIE_DOMAIN=myhouse.com`. Cookies keep `Path=/` so sibling app paths
+share the sign-in. Passkeys still belong to the host, regardless of the path.
+
+Both bare and prefixed wranglarr routes work. Internal gate checks, webhooks,
+healthchecks and smoke tests keep using their bare Docker-network addresses.
+The base is matched on path boundaries: `/wranglarr-other` is not stripped.
+Changing the base requires recreating wranglarr and updating the proxy config.
 
 ## Paths instead of names
 
-`https://example.com/radarr` needs one name and one certificate, but each app has
-to know its path:
+A **wranglarr path**, `https://wranglarr.example.com/radarr`, needs no name or
+certificate of its own, and shares wranglarr's sign-in cookie. When wranglarr
+is at a path on the domain, these app paths go directly under that same domain.
+Each app has to know its path:
 
 - Radarr, Sonarr, Lidarr, Prowlarr: Settings → General → **URL Base** `/radarr`, restart;
 - Bazarr: Settings → General → URL Base; SABnzbd: Config → General → URL Base;
@@ -111,8 +148,22 @@ to know its path:
   `appdata/wranglarr/wranglarr.toml`, `url = "http://radarr:7878/radarr"`.
 
 qBittorrent and NZBGet have no URL Base; the config strips the path for them.
-wranglarr and Seerr always get a name of their own (`wranglarr.example.com`,
-`seerr.example.com`): neither works under a path.
+Seerr and the media servers always get a name of their own
+(`seerr.example.com`): they don't work under a path. Settings saved before the
+apps had a place each, with "a path each", now put the paths under wranglarr's
+name rather than the bare domain.
+
+## Route validation
+
+Saving validates the complete routing table before changing settings. Two apps
+cannot share the same hostname and path. Paths owned by wranglarr, including
+`/api`, `/static`, `/login` and `/account`, are reserved. An app that needs its
+own hostname cannot be placed under a path, and path apps require wranglarr to
+be proxied. Proxy-specific restrictions above are checked at the same time.
+
+If previously saved settings become invalid (for example after an app is added),
+the proxy editor explains the conflict and withholds the generated config until
+it is corrected. IPv6 upstream addresses are supported.
 
 ## Things to know
 
@@ -125,14 +176,14 @@ wranglarr and Seerr always get a name of their own (`wranglarr.example.com`,
   `192.168.1.10` won't work at `wranglarr.example.com`; add another under Account
   once you're signed in there.
 - **Posters** open the proxied names when you've opened wranglarr through the
-  proxy (at the domain above or a name under it). For a proxy set up without
-  this page, set Dashboard → Links to `https://{name}.example.com`.
+  proxy (at the domain or a name under it), and the Direct IP apps by this
+  machine's address.
 
 ## HTTP API
 
 ```
 GET  /api/proxy     settings, the plan per app and the rendered config
-PUT  /api/proxy     {"kind":"caddy","style":"subdomain"|"path","domain":"example.com",
+PUT  /api/proxy     {"kind":"caddy","domain":"example.com",
                      "upstream":"host"|"docker","upstream_host":"","lan":"",
-                     "apps":{"radarr":{"expose":"public"|"lan"|"off","sub":""}}}
+                     "apps":{"radarr":{"at":"subdomain"|"path"|"direct","local":true,"sub":""}}}
 ```

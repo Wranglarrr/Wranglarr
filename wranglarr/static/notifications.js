@@ -34,7 +34,7 @@
   }
 
   // the service's logo (shipped in /static/icons), or its emoji
-  const kIco = k => k.logo ? `<img class="ico-logo" src="${esc(k.logo)}" alt="">` : esc(k.icon || '•');
+  const kIco = k => k.logo ? `<img class="ico-logo" src="${esc(W.url(k.logo))}" alt="">` : esc(k.icon || '•');
 
   const kindButtons = () => Object.entries(D.kinds).map(([k, v]) =>
     `<button class="kind-btn" type="button" data-kind="${esc(k)}"><span class="k-ico">${kIco(v)}</span>${esc(v.label)}</button>`).join('');
@@ -70,7 +70,7 @@
     const arrApps = new Set(c ? c.arr.apps : []), arrEv = new Set(c ? c.arr.events : D.arr_events_default);
     $('ch-arrs').innerHTML = D.arrs.length ? D.arrs.map(a =>
       `<label class="check-line"><input type="checkbox" name="arr" value="${esc(a.name)}" ${arrApps.has(a.name) ? 'checked' : ''}>
-        <img class="mini-logo" src="/api/apps/${encodeURIComponent(a.name)}/logo" alt="" onerror="this.remove()"> ${esc(a.name)}</label>`).join('')
+        <img class="mini-logo" src="${esc(W.url(`/api/apps/${encodeURIComponent(a.name)}/logo`))}" alt="" onerror="this.remove()"> ${esc(a.name)}</label>`).join('')
       : '<span class="muted small">no arrs in this stack</span>';
     $('ch-arr-events').innerHTML = Object.entries(D.arr_events).map(([id, l]) =>
       `<label class="check-line"><input type="checkbox" name="arrev" value="${esc(id)}" ${arrEv.has(id) ? 'checked' : ''}> ${esc(l)}</label>`).join('');
