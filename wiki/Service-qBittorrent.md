@@ -22,6 +22,9 @@
 With `APPS_AUTH` `apps` or `tunnel` ([App logins](App-Logins.md)), init writes
 `QBITTORRENT_USER` / `QBITTORRENT_PASSWORD` into `qBittorrent.conf` (as
 qBittorrent's own PBKDF2 hash) while it's stopped, so there's nothing to do here.
+It goes in the `[WebUI]` section, where qBittorrent 5 reads it. While the file
+still has 4.x's `WebUI\…` keys in `[Preferences]` and no `[WebUI]`, those are
+set too: 5 ignores them once it has converted the file.
 With AuthTunnel it also turns on *Bypass authentication for clients in
 whitelisted IP subnets* for the private ranges, so the gate gets in; the
 port isn't published anywhere else.

@@ -128,20 +128,26 @@ def qbittorrent(d: Path) -> list[str]:
              only_if={"", "/downloads/incomplete", "/downloads/temp", "/incomplete"}):
         c.set("Session\\TempPathEnabled", "true", sec)
     if APPS_AUTH in ("apps", "tunnel"):
-        # qBittorrent 5 keeps these in [WebUI] (Password_PBKDF2=...); 4.x in [Preferences] (WebUI\\Password_PBKDF2=...)
-        old = any(l.startswith("WebUI\\") for l in c.lines) and not any(l.strip() == "[WebUI]" for l in c.lines)
-        sec, pre = ("Preferences", "WebUI\\") if old else ("WebUI", "")
-        if QB_PASS:
-            c.set(pre + "Username", QB_USER, sec)
-            if not qb_hash_ok(c.get(pre + "Password_PBKDF2", sec) or "", QB_PASS):
-                c.set(pre + "Password_PBKDF2", qb_hash(QB_PASS), sec)
-                c.changes[-1] = "web password: set from QBITTORRENT_PASSWORD"
-        else:
-            c.changes.append("QBITTORRENT_PASSWORD is empty: web login left as it is")
+        # qBittorrent 5 reads these from [WebUI] (Password_PBKDF2=...) and ignores 4.x's
+        # [Preferences] WebUI\Password_PBKDF2=... So [WebUI] always gets them. The 4.x
+        # keys are kept up to date too while the file has them and no [WebUI] yet: a 4.x
+        # install, or a new install still on its image's template (LinuxServer's has
+        # WebUI\Address in [Preferences]), where the version isn't known yet.
+        places = [("WebUI", "")]
+        if any(l.startswith("WebUI\\") for l in c.lines) and not any(l.strip() == "[WebUI]" for l in c.lines):
+            places.append(("Preferences", "WebUI\\"))
         tunnel = APPS_AUTH == "tunnel"
-        c.set(pre + "AuthSubnetWhitelistEnabled", "true" if tunnel else "false", sec)
-        if tunnel:
-            c.set(pre + "AuthSubnetWhitelist", PRIVATE, sec)
+        if not QB_PASS:
+            c.changes.append("QBITTORRENT_PASSWORD is empty: web login left as it is")
+        for sec, pre in places:
+            if QB_PASS:
+                c.set(pre + "Username", QB_USER, sec)
+                if not qb_hash_ok(c.get(pre + "Password_PBKDF2", sec) or "", QB_PASS):
+                    c.set(pre + "Password_PBKDF2", qb_hash(QB_PASS), sec)
+                    c.changes[-1] = f"web password ([{sec}]): set from QBITTORRENT_PASSWORD"
+            c.set(pre + "AuthSubnetWhitelistEnabled", "true" if tunnel else "false", sec)
+            if tunnel:
+                c.set(pre + "AuthSubnetWhitelist", PRIVATE, sec)
     c.save()
     return c.changes
 
