@@ -143,6 +143,17 @@ pub fn bypass_side(vpn: Option<&VpnConfig>, app: &AppConfig, apps: &[&AppConfig]
     }
 }
 
+/// A Prowlarr indexer whose grabs go to the indexer itself because Redirect is
+/// ticked, so turning it off helps. Prowlarr always redirects Usenet grabs (its
+/// download endpoint forces it, and refuses Redirect off for them), and ignores
+/// the box for torrent indexers that can't redirect (the box is greyed out).
+fn redirects_by_choice(ix: &Value) -> bool {
+    truthy(&ix["enable"])
+        && truthy(&ix["redirect"])
+        && ix["protocol"].as_str() != Some("usenet")
+        && ix.get("supportsRedirect").is_none_or(truthy)
+}
+
 /// Health lines (the arr health shape) for indexer traffic that skips the
 /// tunnel. Only when the tunnel is partial on purpose: Prowlarr in it, an arr
 /// outside. The arr then reaches its indexers only through Prowlarr, unless
@@ -168,9 +179,9 @@ pub fn bypass(vpn: Option<&VpnConfig>, app: &AppConfig, apps: &[&AppConfig], ind
                     "VPN: {} reaches the indexer '{}' ({at}) itself, outside the tunnel. Add it in Prowlarr instead, or put the arrs in the tunnel too.",
                     app.name, name(ix))}));
             }
-        } else if truthy(&ix["enable"]) && truthy(&ix["redirect"]) {
+        } else if redirects_by_choice(ix) {
             out.push(json!({"type": "warning", "source": "wranglarr-vpn", "message": format!(
-                "VPN: Prowlarr's '{}' has Redirect on, so the arrs outside the tunnel fetch its .torrent / .nzb themselves. Turn Redirect off for it in Prowlarr.",
+                "VPN: Prowlarr's '{}' has Redirect on, so the arrs outside the tunnel fetch its .torrent themselves. Turn Redirect off for it in Prowlarr.",
                 name(ix))}));
         }
     }
@@ -220,8 +231,14 @@ mod tests {
         let w = bypass(Some(&v), &r, &all, &[own, via]);
         assert_eq!(w.len(), 1);
         assert!(w[0]["message"].as_str().unwrap_or("").contains("'own' (tracker.example)"));
-        let red = json!({"name": "red", "enable": true, "redirect": true});
+        let red =
+            json!({"name": "red", "enable": true, "redirect": true, "protocol": "torrent", "supportsRedirect": true});
         assert_eq!(bypass(Some(&v), &p, &all, &[red]).len(), 1);
+        // Prowlarr redirects Usenet grabs whatever the box says, and ignores it where it's greyed out
+        let nzb = json!({"name": "NZBgeek", "enable": true, "redirect": true, "protocol": "usenet", "supportsRedirect": true});
+        let greyed =
+            json!({"name": "grey", "enable": true, "redirect": true, "protocol": "torrent", "supportsRedirect": false});
+        assert!(bypass(Some(&v), &p, &all, &[nzb, greyed]).is_empty());
         assert!(bypass(Some(&vpn(None)), &r, &all, &[]).is_empty());
     }
 }

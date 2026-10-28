@@ -24,9 +24,12 @@ through Prowlarr:
 - **No indexers of their own.** An indexer added in an arr by hand, or from
   wranglarr's [Indexers](Indexers.md) page, is queried by the arr itself,
   outside the tunnel. Add it in Prowlarr instead.
-- **Redirect off** for each indexer in Prowlarr. With Redirect on, Prowlarr
-  hands the arr the indexer's own download link, and the arr fetches the
-  `.torrent` or `.nzb` from there, outside the tunnel.
+- **Redirect off** for each torrent indexer in Prowlarr. With Redirect on,
+  Prowlarr hands the arr the indexer's own download link, and the arr fetches
+  the `.torrent` from there, outside the tunnel. Usenet indexers are the
+  exception: Prowlarr always redirects their grabs and won't save Redirect off
+  for them, so the arrs fetch each `.nzb` from your own address. The download
+  itself still goes through the tunnel, from SABnzbd or NZBGet.
 
 wranglarr checks both on every dashboard refresh. Anything that goes around the
 tunnel shows up as a health warning on that app's card, starting with "VPN:".
