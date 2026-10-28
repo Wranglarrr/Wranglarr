@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     find . -path ./target -prune -o -type f -exec touch {} + && \
     cargo build --release --locked && cp target/release/wranglarr /wranglarr
 
-FROM alpine:3.22
+FROM alpine:3.24
 # pg_dump / pg_restore / psql matching the Postgres 17 server in compose.yaml
 RUN apk add --no-cache postgresql17-client tzdata ca-certificates
 COPY --from=build /wranglarr /usr/local/bin/wranglarr
