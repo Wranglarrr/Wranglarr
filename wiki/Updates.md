@@ -123,6 +123,22 @@ pulled. If the digest isn't among the running image's `RepoDigests`, an update
 is available. The default schedule is every 6 hours. **Check now** runs a
 check on demand.
 
+Registries throttle bursts (GHCR, behind `lscr.io`, answers `429
+toomanyrequests` for a moment), and a busy or filtering DNS resolver (AdGuard,
+Pi-hole) can drop a lookup. So:
+
+- a "too many requests" or a network blip is asked again three times (after
+  2, 10 and 30 seconds) before the container shows **check failed**;
+- a registry's answer is kept for 10 minutes, so the check, automatic update
+  and self-update jobs, and the check after each update, don't ask about the
+  same tag again (**Check now** always asks afresh);
+- a schedule on a set minute (`0 */6 * * *`, `0 5 * * *`) starts 5 to 90
+  seconds after it, rather than in the same second as everyone else's checker.
+
+A **check failed** that persists for every container from one registry while
+other lookups work usually means something on the host is blocking or
+rate-limiting DNS for it.
+
 ## What an update does
 
 1. **Pull** every selected image first, so a registry problem can't leave the

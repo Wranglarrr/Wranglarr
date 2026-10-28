@@ -3,13 +3,16 @@
 //! updates. Bodies stay raw JSON: recreating a container copies what inspect
 //! returned, and a typed model would drop fields it doesn't know.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::time::Duration;
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full, Limited};
 use hyper::{Method, Request};
 use hyper_util::rt::TokioIo;
+use regex::Regex;
 use serde_json::{Value, json};
 use tokio::net::UnixStream;
 
@@ -115,11 +118,66 @@ pub struct Docker {
     pub socket_path: String,
     /// 0 = not probed yet, 1 = engine has /distribution, 2 = it doesn't (Podman)
     distribution: AtomicU8,
+    /// reference -> (when, digest): what the registry answered a moment ago
+    digests: Mutex<HashMap<String, (Instant, String)>>,
+}
+
+/// How long a registry's answer is reused: the check, auto-update and self-update
+/// jobs and the checks after each update ask about the same tags within minutes.
+const DIGEST_TTL: Duration = Duration::from_secs(10 * 60);
+/// The waits before asking again after a registry's "too many requests" or a network blip.
+#[cfg(not(test))]
+const BACKOFF: [Duration; 3] = [Duration::from_secs(2), Duration::from_secs(10), Duration::from_secs(30)];
+#[cfg(test)]
+const BACKOFF: [Duration; 3] = [Duration::from_millis(5), Duration::from_millis(5), Duration::from_millis(5)];
+
+static RETRY_AFTER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)retry-after:\s*([0-9.]+)\s*(µs|us|ms|s)?").expect("static regex"));
+
+/// What a registry lookup can fail with for a moment: a registry's "slow down"
+/// (GHCR's and Docker Hub's 429 toomanyrequests), a gateway error, or the network
+/// (a DNS query dropped by a busy or rate-limiting resolver, a timeout).
+const TRANSIENT: &[&str] = &[
+    "toomanyrequests",
+    "-> 429",
+    "rate limited",
+    "-> 502",
+    "-> 503",
+    "-> 504",
+    "i/o timeout",
+    "timed out",
+    "temporary failure in name resolution",
+    "server misbehaving",
+    "connection reset",
+    "tls handshake timeout",
+    "error sending request",
+    "dns error",
+];
+
+/// Whether `msg` is worth asking again for, and the wait the registry asks for, if it says.
+fn transient(msg: &str) -> Option<Option<Duration>> {
+    let m = msg.to_ascii_lowercase();
+    if !TRANSIENT.iter().any(|t| m.contains(t)) {
+        return None;
+    }
+    Some(RETRY_AFTER.captures(msg).and_then(|c| {
+        let n: f64 = c[1].parse().ok()?;
+        let secs = match c.get(2).map(|u| u.as_str()) {
+            Some("µs" | "us") => n / 1e6,
+            Some("ms") => n / 1e3,
+            _ => n,
+        };
+        Some(Duration::from_secs_f64(secs.min(120.0)))
+    }))
 }
 
 impl Docker {
     pub fn new(socket_path: &str) -> Docker {
-        Docker { socket_path: socket_path.to_string(), distribution: AtomicU8::new(0) }
+        Docker {
+            socket_path: socket_path.to_string(),
+            distribution: AtomicU8::new(0),
+            digests: Mutex::new(HashMap::new()),
+        }
     }
 
     async fn raw(&self, method: Method, path: &str, body: Option<&Value>, timeout: Duration) -> DResult<Response> {
@@ -289,9 +347,44 @@ impl Docker {
     }
 
     /// Digest the registry currently serves for `reference`, without pulling.
-    /// Docker answers /distribution/{ref}/json (with the host's registry
-    /// logins); Podman's compatible API doesn't, so ask the registry directly.
+    /// An answer from the last few minutes is reused, and a registry's "too many
+    /// requests" or a network blip is waited out and asked again (a few times)
+    /// before it's an error.
     pub async fn remote_digest(&self, reference: &str) -> DResult<String> {
+        if let Some((at, d)) = self.digests.lock().ok().and_then(|m| m.get(reference).cloned())
+            && at.elapsed() < DIGEST_TTL
+        {
+            return Ok(d);
+        }
+        let mut waits = BACKOFF.iter();
+        let digest = loop {
+            let e = match self.lookup_digest(reference).await {
+                Ok(d) => break d,
+                Err(e) => e,
+            };
+            let (DockerError::Other(m), Some(wait)) = (&e, waits.next()) else { return Err(e) };
+            let Some(asked) = transient(m) else { return Err(e) };
+            let wait = asked.map_or(*wait, |a| a.max(*wait));
+            tracing::info!("{reference}: {m}; asking again in {wait:?}");
+            tokio::time::sleep(wait).await;
+        };
+        if let Ok(mut m) = self.digests.lock() {
+            m.retain(|_, (at, _)| at.elapsed() < DIGEST_TTL);
+            m.insert(reference.to_string(), (Instant::now(), digest.clone()));
+        }
+        Ok(digest)
+    }
+
+    /// Forget the registry answers kept, so the next lookup asks again.
+    pub fn forget_digests(&self) {
+        if let Ok(mut m) = self.digests.lock() {
+            m.clear();
+        }
+    }
+
+    /// Docker answers /distribution/{ref}/json (with the host's registry logins);
+    /// Podman's compatible API doesn't, so ask the registry directly.
+    async fn lookup_digest(&self, reference: &str) -> DResult<String> {
         if self.distribution.load(Ordering::Relaxed) != 2 {
             match self
                 .req(Method::GET, &format!("/distribution/{reference}/json"), None, &[200], Duration::from_secs(30))
@@ -368,6 +461,66 @@ mod tests {
         assert_eq!(s("a/b@sha256:1"), "a/b||sha256:1");
         assert_eq!(s("a/b:2@sha256:1"), "a/b|2|sha256:1");
     }
+    #[test]
+    fn transient_errors() {
+        use std::time::Duration;
+        let ghcr = "docker GET /distribution/lscr.io/linuxserver/radarr:latest/json -> 429: \
+                    toomanyrequests: retry-after: 323.116µs, allowed: 44000/minute";
+        assert_eq!(super::transient(ghcr), Some(Some(Duration::from_nanos(323_116))));
+        assert_eq!(super::transient("x -> 429: retry-after: 7s"), Some(Some(Duration::from_secs(7))));
+        assert_eq!(super::transient("lscr.io: rate limited (toomanyrequests)"), Some(None));
+        assert_eq!(super::transient("dial tcp: lookup ghcr.io on 127.0.0.53:53: i/o timeout"), Some(None));
+        assert_eq!(super::transient("docker GET /distribution/x/json -> 401: unauthorized"), None);
+        assert_eq!(super::transient("manifest unknown"), None);
+    }
+
+    /// One engine answer per connection: `answers` in order, then the test ends.
+    async fn engine(answers: Vec<&'static str>) -> (tempfile::TempDir, super::Docker, tokio::task::JoinHandle<usize>) {
+        use tokio::io::AsyncWriteExt;
+        let dir = tempfile::tempdir().expect("tmp");
+        let socket = dir.path().join("mock.sock");
+        let listener = tokio::net::UnixListener::bind(&socket).expect("mock listener");
+        let peer = tokio::spawn(async move {
+            let mut n = 0;
+            for a in answers {
+                let (mut stream, _) = listener.accept().await.expect("accept");
+                read_mock_request(&mut stream).await;
+                let (status, body) = a.split_once(' ').expect("status body");
+                let head =
+                    format!("HTTP/1.1 {status} X\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                stream.write_all(head.as_bytes()).await.expect("head");
+                stream.write_all(body.as_bytes()).await.expect("body");
+                n += 1;
+            }
+            n
+        });
+        let docker = super::Docker::new(socket.to_str().expect("path"));
+        (dir, docker, peer)
+    }
+
+    #[tokio::test]
+    async fn a_registry_slow_down_is_waited_out_and_the_answer_kept() {
+        let ok = r#"200 {"Descriptor":{"digest":"sha256:ab"}}"#;
+        let busy = r#"429 {"message":"toomanyrequests: retry-after: 323.116µs, allowed: 44000/minute"}"#;
+        let (_dir, docker, peer) = engine(vec![busy, busy, ok]).await;
+        assert_eq!(docker.remote_digest("lscr.io/linuxserver/radarr:latest").await.expect("digest"), "sha256:ab");
+        // asked again within minutes (another job, the check after an update): not the registry
+        assert_eq!(docker.remote_digest("lscr.io/linuxserver/radarr:latest").await.expect("kept"), "sha256:ab");
+        assert_eq!(peer.await.expect("peer"), 3, "two slow-downs and one answer, then nothing");
+    }
+
+    #[tokio::test]
+    async fn a_registry_that_keeps_saying_slow_down_is_an_error_in_the_end() {
+        let busy = r#"429 {"message":"toomanyrequests: retry-after: 1µs"}"#;
+        let (_dir, docker, peer) = engine(vec![busy; 4]).await;
+        let e = docker.remote_digest("ghcr.io/a/b:latest").await.expect_err("gave up");
+        assert!(e.to_string().contains("toomanyrequests"), "{e}");
+        assert_eq!(peer.await.expect("peer"), 4, "asked once, then three more times");
+        let (_dir, docker, peer) = engine(vec![r#"401 {"message":"unauthorized"}"#]).await;
+        assert!(docker.remote_digest("ghcr.io/a/private:latest").await.is_err());
+        assert_eq!(peer.await.expect("peer"), 1, "not worth asking again");
+    }
+
     #[tokio::test]
     async fn cancelled_request_closes_connection_driver() {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};

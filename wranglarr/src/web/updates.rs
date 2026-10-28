@@ -94,6 +94,10 @@ async fn overview(State(app): State<App>) -> ApiResult<Json<Value>> {
 
 async fn check(State(app): State<App>) -> ApiResult<Json<Value>> {
     let u = app.updates();
+    // pressed by hand: ask the registries afresh, not what they said minutes ago
+    if let Some(d) = app.docker() {
+        d.forget_digests();
+    }
     u.check_all().await?;
     Ok(Json(u.overview().await?))
 }
