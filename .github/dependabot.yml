@@ -9,6 +9,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # its "version" is the Rust toolchain: @1.89 is the minimum supported Rust
+      # (rust-version in wranglarr/Cargo.toml), raised by hand with it, and
+      # @stable needs no updates
+      - dependency-name: dtolnay/rust-toolchain
   - package-ecosystem: cargo
     directory: /wranglarr
     schedule:
