@@ -54,7 +54,7 @@
       <thead><tr><th>App</th><th>Port</th><th>At</th><th></th><th>Address</th></tr></thead>
       <tbody id="links-rows"></tbody>
     </table>
-    <p class="muted small">Wranglarr can also use a path on the domain (set the matching WRANGLARR_URL_BASE). App paths are siblings on the same host. Subdomain: a name of its own. wranglarr path: under wranglarr's name, sharing its certificate and sign-in. Direct IP: not proxied, this machine and the app's port. Local only: through the proxy, but only from the local network. Choose Direct IP for apps you haven't added to the proxy; DNS and availability never change these choices.</p>
+    <p class="muted small"><b>Subdomain</b>: a name of its own. <b>wranglarr path</b>: under wranglarr's name, sharing its certificate and sign-in. <b>Direct IP</b>: not proxied, this machine and the app's port. <b>local only</b>: through the proxy, but only from the local network. wranglarr itself can also be at a path on the domain (set <code>WRANGLARR_URL_BASE</code> to match); the apps on a path then sit beside it. The cards open each app where it's set here, so choose Direct IP for an app you haven't added to your proxy.</p>
     <div class="row" style="margin-top:12px">
       <button class="btn primary" type="submit">Save</button>
       <button class="btn ghost" type="button" data-links-cancel>Cancel</button>
