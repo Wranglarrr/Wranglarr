@@ -100,6 +100,8 @@ reverse proxy, plus one place to set where each app opens.
   now pushes the forwarded port into qBittorrent and binds it to the tunnel
   (tick "Bypass authentication for clients on localhost" in qBittorrent).
   `VPN_PORT_FORWARD_ONLY=on` picks only servers that can forward a port.
+- **Importing existing apps** explains copying the arrs' `MediaCover` folder,
+  so a library brought over doesn't show grey posters for weeks.
 
 ### Fixed
 

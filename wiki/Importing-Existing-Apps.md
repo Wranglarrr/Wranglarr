@@ -72,8 +72,9 @@ Only have the backup zip? Unzip it into `appdata/<app>/`: it holds
 **Existing backups** step finds a zip under `appdata/<app>/Backups/` and copies
 its `config.xml` for you; the `.db` you unzip yourself.
 
-The rest of the old folder (`logs`, `Backups`, `MediaCover`) isn't needed: the
-posters download again. Copy `MediaCover` too if you want them straight away.
+The rest of the old folder (`logs`, `Backups`) isn't needed, with one exception:
+for an arr, copy `MediaCover` too, or most of its posters will be missing for
+weeks ([Posters](#posters)).
 
 **Check four settings** in an arr's `config.xml`, because the stack expects
 its defaults:
@@ -378,9 +379,72 @@ In each app:
   you expected.
 - The library, Activity → History, and your profiles are there.
 - System → Health is empty, or only lists things you're still fixing.
+- The library shows posters, not grey placeholders ([Posters](#posters)).
 
 Then in wranglarr, **Suites → Back up now** for each suite. That first backup
 is the one to come back to if anything goes wrong later.
+
+## Posters
+
+Radarr, Sonarr and Lidarr (Readarr and Whisparr too) keep the posters,
+fanart and banners they show in `appdata/<app>/MediaCover/`: one folder per
+film, series or artist, named by its id in the database (Lidarr adds
+`Albums/`, one folder per album). The images aren't in the database, and
+wranglarr's [backups](Backups-and-Restore.md) leave them out.
+
+An arr fetches a missing image only when it refreshes that item. It
+refreshes an item that's still airing or coming out often. A film that's out,
+or a series that has ended, can wait weeks. So a library copied in without
+`MediaCover` shows grey placeholders for most of it until then.
+
+### Copy them across
+
+The ids come with the database ([step 2](#2-copy-the-database), or
+[Already on Postgres](#already-on-postgres)), so the old folder fits the new
+library as it is. From the stack directory, once per arr, at any time (the
+app can keep running):
+
+```sh
+APP=radarr        # or sonarr, lidarr, readarr, whisparr
+OLD=/path/to/old/config   # the old install's config folder (step 1)
+sudo cp -a --no-clobber "$OLD/MediaCover/." "appdata/$APP/MediaCover/"
+sudo chown -R "$(grep ^PUID= .env | cut -d= -f2):$(grep ^PGID= .env | cut -d= -f2)" "appdata/$APP/MediaCover"
+```
+
+- `--no-clobber` keeps the images the new app has fetched already, which are
+  the newer ones.
+- `chown` gives the files to the app's user (`PUID`/`PGID`), so it can
+  replace them on its next refresh.
+- Reload the page in the browser.
+
+It's a few hundred MB for a few hundred series, and a few GB for a large
+film library. Put `appdata` on a disk with room for it.
+
+Only after a database copy: an app [started fresh](#start-fresh-and-import-the-library)
+numbers its items anew, and the old folders would land on the wrong items.
+Library Import fetches the posters itself.
+
+### Check and refill
+
+Compare the folder with the library:
+
+```sh
+ls appdata/radarr/MediaCover | wc -l     # about the number of films
+ls appdata/sonarr/MediaCover | wc -l     # about the number of series
+ls appdata/lidarr/MediaCover | wc -l     # about the number of artists, plus Albums
+```
+
+Far fewer? Either:
+
+- **Copy from the old install** while you still have it, as above. It's
+  quick, and nothing is asked of the metadata servers.
+- **Have the app fetch them**: Movies (Sonarr: Series, Lidarr: Artists) →
+  **Update all**. That refreshes every item's metadata, not only the
+  images, so on a big library it runs for a while (System → Tasks shows it).
+  For a single item: open it → **Refresh**.
+
+The same holds after restoring a [backup](Backups-and-Restore.md) onto a new
+machine: copy `MediaCover` across from the old one too.
 
 ## Start fresh and import the library
 
@@ -443,6 +507,7 @@ Then copy the database (step 2).
 | password authentication failed | the password has characters a URL can't carry (`@ : / ? #`) | write them URL-encoded (`@` is `%40`) in the `postgresql://` line |
 | The app starts empty | it's reading another database | System → Status shows PostgreSQL? If not, `config.xml` lacks the `Postgres*` lines: run `init.sh` again |
 | *Missing root folder* warnings | the old paths | [Paths](#3-paths) |
+| Grey placeholders instead of posters for much of the library | `MediaCover` wasn't copied, and the arr only fetches an image when it refreshes that item | [Posters](#posters) |
 | Old connections still in the apps | they came with the database | [Connections](#4-connections) |
 
 If it won't come right, nothing is lost: the old install and its backup zip
