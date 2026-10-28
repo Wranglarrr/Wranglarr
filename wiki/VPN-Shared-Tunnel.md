@@ -103,7 +103,10 @@ The port is shown in wranglarr's header. With PIA or ProtonVPN, set
 (on ProtonVPN, the P2P servers). gluetun pushes the port into qBittorrent and
 binds it to the tunnel's interface each time it changes; tick "Bypass
 authentication for clients on localhost" in qBittorrent's Web UI options so it
-can (see [Service: qBittorrent](Service-qBittorrent.md)).
+can. qBittorrent's image resets its port each time it restarts on its own (an
+update, `init.sh --auth`, a crash), which gluetun doesn't notice, so wranglarr
+also checks every minute and sets the forwarded port again when qBittorrent
+listens on another (see [Service: qBittorrent](Service-qBittorrent.md)).
 
 ## Control server
 

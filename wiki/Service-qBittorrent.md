@@ -68,6 +68,10 @@ port with PIA/ProtonVPN set `VPN_PORT_FORWARDING=on` (and
 `compose.vpn.yaml` then pushes the forwarded port into qBittorrent over
 `127.0.0.1:8090` and binds it to the tunnel's interface; tick "Bypass
 authentication for clients on localhost" in its Web UI options so it can.
+The image sets the port back to `TORRENTING_PORT` (6881) each time qBittorrent
+restarts, and gluetun only pushes it when the forwarded port changes, so
+wranglarr checks every minute and sets the forwarded port again (it logs
+"vpn: qbittorrent listened on port 6881, not the VPN's forwarded …: set it").
 Without port forwarding, set the network interface to `tun0` in Advanced
 settings yourself, so torrenting is bound to the tunnel.
 

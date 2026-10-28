@@ -45,6 +45,9 @@ pub struct Deployment {
     pub pre_restore: PathBuf,
     /// The updater's timing and its own container (WRANGLARR_UPDATE_*, HOSTNAME).
     pub updates: crate::updates::UpdatesEnv,
+    /// WRANGLARR_VPN_PORT_POLL: how often qBittorrent's listening port is checked
+    /// against the VPN's forwarded one (60 s; the test suite shrinks it).
+    pub vpn_port_poll: std::time::Duration,
 }
 
 impl Deployment {
@@ -67,6 +70,10 @@ impl Deployment {
                 .filter(|p| !p.is_empty())
                 .map_or_else(|| crate::files::DEFAULT_PRE_RESTORE.into(), PathBuf::from),
             updates: crate::updates::UpdatesEnv::read(env),
+            vpn_port_poll: env("WRANGLARR_VPN_PORT_POLL")
+                .and_then(|s| s.trim().parse::<f64>().ok())
+                .filter(|s| s.is_finite() && *s > 0.0)
+                .map_or(crate::vpn::PORT_EVERY, std::time::Duration::from_secs_f64),
         }
     }
 }
