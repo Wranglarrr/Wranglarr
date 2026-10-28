@@ -17,6 +17,8 @@ use crate::value::truthy;
 const CHECK_JOB: &str = "updates:check";
 const AUTO_JOB: &str = "updates:auto";
 const SELF_JOB: &str = "updates:self";
+/// The scheduled jobs on a set minute start up to this many seconds after it.
+const JITTER_SECS: u64 = 90;
 /// kv: container -> why it is held
 const HOLDS: &str = "updates:holds";
 /// kv: container -> the image it must not be updated to
@@ -197,9 +199,16 @@ impl Updater {
                 continue;
             }
             let app = self.app.clone();
+            // on a set minute (an hourly or daily cron): everyone else's checker runs then too
+            let jitter = expr.split_whitespace().next().is_some_and(|m| m.parse::<u32>().is_ok());
             let added = sched.add(id, expr, move || {
                 let u = app.updates();
                 Box::pin(async move {
+                    // start a little after, so the registries aren't asked in the same
+                    // second as every other checker
+                    if jitter {
+                        tokio::time::sleep(std::time::Duration::from_secs(rand::random_range(5..JITTER_SECS))).await;
+                    }
                     match id {
                         CHECK_JOB => {
                             if let Err(e) = u.check_all().await {
