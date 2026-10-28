@@ -102,7 +102,7 @@ jobs:
             org.opencontainers.image.version=${{ env.VERSION }}
 
       - name: Build for the smoke test
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./wranglarr
           platforms: ${{ env.PLATFORM }}
@@ -164,7 +164,7 @@ jobs:
       # the build the smoke test passed: every layer comes from its cache
       - name: Push by digest
         id: push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./wranglarr
           platforms: ${{ env.PLATFORM }}
