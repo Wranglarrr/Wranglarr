@@ -35,9 +35,9 @@
           <select name="scheme" style="width:auto"><option value="http" {{ 'selected' if links.scheme == 'http' }}>http://</option><option value="https" {{ 'selected' if links.scheme == 'https' }}>https://</option></select>
           <input name="host" value="{{ links.host }}" placeholder="{{ browser_host }}" spellcheck="false" style="max-width:300px">
         </div>
-        <div class="hint">An IP address or host name, without a port. Blank: the address you opened wranglarr at (now <code>{{ browser_host }}</code>).
+        <div class="hint">This machine's IP address or host name on your network, without a port. Blank: the address you opened wranglarr at (now <code>{{ browser_host }}</code>).
           The port is the one Docker publishes each app on, read from the container.
-          Opened through your reverse proxy (the Reverse proxy page's domain or a name under it), the apps it proxies open at their names there instead.</div>
+          Opened through your reverse proxy (the Reverse proxy page's domain, or AuthTunnel's cookie domain, or a name under it), the apps it proxies open at their names there, and the rest here, local only.</div>
       </div>
     </div>
     <div class="form-row" data-mode-only="domain">

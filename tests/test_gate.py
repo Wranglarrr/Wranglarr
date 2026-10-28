@@ -98,3 +98,21 @@ def test_logout_clears_domain_cookie(srv, session):
         sc = ", ".join(r.headers.get_list("set-cookie")).lower()
         assert "domain=example.com" in sc, sc
     assert gate(srv, {}, session).status_code == 401, "the session is gone"
+
+
+def test_links_follow_the_tunnels_domain(srv, session):
+    # no Reverse proxy page set up: AUTH_COOKIE_DOMAIN gives each app a name under it
+    with srv.client() as c:              # a session of its own: the logout test ends the shared one
+        r = c.post("/api/auth/login", json={"username": "admin", "password": PW}, headers=H)
+        assert r.status_code == 200, r.text
+        raw = next(h for h in r.headers.get_list("set-cookie") if h.startswith("wranglarr_session="))
+        token = SimpleCookie(raw)["wranglarr_session"].value
+
+    def links(host):
+        with srv.client() as c:
+            r = c.get("/api/links", headers={"Host": host, "Cookie": f"wranglarr_session={token}"})
+            assert r.status_code == 200, r.text
+            return r.json()["links"]["radarr"]
+    assert links(HOST) == {"url": "https://radarr.example.com/", "how": "proxy",
+                           "note": "its name on the reverse proxy"}
+    assert links("192.168.1.10:8787")["how"] != "proxy", "opened by IP: the apps open by IP and port"

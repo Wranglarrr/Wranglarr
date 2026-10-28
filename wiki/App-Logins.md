@@ -77,7 +77,9 @@ machine's IP: by IP and port the apps work with them blank, and keep working
 with them set. The gate sends you to `AUTH_LOGIN_URL` only when you came
 through the proxy (an address under `AUTH_COOKIE_DOMAIN`). An app opened by IP
 sends you to wranglarr on that IP, since a cookie set at the IP doesn't reach
-`*.example.com`, and one set at the domain doesn't reach the IP.
+`*.example.com`, and one set at the domain doesn't reach the IP. The dashboard's
+links follow the same rule: opened at `https://wranglarr.example.com`, the apps
+open at `https://radarr.example.com` and so on; opened by IP, at IP and port.
 [Reverse proxy](Reverse-Proxy.md) writes the proxy config for you.
 
 ## Changing it later

@@ -630,8 +630,10 @@ Link settings. A PUT replaces them all:
 host, empty = the one the browser used) or `domain` (`pattern`, with
 `{name}` or `{kind}`). `apps` sets one app's address outright. In the
 answer, `how` is `set`, `domain`, `proxy` (its name on the reverse proxy: the
-request came in at the Reverse proxy page's domain or a name under it, and
-`host` is empty), `port` or `none` (not published: set an address for it). Links are built from the host the request was sent to, so
+request came in at the Reverse proxy page's domain, AuthTunnel's cookie
+domain, or a name under it), `port` or `none` (not published: set an address
+for it). Through the proxy, an app without a name there gets `port` at `host`
+(else the Reverse proxy page's address), with a note starting `local only`. Links are built from the host the request was sent to, so
 a script gets the addresses for the name it used.
 
 Dashboard settings and their defaults:

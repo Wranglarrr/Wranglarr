@@ -105,8 +105,13 @@ Docker publishes the app on**:
 Through your reverse proxy it follows the proxy instead. Open wranglarr at the
 **Reverse proxy** page's domain or a name under it (`https://wranglarr.example.com`),
 and each app the proxy serves opens at its name there (`https://radarr.example.com`).
-An app set to **Not proxied** keeps its port. Open wranglarr by IP and the apps open by
-IP and port too. A fixed **Address** below turns this off.
+With AuthTunnel set up for a proxy and nothing on that page, the domain is
+`AUTH_COOKIE_DOMAIN` and every app gets a name under it (`https://radarr.example.com`).
+An app without a name there (**Not proxied**) opens **local only**, at this machine's
+address and its port: the **Address** below, else the Reverse proxy page's "this
+machine's address". With neither, it has no link (it says why) rather than a wrong
+one like `https://wranglarr.example.com:8080`. Open wranglarr by IP and every app
+opens by IP and port, as before.
 
 wranglarr reads each port from the container, so changing `RADARR_PORT` in
 `.env` needs nothing here. In the VPN setups the ports belong to the VPN
@@ -119,7 +124,7 @@ Change it under **Links** in the toolbar:
 | Setting | Use it when |
 | --- | --- |
 | **This machine's address and each app's port**, with **Address** blank | you reach everything by the same IP or name (the default) |
-| the same, with **Address** set, e.g. `192.168.1.10` or `nas.lan` | you reach wranglarr under one name but the apps under another, for example wranglarr through a reverse proxy and the apps by IP |
+| the same, with **Address** set, e.g. `192.168.1.10` or `nas.lan` | you reach wranglarr under one name but the apps by another. Through your reverse proxy it's this machine's local address, for the apps without a name on the proxy |
 | **A domain per app**, e.g. `https://{name}.home.example.com` | every app has its own name on your reverse proxy. `{name}` becomes `radarr`, `sonarr`, `qbittorrent`…; `{kind}` the app's type |
 | **Per app** | one app lives somewhere else: `http://192.168.1.20:8080`, `https://sab.example.com`. Blank uses the rule above |
 

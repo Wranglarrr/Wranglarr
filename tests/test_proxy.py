@@ -60,19 +60,27 @@ def test_links_follow_the_proxy_when_wranglarr_is_opened_through_it(srv):
     with srv.client() as c:
         c.delete("/api/links")
         r = c.put("/api/proxy", json={"kind": "caddy", "style": "subdomain", "domain": "example.com",
-                                      "upstream": "host", "apps": {"radarr": {"expose": "public", "sub": "movies"},
+                                      "upstream": "host", "upstream_host": "",
+                                      "apps": {"radarr": {"expose": "public", "sub": "movies"},
                                                                    "sabnzbd": {"expose": "off"}}})
         assert r.status_code == 200, r.text
         proxied = c.get("/api/links", headers={"Host": "wranglarr.example.com"}).json()["links"]
         assert proxied["radarr"]["url"] == "https://movies.example.com/" and proxied["radarr"]["how"] == "proxy"
         assert proxied["qbittorrent"]["url"] == "https://qbittorrent.example.com/", "not set: proxied, LAN only"
-        assert proxied["sabnzbd"]["how"] != "proxy", "not proxied"
+        assert proxied["sabnzbd"]["how"] == "none" and proxied["sabnzbd"]["note"].startswith("local only"), \
+            "not proxied, and no local address known: no link, rather than wranglarr's name and a port"
+        # the Reverse proxy page's "this machine's address" is the local one
+        assert c.put("/api/proxy", json={"upstream_host": "192.168.1.20"}).status_code == 200
+        sab = c.get("/api/links", headers={"Host": "wranglarr.example.com"}).json()["links"]["sabnzbd"]
+        assert sab["url"] == "http://192.168.1.20:8080/" and sab["note"].startswith("local only"), sab
         # opened by IP: the apps open by IP and port, as before
         direct = c.get("/api/links", headers={"Host": "192.168.1.10:8787"}).json()["links"]
         assert direct["radarr"]["how"] != "proxy" and "192.168.1.10" in (direct["radarr"]["url"] or "192.168.1.10")
-        # a fixed address on the Links panel wins
+        # the Links panel's address: this machine's, for the apps without a name on the proxy
         r = c.put("/api/links", json={"mode": "port", "scheme": "http", "host": "10.0.0.5", "pattern": "", "apps": {}})
         assert r.status_code == 200, r.text
         fixed = c.get("/api/links", headers={"Host": "wranglarr.example.com"}).json()["links"]
-        assert fixed["radarr"]["how"] != "proxy"
+        assert fixed["radarr"]["url"] == "https://movies.example.com/", "the proxy's names still come first"
+        sab = fixed["sabnzbd"]
+        assert sab["url"] == "http://10.0.0.5:8080/" and sab["note"].startswith("local only"), sab
         c.delete("/api/links")
