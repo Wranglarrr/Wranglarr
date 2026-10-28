@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% import "_icons.html" as i %}
+{% block title %}Connections · wranglarr{% endblock %}
+{% block crumbs %}Connections{% endblock %}
+{% block toolbar %}
+  <button class="tb primary" data-add title="add a media server"><span class="i">{{ i.icon('plus') }}</span>Media server</button>
+  <span class="spacer"></span>
+  <span class="tb-text">what the arrs talk to outside the stack</span>
+{% endblock %}
+{% block content %}
+<section class="panel" id="editor" hidden>
+  <h2 id="ed-title">Add a media server</h2>
+  <div class="kind-grid" id="kind-grid"></div>
+  <form id="ms-form" autocomplete="off" hidden>
+    <div class="form-row"><label class="l">Name</label><div><input name="name" maxlength="60" style="max-width:300px">
+      <div class="hint">Its name in the arrs' Settings → Connect.</div></div></div>
+    <div class="form-row"><label class="l">Address</label><div><input name="url" spellcheck="false" placeholder="http://192.168.1.10:32400">
+      <div class="hint" id="url-hint">As the arrs reach it: from inside their containers. Not <code>localhost</code>: that's the container itself.</div></div></div>
+    <div class="form-row" data-only="plex jellyfin emby"><label class="l" id="tok-label">Token</label>
+      <div>
+        <input name="token" type="password" autocomplete="new-password" spellcheck="false">
+        <div class="hint" data-only="plex"><button class="btn small" type="button" data-plex>Sign in with Plex</button>
+          gets the token for you (a plex.tv window asks you to allow wranglarr).</div>
+        <div class="hint" data-only="jellyfin emby">Dashboard → API Keys → +. Or let wranglarr make one with an administrator login (not kept):
+          <div class="row" style="margin-top:4px"><input name="admin_user" placeholder="admin user" style="max-width:160px" autocomplete="off">
+            <input name="admin_pass" type="password" placeholder="password" style="max-width:160px" autocomplete="new-password">
+            <button class="btn small" type="button" data-jfkey>Get a key</button></div></div>
+      </div></div>
+    <div class="form-row" data-only="kodi"><label class="l">Login</label>
+      <div class="row"><input name="username" placeholder="kodi" style="max-width:160px"> <input name="password" type="password" placeholder="password" style="max-width:160px" autocomplete="new-password">
+        <span class="hint" style="margin:0">Kodi: Settings → Services → Control → allow remote control via HTTP.</span></div></div>
+    <div class="form-row"><label class="l">Library</label>
+      <div><label class="check-line"><input type="checkbox" name="update_library" checked> rescan when an arr imports, upgrades, renames or deletes a file</label></div></div>
+    <div class="form-row"><label class="l">Path mapping</label>
+      <div class="row"><input name="map_from" placeholder="/data/media" style="max-width:200px" spellcheck="false"> → <input name="map_to" placeholder="/media" style="max-width:200px" spellcheck="false">
+        <div class="hint" style="flex-basis:100%">Only if the server sees the files at another path than the arrs (they see <code>/data/media/…</code>).
+          Left: the arrs' path, right: the server's.</div></div></div>
+    <div class="form-row"><label class="l">In these arrs</label><div class="row" id="ms-arrs"></div></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" type="submit">Save</button>
+      <button class="btn" type="button" data-test>Test</button>
+      <button class="btn ghost" type="button" data-cancel>Cancel</button>
+      <span class="small" id="ms-result"></span>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Media servers</h2>
+  <p class="muted small">Plex, Jellyfin, Emby or Kodi: added to each picked arr, so new files show up in the library without waiting for a scheduled scan.</p>
+  <div id="servers"><p class="muted">loading…</p></div>
+</section>
+
+<section class="panel" id="seerr-panel">
+  <h2>Requests: Seerr</h2>
+  <div id="seerr"><p class="muted">loading…</p></div>
+</section>
+
+<p class="muted small">Between the stack's own apps (download clients, Prowlarr, Bazarr): <a href="/system">System → App connections</a>.
+  Notifications to your phone: <a href="/notifications">Notifications</a>.</p>
+{% endblock %}
+{% block scripts %}<script src="/static/connections.js?v={{ asset_v }}"></script>{% endblock %}

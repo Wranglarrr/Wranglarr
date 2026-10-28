@@ -1,0 +1,46 @@
+# Add-on to compose.vpn.yaml: every app shares the tunnel (Prowlarr, the
+# arrs and Bazarr join the download clients).  Seerr stays outside: it only
+# talks to the arrs, your media server and metadata servers.
+#
+#   COMPOSE_FILE=compose.yaml:compose.vpn.yaml:compose.vpn-all.yaml
+#
+# The simplest choice: nothing the arrs do leaves without the tunnel, whatever
+# indexers they use.  The arrs' metadata lookups and update checks go through
+# it too, so they stop if the tunnel is down.
+
+x-via-vpn: &via-vpn
+  network_mode: "service:vpn"
+  networks: !reset []
+  ports: !reset []
+  depends_on:
+    vpn:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+
+services:
+  vpn:
+    ports:
+      - ${RADARR_PORT:-7878}:7878
+      - ${SONARR_PORT:-8989}:8989
+      - ${LIDARR_PORT:-8686}:8686
+      - ${PROWLARR_PORT:-9696}:9696
+      - ${BAZARR_PORT:-6767}:6767
+    networks:
+      arrs:
+        aliases: [radarr, sonarr, lidarr, prowlarr, bazarr]
+
+  radarr:
+    <<: *via-vpn
+  sonarr:
+    <<: *via-vpn
+  lidarr:
+    <<: *via-vpn
+  prowlarr:
+    <<: *via-vpn
+  bazarr:
+    <<: *via-vpn
+
+  wranglarr:
+    environment:
+      WRANGLARR_VPN_APPS: qbittorrent,sabnzbd,nzbget,prowlarr,radarr,sonarr,lidarr,bazarr

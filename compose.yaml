@@ -1,0 +1,342 @@
+# wranglarr stack: Postgres + your *arr suite on Postgres + wranglarr (backup /
+# version / restore UI).
+#
+#   cp .env.example .env && edit        # pick services with COMPOSE_PROFILES
+#   ./scripts/init.sh                   # first time only
+#   docker compose up -d                # afterwards
+#
+# Services are opt-in through profiles: COMPOSE_PROFILES=radarr,sonarr,lidarr,bazarr
+# VPN: add compose.vpn.yaml (+ compose.vpn-all.yaml or compose.vpn-prowlarr.yaml) to COMPOSE_FILE
+# in .env for one shared gluetun tunnel, or compose.vpn-per-app.yaml for a tunnel per app.
+# wranglarr runs the published image; to run one you built, set WRANGLARR_IMAGE=wranglarr:local
+# in .env (wiki/Setup.md, "The wranglarr image").
+
+x-arr-common: &arr-common
+  restart: unless-stopped
+  environment: &arr-env
+    PUID: ${PUID:-1000}
+    PGID: ${PGID:-1000}
+    TZ: ${TZ:-UTC}
+    UMASK: ${UMASK:-002}
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks: [arrs]
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17}
+    container_name: arrs-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_USER}
+      # initdb/ creates <app> + <app>-log per arr, "bazarr" and "seerr", for every
+      # enabled profile.  Safe to re-run: docker compose exec postgres /docker-entrypoint-initdb.d/01-create-arr-dbs.sh
+      ARR_APPS: ${COMPOSE_PROFILES:-radarr,sonarr,lidarr}
+    volumes:
+      - ${APPDATA:-./appdata}/postgres:/var/lib/postgresql/data
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
+    # Not published by default.  For pgAdmin etc. uncomment:
+    # ports:
+    #   - 127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks: [arrs]
+
+  radarr:
+    <<: *arr-common
+    profiles: [radarr]
+    image: ${RADARR_IMAGE:-lscr.io/linuxserver/radarr:latest}
+    container_name: radarr
+    ports:
+      - ${RADARR_PORT:-7878}:7878
+    volumes:
+      - ${APPDATA:-./appdata}/radarr:/config
+      - ${DATA_ROOT:?set DATA_ROOT in .env}:/data
+      # - ${DATA_ROOT_2}:/data2
+
+  sonarr:
+    <<: *arr-common
+    profiles: [sonarr]
+    image: ${SONARR_IMAGE:-lscr.io/linuxserver/sonarr:latest}
+    container_name: sonarr
+    ports:
+      - ${SONARR_PORT:-8989}:8989
+    volumes:
+      - ${APPDATA:-./appdata}/sonarr:/config
+      - ${DATA_ROOT:?set DATA_ROOT in .env}:/data
+      # - ${DATA_ROOT_2}:/data2
+
+  lidarr:
+    <<: *arr-common
+    profiles: [lidarr]
+    image: ${LIDARR_IMAGE:-lscr.io/linuxserver/lidarr:latest}
+    container_name: lidarr
+    ports:
+      - ${LIDARR_PORT:-8686}:8686
+    volumes:
+      - ${APPDATA:-./appdata}/lidarr:/config
+      - ${DATA_ROOT:?set DATA_ROOT in .env}:/data
+      # - ${DATA_ROOT_2}:/data2
+
+  # Bazarr takes its Postgres settings from the environment (they override
+  # config.yaml), so it needs no config patching: wiki.bazarr.media/Additional-Configuration/PostgreSQL-Database
+  bazarr:
+    <<: *arr-common
+    profiles: [bazarr]
+    image: ${BAZARR_IMAGE:-lscr.io/linuxserver/bazarr:latest}
+    container_name: bazarr
+    environment:
+      <<: *arr-env
+      POSTGRES_ENABLED: "true"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DATABASE: bazarr
+      POSTGRES_USERNAME: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # linuxserver image runs as PUID; psycopg2 otherwise looks for a cert under /root
+      PGSSLCERT: /tmp/postgresql.crt
+    ports:
+      - ${BAZARR_PORT:-6767}:6767
+    volumes:
+      - ${APPDATA:-./appdata}/bazarr:/config
+      - ${DATA_ROOT:?set DATA_ROOT in .env}:/data
+      # - ${DATA_ROOT_2}:/data2
+
+  # ---- requests (opt-in profile) ----
+  # Seerr: people ask for movies and shows, Seerr hands them to Radarr / Sonarr.
+  # Its requests and users live in Postgres (database "seerr"); /app/config keeps
+  # settings.json (API key, media server, Radarr/Sonarr entries).
+  seerr:
+    profiles: [seerr]
+    image: ${SEERR_IMAGE:-ghcr.io/seerr-team/seerr:latest}
+    container_name: seerr
+    restart: unless-stopped
+    init: true
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      TZ: ${TZ:-UTC}
+      PUID: ${PUID:-1000}           # not read by Seerr (user: above is what counts); kept for
+      PGID: ${PGID:-1000}           # the restore stack wranglarr writes into each backup
+      LOG_LEVEL: info
+      DB_TYPE: postgres
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER}
+      DB_PASS: ${POSTGRES_PASSWORD}
+      DB_NAME: seerr
+    ports:
+      - ${SEERR_PORT:-5055}:5055
+    volumes:
+      - ${APPDATA:-./appdata}/seerr:/app/config
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/settings/public || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [arrs]
+
+  # ---- download clients (opt-in profiles; routed through the VPN by compose.vpn.yaml) ----
+  qbittorrent:
+    profiles: [qbittorrent]
+    image: ${QBITTORRENT_IMAGE:-lscr.io/linuxserver/qbittorrent:latest}
+    container_name: qbittorrent
+    restart: unless-stopped
+    environment:
+      <<: *arr-env
+      WEBUI_PORT: "8090"            # 8090 inside so it never clashes with SABnzbd's 8080 behind the VPN
+      TORRENTING_PORT: "6881"
+    ports:
+      # host port == 8090: qBittorrent rejects requests whose Host port differs from its own
+      - ${QBITTORRENT_PORT:-8090}:8090
+      - 6881:6881
+      - 6881:6881/udp
+    volumes:
+      - ${APPDATA:-./appdata}/qbittorrent:/config
+      - ${DATA_ROOT:?set DATA_ROOT in .env}:/data
+    networks: [arrs]
+
+  # Indexer manager: add trackers once, Prowlarr pushes them to the arrs
+  # (wranglarr registers each arr in Prowlarr; System → App connections).
+  prowlarr:
+    <<: *arr-common
+    profiles: [prowlarr]
+    image: ${PROWLARR_IMAGE:-lscr.io/linuxserver/prowlarr:latest}
+    container_name: prowlarr
+    ports:
+      - ${PROWLARR_PORT:-9696}:9696
+    volumes:
+      - ${APPDATA:-./appdata}/prowlarr:/config
+
+  sabnzbd:
+    profiles: [sabnzbd]
+    image: ${SABNZBD_IMAGE:-lscr.io/linuxserver/sabnzbd:latest}
+    container_name: sabnzbd
+    restart: unless-stopped
+    environment:
+      <<: *arr-env
+    ports:
+      - ${SABNZBD_PORT:-8085}:8080
+    volumes:
+      - ${APPDATA:-./appdata}/sabnzbd:/config
+      - ${DATA_ROOT:?set DATA_ROOT in .env}:/data
+    networks: [arrs]
+
+  nzbget:
+    profiles: [nzbget]
+    image: ${NZBGET_IMAGE:-lscr.io/linuxserver/nzbget:latest}
+    container_name: nzbget
+    restart: unless-stopped
+    environment:
+      <<: *arr-env
+      NZBGET_USER: ${NZBGET_USER:-nzbget}
+      NZBGET_PASS: ${NZBGET_PASS:-tegbzn6789}
+    ports:
+      - ${NZBGET_PORT:-6789}:6789
+    volumes:
+      - ${APPDATA:-./appdata}/nzbget:/config
+      - ${DATA_ROOT:?set DATA_ROOT in .env}:/data
+    networks: [arrs]
+
+  # One-shot, before wranglarr: hands wranglarr's own folders to PUID:PGID and
+  # exits.  The only part of wranglarr that has root, with nothing but the
+  # chown capabilities and no network.
+  wranglarr-init:
+    image: ${WRANGLARR_IMAGE:-ghcr.io/wranglarrr/wranglarr:latest}
+    container_name: wranglarr-init
+    user: "0:0"
+    command: ["wranglarr-prepare"]
+    restart: "no"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+    volumes:
+      - ${APPDATA:-./appdata}/wranglarr:/config
+      - ${APPDATA:-./appdata}/backups:/backups
+
+  # Backup / version / restore UI.  http://host:8787
+  # Runs as PUID:PGID, never root: no capabilities, read-only image, and the
+  # Docker socket reached through its group (DOCKER_GID).  See wiki/Security.md.
+  wranglarr:
+    image: ${WRANGLARR_IMAGE:-ghcr.io/wranglarrr/wranglarr:latest}
+    container_name: wranglarr
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    # the Docker socket's group; init.sh fills it in (0 under rootless Podman / Docker Desktop)
+    group_add: ["${DOCKER_GID:-0}"]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment: &wranglarr-env
+      TZ: ${TZ:-UTC}
+      HOME: /tmp
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      UMASK: ${UMASK:-002}
+      # sign-in for the web UI and API (wiki/Login.md). off = no login at all
+      WRANGLARR_AUTH: ${WRANGLARR_AUTH:-on}
+      # Trust forwarded host, scheme and client IP only from these proxy IPs.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS-127.0.0.1}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Apps not in this list are dropped from wranglarr's suites at startup,
+      # so the .env profile list is the single source of truth.
+      WRANGLARR_ENABLED_APPS: ${COMPOSE_PROFILES:-radarr,sonarr,lidarr}
+      WRANGLARR_CONFIG: /config/wranglarr.toml
+      GLUETUN_API_KEY: ${GLUETUN_API_KEY:-}
+      QBITTORRENT_USER: ${QBITTORRENT_USER:-admin}
+      # host-side paths, written into each backup's standalone restore stack
+      DATA_ROOT: ${DATA_ROOT:-}
+      WRANGLARR_HOST_BACKUPS: ${APPDATA:-./appdata}/backups
+      QBITTORRENT_PASSWORD: ${QBITTORRENT_PASSWORD:-}
+      # the linuxserver NZBGet image applies these at launch, not in nzbget.conf
+      NZBGET_USER: ${NZBGET_USER:-nzbget}
+      NZBGET_PASS: ${NZBGET_PASS:-tegbzn6789}
+      # how the apps' logins are set up (wiki/App-Logins.md). Set by the setup
+      # wizard and applied by ./scripts/init.sh --auth, never by wranglarr itself.
+      APPS_AUTH: ${APPS_AUTH:-manual}
+      APPS_LOGIN_USER: ${APPS_LOGIN_USER:-}
+      APPS_AUTH_REQUIRED: ${APPS_AUTH_REQUIRED:-enabled}
+      # AuthTunnel only: the sign-in cookie's domain and wranglarr's address for the login page
+      AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:-}
+      AUTH_LOGIN_URL: ${AUTH_LOGIN_URL:-}
+      WRANGLARR_PORT: ${WRANGLARR_PORT:-8787}
+    ports:
+      - ${WRANGLARR_PORT:-8787}:8787
+    volumes:
+      - ${APPDATA:-./appdata}/wranglarr:/config
+      - ${APPDATA:-./appdata}/backups:/backups
+      # API keys are read from each app's config file; bazarr's backup folder
+      # must be writable so a config restore can be handed to it.
+      - ${APPDATA:-./appdata}/radarr:/arrconfig/radarr:ro
+      - ${APPDATA:-./appdata}/sonarr:/arrconfig/sonarr:ro
+      - ${APPDATA:-./appdata}/lidarr:/arrconfig/lidarr:ro
+      - ${APPDATA:-./appdata}/prowlarr:/arrconfig/prowlarr:ro
+      - ${APPDATA:-./appdata}/bazarr:/arrconfig/bazarr
+      # Download clients have no backup API: their config dirs are copied into each version
+      # (and restored with the container stopped), so these are read-write.
+      - ${APPDATA:-./appdata}/qbittorrent:/arrconfig/qbittorrent
+      - ${APPDATA:-./appdata}/sabnzbd:/arrconfig/sabnzbd
+      - ${APPDATA:-./appdata}/nzbget:/arrconfig/nzbget
+      - ${APPDATA:-./appdata}/seerr:/arrconfig/seerr
+      # Lets wranglarr stop/start an app around a database restore and pull /
+      # recreate containers for image updates.  Remove this line (and [docker]
+      # in wranglarr.toml) if you'd rather not grant it; both features turn off.
+      # Podman (rootless): DOCKER_SOCKET=$XDG_RUNTIME_DIR/podman/podman.sock
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      wranglarr-init:
+        condition: service_completed_successfully
+    networks: [arrs]
+
+  # One-shot, run by ./scripts/init.sh (and init.sh --auth): sets the apps'
+  # logins the way APPS_AUTH says, through their APIs.  Not part of `up`.
+  wranglarr-apps-auth:
+    profiles: [tools]
+    image: ${WRANGLARR_IMAGE:-ghcr.io/wranglarrr/wranglarr:latest}
+    container_name: wranglarr-apps-auth
+    user: "${PUID:-1000}:${PGID:-1000}"
+    restart: "no"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    command: ["wranglarr-apps-auth"]
+    environment:
+      <<: *wranglarr-env
+      APPS_LOGIN_PASSWORD: ${APPS_LOGIN_PASSWORD:-}
+    volumes:
+      - ${APPDATA:-./appdata}/wranglarr:/config
+      - ${APPDATA:-./appdata}/radarr:/arrconfig/radarr:ro
+      - ${APPDATA:-./appdata}/sonarr:/arrconfig/sonarr:ro
+      - ${APPDATA:-./appdata}/lidarr:/arrconfig/lidarr:ro
+      - ${APPDATA:-./appdata}/prowlarr:/arrconfig/prowlarr:ro
+      - ${APPDATA:-./appdata}/bazarr:/arrconfig/bazarr:ro
+      - ${APPDATA:-./appdata}/qbittorrent:/arrconfig/qbittorrent:ro
+      - ${APPDATA:-./appdata}/sabnzbd:/arrconfig/sabnzbd:ro
+      - ${APPDATA:-./appdata}/nzbget:/arrconfig/nzbget:ro
+    networks: [arrs]
+
+networks:
+  arrs:
+    name: arrs

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Fake psql for the black-box tests: answers the few queries wranglarr makes.
+sql=""; while [ $# -gt 0 ]; do case "$1" in -c) sql=$2; shift;; esac; shift; done
+echo "$(date) $0 $sql" >> "${FAKE_PG_LOG:-/dev/null}"
+case "$sql" in
+  *server_version*) echo "17.2";;
+  *pg_database_size*) echo 123456789;;
+  *pg_database*) echo 1;;
+  *) ;;
+esac

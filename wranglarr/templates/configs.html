@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% import "_icons.html" as i %}
+{% block title %}Community configs · wranglarr{% endblock %}
+{% block crumbs %}Community configs{% endblock %}
+{% block toolbar %}
+  <span class="spacer"></span>
+  <span class="tb-text">arr settings for one job, shared as JSON</span>
+{% endblock %}
+{% block content %}
+<div class="tabs" role="tablist" aria-label="Community configs">
+  <button type="button" class="tab" role="tab" id="tab-import" aria-controls="pane-import" aria-selected="true" data-cc-tab="import">{{ i.icon('upload') }} Import</button>
+  <button type="button" class="tab" role="tab" id="tab-export" aria-controls="pane-export" aria-selected="false" tabindex="-1" data-cc-tab="export">{{ i.icon('download') }} Export</button>
+</div>
+
+<div id="pane-import" role="tabpanel" aria-labelledby="tab-import">
+<section class="panel" id="import">
+  <h2>Import a config</h2>
+  <p class="muted small" style="margin-top:0">A config holds the arr settings for one job (custom formats, quality profiles and sizes,
+    release and delay profiles, auto tagging, tags, naming), like "x265 up to 1080p" or "anime with an English dub". Paste one someone shared, or a custom format from an arr's
+    Export button or TRaSH Guides. wranglarr shows what would change before anything is saved, and every import can be removed again.</p>
+  <div class="row cc-examples" id="cc-examples"><span class="muted small">Examples:</span></div>
+  <textarea id="cc-text" class="cc-text" spellcheck="false" autocomplete="off"
+    placeholder='{ "wranglarr": "wranglarr-config/1", "name": "…", "apps": { "radarr": { "customFormats": [ … ] } } }'></textarea>
+  <div class="row" style="margin-top:8px">
+    <button class="btn primary" id="cc-check">Check</button>
+    <button class="btn ghost" id="cc-clear">Clear</button>
+    <span class="small" id="cc-msg"></span>
+  </div>
+  <div id="cc-preview" hidden></div>
+</section>
+
+<section class="panel" id="installed-panel">
+  <h2>Installed</h2>
+  <p class="muted small" style="margin-top:0">Each app's settings over time, newest first: every config installed, and the changes
+    wranglarr noticed made in the app by hand. Removing a config replays the rest without it. When later changes touch the same
+    settings, you pick whether they stay as they are, or the config comes out throughout.</p>
+  <div id="cc-installed"><p class="muted small">looking at the apps…</p></div>
+  <details id="cc-log" class="cc-log" hidden><summary class="small">Change log</summary>
+    <p class="muted small">Every import with the copies it replaced. Undo puts those copies back as they were.</p>
+    <div id="cc-history"></div></details>
+</section>
+
+<section class="panel" id="try">
+  <h2>Test a release name</h2>
+  <p class="muted small" style="margin-top:0">Asks the arr how it reads a release name: its quality, the custom formats it matches,
+    and the score each quality profile gives it.</p>
+  <form class="row" id="try-form" autocomplete="off">
+    <select name="app" id="try-app"></select>
+    <input name="title" placeholder="Movie.Name.2024.1080p.BluRay.x265-GROUP" spellcheck="false" style="flex:1;min-width:240px">
+    <button class="btn" type="submit">Test</button>
+  </form>
+  <div id="try-out" class="small" style="margin-top:10px"></div>
+</section>
+
+</div>
+
+<div id="pane-export" role="tabpanel" aria-labelledby="tab-export" hidden>
+<section class="panel" id="export">
+  <h2>Export a config</h2>
+  <p class="muted small" style="margin-top:0">Pick the settings that belong to the job. Picks from several apps go into one config.
+    Everything goes in by name: ids, paths and anything else tied to this server are left out.</p>
+  <div class="form-row"><label class="l">From</label>
+    <div><select id="ex-app" style="width:auto"></select> <span class="small muted" id="ex-count"></span></div></div>
+  <div id="ex-lists"></div>
+  <p class="small warn-text" id="ex-appwide"></p>
+  <div class="form-row" id="ex-extras-row" hidden><label class="l">In the config
+      <div class="hint" style="font-weight:400">give an item its own name, and say what whoever imports it may switch off, or on</div></label>
+    <div>
+      <div class="row cc-prefixes"><span class="small muted">New names:</span>
+        <input id="ex-prefix" placeholder="v2 · " maxlength="40" spellcheck="false" style="width:90px" title="put this in front of the name">
+        <button class="btn small" type="button" id="ex-prefix-builtin">Prefix the built-in ones</button>
+        <button class="btn small" type="button" id="ex-prefix-all">Prefix all</button>
+        <button class="btn small ghost" type="button" id="ex-prefix-clear">Clear</button></div>
+      <table class="compact cc-marks"><thead><tr><th>Picked</th><th>Name in the config</th><th>Import</th><th></th></tr></thead><tbody id="ex-extras"></tbody></table>
+      <div class="hint">A config that reuses a name the arrs ship with (HD-1080p, Any…) changes that profile wherever it's imported,
+        unless the importer takes a copy. A name of its own avoids that. What points at a renamed item follows it.</div></div></div>
+  <div class="form-row"><label class="l">Name</label>
+    <div><input id="ex-name" maxlength="100" placeholder="x265 up to 1080p, small files"></div></div>
+  <div class="form-row"><label class="l">What it's for</label>
+    <div><textarea id="ex-desc" class="cc-text short" maxlength="4000" placeholder="What it does and how to use it once imported"></textarea></div></div>
+  <div class="form-row"><label class="l">By <span class="muted small">(optional)</span></label>
+    <div><input id="ex-author" maxlength="100"></div></div>
+  <div class="form-row"><label class="l">Source <span class="muted small">(optional)</span>
+      <div class="hint" style="font-weight:400">who it's from, and where its JSON lives</div></label>
+    <div class="row"><input id="ex-source-name" maxlength="100" placeholder="TRaSH Guides, my repo…" style="flex:1 1 160px">
+      <input id="ex-source-url" maxlength="500" type="url" placeholder="https://…/config.json" style="flex:2 1 220px"></div></div>
+  <div class="row" style="margin-top:10px">
+    <button class="btn primary" id="ex-make">Make the JSON</button>
+    <span class="small" id="ex-msg"></span>
+  </div>
+  <div id="ex-notes" style="margin-top:6px"></div>
+  <div id="ex-out" hidden>
+    <textarea id="ex-json" class="cc-text" readonly spellcheck="false"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="ex-copy">Copy</button>
+      <button class="btn" id="ex-download">Download</button>
+      <button class="btn ghost" id="ex-try">Check it in Import</button>
+    </div>
+  </div>
+</section>
+</div>
+
+<section class="panel cc-later">
+  <h2>Coming next <span class="pill">later</span></h2>
+  <ol class="muted small" style="margin:0;padding-left:18px">
+    <li><b>Blast-radius checks:</b> before an install or a removal, which films, series or artists use each profile, tag or setting it
+      changes, and moving them off a profile before it's removed.</li>
+    <li><b>Config providers:</b> add a repo of configs (a Git repository or any web address with an index) and pick from its list here,
+      with updates when it changes. Until then, share configs as JSON: make one on the Export tab and paste it into Import.</li>
+  </ol>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/configs.js?v={{ asset_v }}"></script>{% endblock %}

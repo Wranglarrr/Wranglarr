@@ -1,0 +1,48 @@
+# Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| An app you moved in starts empty, or with missing root folders and old connections | its old database or paths weren't brought over yet | [Bringing in existing apps](Importing-Existing-Apps.md): copy the database, then paths and connections |
+| An arr starts on SQLite although Postgres is up | `config.xml` has no `Postgres*` keys: the arrs read them but never write them | `./scripts/init.sh` (safe to rerun: it stops the apps, adds the keys and starts them again) |
+| `init.sh` says an app "never wrote config.xml" | the init container failed to start | `docker compose -f compose.init.yaml logs <app>` |
+| Postgres rejects the app: database does not exist | profile added after the cluster was initialised | `docker compose exec postgres /docker-entrypoint-initdb.d/01-create-arr-dbs.sh` |
+| Bazarr: `could not open certificate file "/root/.postgresql/postgresql.crt"` | psycopg2 under a non-root PUID | `PGSSLCERT=/tmp/postgresql.crt` (already set in `compose.yaml`) |
+| wranglarr shows an app offline right after a config restore | its API key changed with the restored config | it re-reads `api_key_file` automatically; with a static `api_key` in `wranglarr.toml`, update it |
+| Forgot wranglarr's password, or lost the authenticator app and the recovery codes | | `docker compose exec -it wranglarr wranglarr-auth set-password`, or `… wranglarr-auth disable-2fa` ([Login](Login.md#locked-out)) |
+| wranglarr: "too many failed sign-ins" | five failures from that address in 15 minutes | wait 15 minutes, or `docker compose restart wranglarr` |
+| wranglarr asks for a setup code you don't have | the account doesn't exist yet (new install, or after `wranglarr-auth reset`) | `docker compose logs wranglarr`, the amber box |
+| No passkey button, or it's greyed out | passkeys need HTTPS on a host name, or `http://localhost` | open wranglarr through a reverse proxy or Tailscale HTTPS name ([Login](Login.md#passkeys-need-https-and-a-host-name)) |
+| wranglarr: "refused: this request didn't come from wranglarr's own pages" behind a reverse proxy | the proxy changes the `Host` header | pass it through: `proxy_set_header Host $host;` (Nginx); Caddy and Traefik do by default |
+| A script gets 401 from wranglarr's API | it needs an API key now | Account → API keys, send it as `X-Api-Key` |
+| System page: **Docker control off** although the socket is mounted | wranglarr runs as `PUID` and can't open the socket: `DOCKER_GID` is wrong or missing | set `DOCKER_GID` in `.env` to `stat -c %g /var/run/docker.sock` (`0` for rootless Podman/Docker, Docker Desktop), then `docker compose up -d wranglarr` ([Security](Security.md)) |
+| wranglarr: `Permission denied` in a backup or restore | files left root-owned by an older wranglarr, or an app's config folder owned by a different user than `PUID` | `docker compose up -d wranglarr` (wranglarr-init fixes its own folders); for an app's folder, `sudo chown -R PUID:PGID appdata/<app>` |
+| wranglarr: "config files can only be restored with the container stopped" | download-client restore without Docker control | mount `/var/run/docker.sock`, keep `[docker] socket` and `container = "…"` |
+| Arrs can't reach SABnzbd by name | SABnzbd host whitelist | `init.sh` adds `sabnzbd` to `host_whitelist`; on an older install re-run `./scripts/init.sh` or add it in Config → General → `host_whitelist` |
+| Arr: "Category does not exist" when adding or testing SABnzbd / NZBGet | the arrs refuse a category the client doesn't have | **Connect apps** on the System page: it creates a category per arr in the client first ([App Connections](App-Connections.md)) |
+| Arr health: "Remote download client … places downloads in `/data/usenet/complete/<arr>` but this directory does not appear to exist" (or `/data/torrents/<arr>`) | the category folder is missing, or not writable by `PUID` so the client couldn't create it | **Connect apps** creates it inside the client's container as `PUID:PGID`; if the run log says it isn't writable, fix the ownership: `chown -R PUID:PGID "$DATA_ROOT"`, under rootless Podman `podman unshare chown -R PUID:PGID "$DATA_ROOT"` (your host user is root inside the containers there) |
+| An arr answers 400 to wranglarr / other containers; its log says "The host 'radarr:7878' does not match an allowed host" | the arr's **Allowed Hosts** (Settings → General, written e.g. when the first-run login prompt is saved) lists only `127.0.0.1` | add the service name (`127.0.0.1,radarr`) or clear the field, then restart the arr |
+| App connections: a link shows `failed` in the run log | the arr tests each entry before saving it; the client's credentials are wrong or it is unreachable | fix the credentials (`QBITTORRENT_PASSWORD` etc. in `.env`, `docker compose up -d wranglarr`), then **Connect apps** |
+| qBittorrent login fails in wranglarr | `APPS_AUTH=manual` and the temporary first-start password | read it from `docker compose logs qbittorrent`, set a permanent one in the UI, put it in `.env` as `QBITTORRENT_PASSWORD` and `docker compose up -d wranglarr`. Or let init set it: `APPS_AUTH=apps` ([App logins](App-Logins.md)) |
+| App logins / AuthTunnel problems | | [App logins → Troubleshooting](App-Logins.md#troubleshooting) |
+| Seerr's links stay `waiting` on the System page | Seerr's first-run setup isn't done; its API answers nothing before that | open Seerr and sign in with Plex, Jellyfin or Emby. wranglarr connects Radarr and Sonarr within 5 minutes, or press **Connect apps** |
+| Seerr: "… has no root folder yet" | Seerr won't add an arr without one | add a root folder in the arr (Settings → Media Management, e.g. `/data/media/movies`), then **Connect apps** |
+| Seerr won't start: `EACCES` / permission denied on `/app/config` | `appdata/seerr` isn't owned by `PUID` | `./scripts/init.sh` fixes it; or `sudo chown PUID:PGID appdata/seerr` (rootless Podman: `podman unshare chown …`) |
+| Notifications: the test works but nothing else arrives | the events you want aren't ticked, the channel is off, or nothing has happened yet | Notifications → **Open right now** shows what the watcher sees; **Sent** shows what went out and each service's answer |
+| Notifications: Telegram answers 401 / 404 | wrong bot token, or the chat ID is wrong / the bot isn't in the group | a new token from @BotFather; for a group, add the bot first and use the `-100…` ID |
+| Media server: the arr's test fails, wranglarr's works | the address works from wranglarr but not from inside the arr's container (often `localhost`, or a host the VPN's kill switch blocks) | use the server's LAN IP or service name; with the VPN, add its subnet to `VPN_LAN_NETWORK` |
+| New files don't show up in Plex / Jellyfin | the server sees the files under another path | set the path mapping on the Connections page ([Connections](Connections.md)) |
+| VPN on, apps have no network after `docker compose up` | the `vpn` container was recreated outside wranglarr | `docker compose up -d --force-recreate radarr sonarr lidarr prowlarr bazarr qbittorrent sabnzbd nzbget` (wranglarr's own VPN updates do this for you) |
+| VPN on, app can't reach the NAS / another host | kill switch | add the subnet to `VPN_LAN_NETWORK` |
+| VPN on, `!reset` error from compose | Compose older than 2.24 | upgrade Docker Compose |
+| gluetun: "startup check" failing repeatedly | wrong/expired keys, stale server IP, host firewall | see https://github.com/qdm12/gluetun-wiki/blob/main/faq/healthcheck.md; for custom WireGuard the endpoint must be an IP |
+| wranglarr header shows "VPN ?" / unreachable | `GLUETUN_API_KEY` missing or `vpn` not in `WRANGLARR_ENABLED_APPS` | set the key in `.env`; the VPN override adds `,vpn` for you |
+| Hotio per-app VPN: web UI unreachable | `VPN_LAN_NETWORK` missing or wrong | set your LAN CIDR (not the Docker bridge) |
+| Imports copy instead of hardlinking | downloads and media on different mounts | one `DATA_ROOT` mount for both |
+| Imports copy instead of hardlinking, with one `DATA_ROOT` | `torrents`, `usenet` or `media` is its own ZFS dataset (TrueNAS) or mount; the wizard's storage check names it | make them plain folders in one dataset ([TrueNAS SCALE](TrueNAS.md#1-datasets)) |
+| Postgres won't start on TrueNAS: `could not change permissions of directory` | the appdata dataset has the SMB preset, which blocks `chmod` | use the Generic preset for the stack dataset ([TrueNAS SCALE](TrueNAS.md#1-datasets)) |
+| Backup version status `partial` | one app failed (offline, bad key); the rest were captured | open the run log; the manifest lists the app's `errors` |
+| Two apps fight over a port behind the VPN | same internal port in one namespace | that's why qBittorrent is on 8090; change `WEBUI_PORT` for anything else you add |
+| Update refused: "`<name>-wranglarr-old` exists from an earlier interrupted update" | wranglarr was stopped mid-update | `docker ps -a`: if `<name>` runs fine, `docker rm <name>-wranglarr-old`; otherwise `docker rm -f <name> && docker rename <name>-wranglarr-old <name> && docker start <name>` |
+| Updates: "check failed … unauthorized" / "toomanyrequests" | private registry without credentials, or Docker Hub rate limit | log the host's Docker into the registry (`docker login`), or check less often |
+| Updates: Postgres stays "update blocked" | the new image is a different major version | major upgrades are dump/restore: [Service: Postgres](Service-Postgres.md); or pin `POSTGRES_IMAGE` to the current major |
+| Rollback not offered | no successful update recorded, or the previous image was pruned | restore the `pre-update` backup and pin the old tag in `.env` (`RADARR_IMAGE=…:5.14.0`) |

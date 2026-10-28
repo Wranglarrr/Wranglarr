@@ -1,0 +1,85 @@
+# wranglarr (wranglarr/): format, lints, unit tests, licences/advisories, and the
+# black-box suite in tests/ run against the built binary. The weekly and manual runs,
+# and a release tag (through image.yml), also run the slow black-box tests
+# (WRANGLARR_TEST_SLOW).
+name: rust
+
+on:
+  push:
+    branches: [main]
+    paths: ["wranglarr/**", "tests/**", ".github/workflows/rust.yml"]
+  pull_request:
+    paths: ["wranglarr/**", "tests/**", ".github/workflows/rust.yml"]
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+  # image.yml runs these checks before it builds, so an image is never published
+  # from a commit that fails them
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  # github.workflow is the caller's name when image.yml calls this one, so the two
+  # runs for one push don't cancel each other
+  group: rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: wranglarr
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: wranglarr
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: cargo doc (broken links and unescaped markup fail)
+        run: cargo doc --workspace --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - run: cargo test --workspace --locked
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: wranglarr/Cargo.toml
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.89
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: wranglarr
+      - run: cargo check --workspace --locked --all-targets
+
+  blackbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: wranglarr
+      - run: cargo build --locked
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r tests/requirements.txt
+        working-directory: .
+      - name: tests/ against the Rust binary
+        working-directory: .
+        env:
+          WRANGLARR_CMD: ${{ github.workspace }}/wranglarr/target/debug/wranglarr serve
+          WRANGLARR_SETUP_CMD: ${{ github.workspace }}/wranglarr/target/debug/wranglarr setup
+          WRANGLARR_TEST_SLOW: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref_type == 'tag') && '1' || '' }}
+        run: python -m pytest tests

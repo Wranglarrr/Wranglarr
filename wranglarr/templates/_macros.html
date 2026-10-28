@@ -1,0 +1,108 @@
+{% macro status_pill(status) -%}
+<span class="pill pill-{{ status }}">{{ status }}</span>
+{%- endmacro %}
+
+{% macro app_chips(m) -%}
+{% for name, a in m.apps|items %}
+  {% set d = m.deltas[name]|default({}) if m.deltas is defined else {} %}
+  <span class="chip {{ 'chip-err' if a.errors else '' }}" title="{{ a.kind }} {{ a.version or '' }}{% if a.errors %} — {{ a.errors|join('; ') }}{% endif %}">
+    {{ app_logo(name, a.kind) }} {{ name }} <b>{{ a.version or '?' }}</b>
+    {% if d.version_changed %}<i class="delta" title="was {{ d.prev_version }}">⬆</i>{% endif %}
+    {% if d.count_delta %}<i class="delta {{ 'up' if d.count_delta > 0 else 'down' }}">{{ ('+' if d.count_delta > 0 else '') ~ d.count_delta }} {{ COLLECTION_LABELS[d.count_key]|default(d.count_key) }}</i>{% endif %}
+  </span>
+{% endfor %}
+{%- endmacro %}
+
+{% macro collection_line(a) -%}
+{% set c = a.collection or {} %}
+{% if c %}
+  {% for k, v in c|items if k != 'size_on_disk' %}<span class="stat"><b>{{ v|thousands }}</b> {{ COLLECTION_LABELS[k]|default(k) }}</span>{% endfor %}
+  {% if c.size_on_disk is defined %}<span class="stat"><b>{{ c.size_on_disk|human_bytes }}</b> on disk</span>{% endif %}
+{% else %}<span class="muted">no collection data</span>{% endif %}
+{%- endmacro %}
+
+{% macro scope_line(a) -%}
+{% set s = a.scope or {} %}
+{% for k, v in s|items if k != 'root_free_space' %}<span class="stat small"><b>{{ v }}</b> {{ SCOPE_LABELS[k]|default(k) }}</span>{% endfor %}
+{% if s.root_free_space %}<span class="stat small"><b>{{ s.root_free_space|human_bytes }}</b> free</span>{% endif %}
+{%- endmacro %}
+
+{% macro app_cards(suite) -%}
+<div class="apps" id="overview-{{ suite.name }}">
+  {% for a in suite.apps %}
+  <div class="app" data-app="{{ a.name }}">
+    <div class="row between">
+      <span class="app-name"><span class="dot pending"></span><span class="kind-ico">{{ app_logo(a.name, a.kind) }}</span>{{ a.name }} <span class="kind">{{ a.kind }}</span></span>
+      <span class="app-version muted small">…</span>
+    </div>
+    <div class="app-collection small muted">loading…</div>
+    <div class="app-scope"></div>
+    <div class="app-db"></div>
+  </div>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{% macro runs_table(runs, show_suite=True) -%}
+<table class="compact">
+  <thead><tr><th>Run</th>{% if show_suite %}<th>Suite</th>{% endif %}<th>Kind</th><th>Status</th><th>Started</th><th>Result</th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+  <tr><td><a href="/runs/{{ r.id }}">#{{ r.id }}</a></td>{% if show_suite %}<td>{{ r.suite }}</td>{% endif %}<td>{{ r.kind }} {{ r.target }}</td>
+      <td>{{ status_pill(r.status) }}</td><td class="muted small">{{ r.started|fmt_ts }}</td>
+      <td class="muted small">{{ r.result.version or r.result.error or (r.result.done|join(', ') if r.result.done) or (r.result.results|items|map('join', '=')|join(', ') if r.result.results is mapping) or '' }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{%- endmacro %}
+
+{# an app's own logo (asked from the app), its kind's shipped one if that fails #}
+{% macro app_logo(name, kind, cls="ico-logo app") -%}
+<img class="{{ cls }}" src="/api/apps/{{ name|urlencode }}/logo" alt="" title="{{ name }}" loading="lazy" data-fallback="{{ KIND_ICON[kind]|default('') }}">
+{%- endmacro %}
+
+{# the last backups as bars: height = size, colour only where something went wrong #}
+{% macro history_strip(rows, suite, big=False) -%}
+{% if rows %}
+<div class="hist-wrap"><span class="hist-cap">last {{ rows|length }} backup{{ '' if rows|length == 1 else 's' }} · size</span>
+<div class="hist{{ ' big' if big }}" role="list" aria-label="last {{ rows|length }} backups of {{ suite }}, oldest first">
+  {% for r in rows %}
+  <a role="listitem" class="hist-bar s-{{ r.status }}" href="/suites/{{ suite }}/versions/{{ r.version }}"
+     data-tip="{{ r.version|fmt_ts }} · {{ r.bytes|human_bytes }} · {{ r.status }}{{ ' · ' ~ r.trigger if r.trigger }}"
+     aria-label="{{ r.version|fmt_ts }}, {{ r.bytes|human_bytes }}, {{ r.status }}"><i style="height: {{ r.h }}%"></i>{% if r.status != 'ok' %}<b>!</b>{% endif %}</a>
+  {% endfor %}
+</div></div>
+{% else %}<div class="hist-empty muted small">No backups yet.</div>{% endif %}
+{%- endmacro %}
+
+{# what a version changed since the one before #}
+{% macro changes(m) -%}
+{% if m.changes %}<ul class="changes">
+  {% for c in m.changes %}<li class="ch-{{ c.what }}">
+    {%- if c.what == 'upgraded' %}<b>{{ c.app }}</b> {{ c.from or '?' }} → {{ c.to or '?' }}
+    {%- elif c.what == 'count' %}<b>{{ c.app }}</b> <span class="delta {{ 'up' if c.n > 0 else 'down' }}">{{ ('+' if c.n > 0 else '') ~ c.n }}</span> {{ c.label }}
+    {%- elif c.what == 'added' %}<b>{{ c.app }}</b> added
+    {%- elif c.what == 'removed' %}<b>{{ c.app }}</b> not in this backup
+    {%- elif c.what == 'error' %}<b>{{ c.app }}</b>: {{ c.text }}{% endif %}</li>{% endfor %}
+</ul>{% else %}<span class="muted small">{{ 'first backup' if m.size_delta is none else 'no changes' }}</span>{% endif %}
+{%- endmacro %}
+
+{# last backup · schedule · retention · stored, for a suite #}
+{% macro suite_facts(s, last) -%}
+<dl class="sfacts">
+  <div><dt>Last backup</dt>
+    <dd>{% if s.active_run %}<a href="/runs/{{ s.active_run.id }}">{{ s.active_run.kind }} running now…</a>
+        {% elif last %}<a href="/suites/{{ s.name }}/versions/{{ last.version }}">{{ last.version|human_age }}</a> {{ status_pill(last.status) }}
+        {% else %}<span class="muted">never</span>{% endif %}</dd>
+    <dd class="sub">{% if last %}{{ last.version|fmt_ts }} · {{ last.trigger or 'manual' }}{% else %}nothing stored yet{% endif %}</dd></div>
+  <div><dt>Schedule</dt>
+    <dd>{% if s.settings.enabled and s.settings.schedule %}{{ s.settings.schedule|cron_text }}{% else %}<span class="muted">manual only</span>{% endif %}</dd>
+    <dd class="sub">{% if s.settings.enabled and s.settings.schedule %}next {{ s.next_run|fmt_ts }}{% else %}no schedule set{% endif %}</dd></div>
+  <div><dt>Keeps</dt>
+    <dd>{% if s.settings.keep_last %}last {{ s.settings.keep_last }}{% endif %}{% if s.settings.keep_last and s.settings.keep_days %} · {% endif %}{% if s.settings.keep_days %}{{ s.settings.keep_days }} days{% endif %}{% if not s.settings.keep_last and not s.settings.keep_days %}everything{% endif %}</dd>
+    <dd class="sub">{{ 'older ones are pruned' if s.settings.keep_last or s.settings.keep_days else 'nothing is pruned' }}</dd></div>
+  <div><dt>Stored</dt>
+    <dd>{{ s.usage.bytes|human_bytes }}</dd>
+    <dd class="sub">{{ s.usage.versions }} version{{ '' if s.usage.versions == 1 else 's' }}</dd></div>
+</dl>
+{%- endmacro %}

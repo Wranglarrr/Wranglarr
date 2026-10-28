@@ -1,0 +1,89 @@
+{
+  "suite": "downloads",
+  "version": "20261027T160726Z",
+  "created": "2026-10-27T16:07:26.651291+00:00",
+  "trigger": "manual",
+  "wranglarr": "0.2.0",
+  "status": "ok",
+  "apps": {
+    "qbittorrent": {
+      "name": "qbittorrent",
+      "kind": "qbittorrent",
+      "databases": [],
+      "config_zip": null,
+      "config_snapshot": {
+        "path": "qbittorrent/config",
+        "files": 1,
+        "bytes": 14,
+        "skipped": 0,
+        "checksums": "qbittorrent/config.sha256",
+        "unreadable": [],
+        "payload": {
+          "items": [
+            {
+              "label": ".torrent files",
+              "count": 0
+            },
+            {
+              "label": "resume files (progress, save path, category)",
+              "count": 0
+            }
+          ],
+          "excluded": [],
+          "outside": {},
+          "settings": {
+            "save_path": "",
+            "temp_path": ""
+          }
+        }
+      },
+      "collection": {
+        "torrents": 3,
+        "downloading": 2,
+        "seeding": 1,
+        "paused": 1,
+        "size_on_disk": 5100
+      },
+      "scope": {},
+      "errors": [],
+      "container": {
+        "image": "ghcr.io/hotio/qbittorrent:release",
+        "image_id": "sha256:2e309d7a021112bb061dc23dd67a7034783785e6c36701cb0db78f975fda81bb",
+        "pinned": "ghcr.io/hotio/qbittorrent@sha256:f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1",
+        "version": "release-5.0.3",
+        "env": {
+          "PUID": "1000"
+        },
+        "ports": [
+          "8090:8090",
+          "6881:6881",
+          "6881:6881/udp"
+        ],
+        "mounts": [
+          {
+            "source": "/srv/appdata/qbittorrent",
+            "target": "/config",
+            "ro": false
+          }
+        ],
+        "network_mode": "arrs",
+        "vpn": true
+      },
+      "version": "v5.0.3",
+      "database_type": "files",
+      "database_version": "2.11.2",
+      "migration_version": null,
+      "instance_name": "qBittorrent",
+      "branch": null,
+      "os": null
+    }
+  },
+  "postgres_version": "",
+  "vpn": null,
+  "total_bytes": 3568,
+  "standalone": [
+    "compose.yaml",
+    ".env",
+    "RESTORE.md"
+  ]
+}

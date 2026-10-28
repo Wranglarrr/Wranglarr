@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% import "_icons.html" as i %}
+{% block title %}{{ suite.name }} · wranglarr{% endblock %}
+{% block crumbs %}<a href="/suites" class="crumb">Suites</a> / {{ suite.name }}{% endblock %}
+{% block toolbar %}
+  {% if suite.active_run %}
+    <a class="tb running" href="/runs/{{ suite.active_run.id }}"><span class="i">{{ i.icon('running') }}</span>{{ suite.active_run.kind }}…</a>
+  {% else %}
+    <button class="tb primary" data-backup="{{ suite.name }}"><span class="i">{{ i.icon('backup') }}</span>Back up now</button>
+    {% if suite.shared %}<button class="tb" data-sync="{{ suite.name }}"><span class="i">{{ i.icon('sync') }}</span>Sync shared</button>{% endif %}
+    <button class="tb" data-prune="{{ suite.name }}" title="delete the versions the retention rules no longer keep"><span class="i">{{ i.icon('prune') }}</span>Prune</button>
+  {% endif %}
+  <span class="spacer"></span>
+  <span class="tb-text">{{ suite.usage.versions }} versions · {{ suite.usage.bytes|human_bytes }}</span>
+{% endblock %}
+{% block content %}
+{% set last = versions[0] if versions else none %}
+<section class="panel">
+  {{ ui.suite_facts(suite, last) }}
+  {{ ui.history_strip(history, suite.name, big=True) }}
+</section>
+
+<div class="grid2 suite-grid">
+<section class="panel">
+  <h2>What's in it</h2>
+  <table class="compact sapps">
+    <thead><tr><th>App</th><th>Database</th><th class="num">Last backup</th></tr></thead>
+    <tbody>
+    {% for a in app_list %}
+      {% set url = (links[a.name] or {}).url %}
+      <tr class="{{ 'bad' if a.errors }}">
+        <td><div class="u-name">{{ ui.app_logo(a.name, a.kind) }}
+          <div>{% if url %}<a href="{{ url }}" target="_blank" rel="noopener"><b>{{ a.name }}</b></a>{% else %}<b>{{ a.name }}</b>{% endif %}
+            <div class="muted small">{{ a.kind }}{% if a.version %} · {{ a.version }}{% endif %}</div></div></div>
+          {% for e in a.errors %}<div class="error small">{{ e }}</div>{% endfor %}</td>
+        <td class="small">{% if a.databases %}{{ a.database_type or 'database' }}
+            <div class="muted">{% for d in a.databases %}{{ d.name }}{{ ', ' if not loop.last }}{% endfor %}</div>
+          {% elif a.in_backup %}<span class="muted">files only</span>{% else %}<span class="muted">–</span>{% endif %}</td>
+        <td class="num small">{% if a.in_backup %}{{ ((a.db_bytes or 0) + (a.zip_bytes or 0) + (a.files_bytes or 0))|human_bytes }}
+            <div class="muted">{% if a.databases %}{{ a.databases|length }} dump{{ '' if a.databases|length == 1 else 's' }}{% endif %}{% if a.databases and (a.zip_bytes or a.files) %} + {% endif %}{% if a.files %}{{ a.files }} files{% elif a.zip_bytes %}config{% endif %}</div>
+          {% else %}<span class="muted">not yet</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if suite.shared %}
+  <h3>Shared settings</h3>
+  <ul class="plain small">
+    {% for r in suite.shared %}<li><b>{{ r.name }}</b> <span class="muted">{{ r.label }} → {{ r.apps|join(', ') }}</span></li>{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Schedule &amp; retention</h2>
+  <form method="post" action="/suites/{{ suite.name }}/settings">
+    <div class="form-row"><label class="l" for="f-sched">Schedule</label><div><input id="f-sched" name="schedule" value="{{ suite.settings.schedule }}" placeholder="30 3 * * *">
+      <div class="hint">{% if suite.settings.schedule %}{{ suite.settings.schedule|cron_text }} · {% endif %}cron: minute hour day month weekday · blank = never</div></div></div>
+    <div class="form-row"><label class="l" for="f-on">Enabled</label><div class="inline"><input id="f-on" type="checkbox" name="enabled" {{ 'checked' if suite.settings.enabled }}> <span class="hint">off = only when you press Back up now</span></div></div>
+    <div class="form-row"><label class="l" for="f-last">Keep last</label><div class="inline"><input id="f-last" type="number" name="keep_last" min="0" value="{{ suite.settings.keep_last }}"> versions <span class="hint">0 = unlimited</span></div></div>
+    <div class="form-row"><label class="l" for="f-days">Keep for</label><div class="inline"><input id="f-days" type="number" name="keep_days" min="0" value="{{ suite.settings.keep_days }}"> days <span class="hint">0 = unlimited</span></div></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn primary" type="submit">Save</button>
+      {% if suite.settings.source == 'ui' %}<button class="btn ghost" type="button" data-reset="{{ suite.name }}">reset to config file</button>{% endif %}
+      <span class="muted small">settings from {{ suite.settings.source }}</span>
+    </div>
+  </form>
+</section>
+</div>
+
+{% if downloads %}
+<section class="panel">
+  <h2>What a downloads backup holds</h2>
+  <p>wranglarr backs up the <b>torrents and NZBs themselves</b>, not what they downloaded. The downloaded files live on the shared
+  <code>/data</code> mount (<code>/data/torrents</code>, <code>/data/usenet</code>), the same place the arrs import from and the same
+  disk as your media, so they belong to your normal file backups, not here. A backup of a download client is a few kilobytes per
+  torrent or NZB, however large the download.</p>
+  <p class="muted small">After a restore the client finds its torrents and jobs again: torrents re-check the data already on
+  <code>/data</code> and carry on (or download again if it's gone); an interrupted usenet job can be added again from its saved NZB.</p>
+  <table class="compact">
+    <thead><tr><th>Client</th><th>In the backup</th><th>Newest backup</th><th>Not in the backup</th></tr></thead>
+    <tbody>
+    {% for d in downloads %}
+      <tr>
+        <td><div class="u-name">{{ ui.app_logo(d.name, d.kind) }}<b>{{ d.name }}</b></div></td>
+        <td class="small">{{ ((SERVICES[d.kind]|default({})).backup_holds or '')|safe }}</td>
+        <td class="small">{% if d.payload %}
+            {% for it in d.payload['items'] %}<div><b>{{ it.count|thousands }}</b> {{ it.label }}</div>{% endfor %}
+            <div class="muted">{{ d.files }} files, {{ d.bytes|human_bytes }} · <a href="/suites/{{ suite.name }}/versions/{{ d.version }}">{{ d.version|fmt_ts }}</a></div>
+          {% elif d.version %}<span class="muted">older backup format; take a new one for counts</span>
+          {% else %}<span class="muted">no backup yet</span>{% endif %}</td>
+        <td class="small">{% if d.payload %}
+            {% for label, path in d.payload.outside|items %}<div>{{ label }}: <code>{{ path }}</code></div>{% endfor %}
+            {% for x in d.payload.excluded %}<div><code>/config/{{ (x|split(': ', 1))[0] }}</code> {{ (x|split(': ', 1))[1] }} <span class="muted">(inside /config, left out)</span></div>{% endfor %}
+            {% if not d.payload.outside and not d.payload.excluded %}<span class="muted">downloaded data</span>{% endif %}
+          {% else %}<span class="muted">downloaded data</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Versions</h2>
+  {% if versions %}
+  <table class="versions">
+    <thead><tr><th>Taken</th><th>Status</th><th>Changes since the one before</th><th class="num">Size</th><th></th></tr></thead>
+    <tbody>
+    {% for m in versions %}
+      <tr>
+        <td><a href="/suites/{{ suite.name }}/versions/{{ m.version }}">{{ m.version|fmt_ts }}</a>
+            <div class="muted small">{{ m.version|human_age }} · {{ m.trigger or 'manual' }}</div></td>
+        <td>{{ ui.status_pill(m.status) }}</td>
+        <td>{{ ui.changes(m) }}</td>
+        <td class="num">{{ m.total_bytes|human_bytes }}
+            {% if m.size_delta %}<div class="small muted">{{ '+' if m.size_delta > 0 else '−' }}{{ (m.size_delta|abs)|human_bytes }}</div>{% endif %}</td>
+        <td class="num"><button class="btn ghost danger small" data-delete-version="{{ m.version }}" data-suite="{{ suite.name }}" title="delete this version" aria-label="Delete version {{ m.version|fmt_ts }}">{{ i.icon('trash') }}</button></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">No backups yet. <button class="btn primary small" data-backup="{{ suite.name }}">Back up now</button></p>{% endif %}
+</section>
+
+{% if runs %}
+<section class="panel">
+  <div class="row between"><h2>Other runs</h2><a class="small" href="/activity">All activity ›</a></div>
+  <p class="muted small">Restores, syncs and anything that failed. Each successful backup is a version above.</p>
+  {{ ui.runs_table(runs, show_suite=False) }}
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% import "_icons.html" as i %}
+{% block title %}Account · wranglarr{% endblock %}
+{% block crumbs %}Account{% endblock %}
+{% block toolbar %}
+  <button class="tb" id="sign-out"><span class="i">{{ i.icon('sign-out') }}</span>Sign out</button>
+  <span class="spacer"></span>
+  <span class="tb-text">signed in as {{ user }}</span>
+{% endblock %}
+{% block content %}
+<div id="account" data-rp="{{ rp_id }}" data-https="{{ 1 if https else 0 }}">
+<div class="grid2">
+<section class="panel">
+  <h2>Password</h2>
+  <form id="pw-form">
+    <div class="form-row"><label class="l">Current password</label><div><input name="current" type="password" autocomplete="current-password" required></div></div>
+    <div class="form-row"><label class="l">New password</label><div><input name="new" type="password" autocomplete="new-password" minlength="12" required><div class="hint">at least 12 characters</div></div></div>
+    <div class="form-row"><label class="l">New password again</label><div><input name="new2" type="password" autocomplete="new-password" minlength="12" required></div></div>
+    <div class="row" style="margin-top:10px"><button class="btn primary" type="submit">Change password</button></div>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Two-factor sign-in</h2>
+  <div id="totp-state"><p class="muted">Loading…</p></div>
+</section>
+</div>
+
+<section class="panel">
+  <h2>Passkeys</h2>
+  <p class="muted small">A passkey signs you in without the password, with your fingerprint, face, device PIN or a security key.
+  It counts as two factors on its own, so it skips the authenticator code. Passkeys stay on your devices (or in your password manager); wranglarr only keeps their public keys.</p>
+  <div id="passkey-warn"></div>
+  <div id="passkey-list"></div>
+  <div class="row" style="margin-top:10px">
+    <input id="passkey-name" placeholder="name, e.g. phone or YubiKey" maxlength="60">
+    <button class="btn primary" id="passkey-add">Add a passkey</button>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>API keys</h2>
+  <p class="muted small">For scripts and other tools: send the key as the <code>X-Api-Key</code> header to any <code>/api/</code> address.
+  A key can do everything the API can, except change this account. It's shown once; wranglarr keeps only a hash.</p>
+  <div id="key-new" hidden></div>
+  <div id="key-list"></div>
+  <div class="row" style="margin-top:10px">
+    <input id="key-name" placeholder="name, e.g. home-assistant" maxlength="60">
+    <button class="btn" id="key-add">Create API key</button>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Signed-in sessions</h2>
+  <div id="session-list"></div>
+  <div class="row" style="margin-top:10px"><button class="btn ghost" id="end-others">Sign out everywhere else</button></div>
+</section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/auth.js?v={{ asset_v }}"></script>{% endblock %}

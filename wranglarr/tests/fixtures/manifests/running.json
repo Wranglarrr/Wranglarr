@@ -1,0 +1,12 @@
+{
+  "suite": "media",
+  "version": "20261027T040000Z-1",
+  "created": "2026-10-27T04:00:00.000000+00:00",
+  "trigger": "pre-update",
+  "wranglarr": "0.2.0",
+  "status": "running",
+  "apps": {},
+  "postgres_version": "",
+  "vpn": null,
+  "total_bytes": 0
+}

@@ -1,0 +1,92 @@
+{
+  "suite": "media",
+  "version": "20261027T030000Z",
+  "created": "2026-10-27T03:00:00.000000+00:00",
+  "trigger": "schedule",
+  "wranglarr": "0.2.0",
+  "status": "partial",
+  "apps": {
+    "sonarr": {
+      "name": "sonarr",
+      "kind": "sonarr",
+      "databases": [
+        {
+          "name": "sonarr-main",
+          "file": "sonarr/sonarr-main.dump",
+          "size": 2048,
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+          "db_size": 8192
+        }
+      ],
+      "config_zip": null,
+      "config_snapshot": null,
+      "collection": {},
+      "scope": {},
+      "errors": [
+        "status: connection refused"
+      ],
+      "container": null
+    },
+    "radarr": {
+      "name": "radarr",
+      "kind": "radarr",
+      "databases": [],
+      "config_zip": null,
+      "config_snapshot": null,
+      "collection": {},
+      "scope": {},
+      "errors": [
+        "pg_dump radarr-main: timed out",
+        "collection: 500 Internal Server Error"
+      ],
+      "container": {
+        "image": null,
+        "image_id": "",
+        "pinned": null,
+        "version": "",
+        "env": {},
+        "ports": [],
+        "mounts": [
+          {
+            "source": "/srv/media",
+            "target": "/data",
+            "ro": true
+          }
+        ],
+        "network_mode": "container:gluetun",
+        "vpn": false
+      },
+      "version": "5.14.0.9383",
+      "database_type": "postgreSQL",
+      "database_version": null,
+      "migration_version": 241,
+      "instance_name": "Radarr 4K",
+      "branch": "develop",
+      "os": "ubuntu"
+    }
+  },
+  "postgres_version": "18.1",
+  "vpn": {
+    "configured": true,
+    "connected": true,
+    "public_ip": "203.0.113.7",
+    "forwarded_port": 51413
+  },
+  "total_bytes": 9001,
+  "postgres_container": {
+    "image": "postgres:18",
+    "image_id": "sha256:0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+    "pinned": "postgres@sha256:e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2",
+    "version": "18.1",
+    "env": {
+      "TZ": "Europe/Oslo"
+    },
+    "ports": [
+      "5432:5432"
+    ],
+    "mounts": [],
+    "network_mode": "arrs",
+    "vpn": false
+  },
+  "standalone": []
+}

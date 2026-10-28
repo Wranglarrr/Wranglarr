@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% import "_icons.html" as i %}
+{% block title %}Indexers · wranglarr{% endblock %}
+{% block crumbs %}Indexers{% endblock %}
+{% set CELL = {"ok": ("pill-ok", "✓"), "partial": ("pill-partial", "some"), "missing": ("", "missing"), "error": ("pill-failed", "?"), "off": (None, "–")} %}
+{% block toolbar %}
+  <button class="tb primary" data-ix-new><span class="i">{{ i.icon('plus') }}</span>Add tracker or aggregator</button>
+  <button class="tb" data-ix-sync {{ 'disabled' if not ix.sources }}><span class="i">{{ i.icon('sync') }}</span>Sync to arrs</button>
+{% endblock %}
+{% block content %}
+{% if ix.stack_prowlarr %}
+<section class="panel">
+  <h2>Prowlarr in this stack</h2>
+  <p>The easiest way: add your trackers once in Prowlarr ({% for p in ix.stack_prowlarr %}<code>{{ p.url }}</code>, or <a href="http://{{ request.url.hostname }}:9696" target="_blank" rel="noopener">open it</a>{% endfor %}),
+  and Prowlarr pushes them to every arr it knows. wranglarr registers the arrs in Prowlarr for you:</p>
+  <table class="compact"><tbody>
+  {% for l in connect %}<tr><td>{{ app_logo(l.dst, l.dst_kind) }} {{ l.dst }}</td><td>{% if l.state == 'connected' %}<span class="pill pill-ok">registered</span>{% elif l.state == 'missing' %}<span class="pill">not registered</span>{% else %}<span class="pill pill-failed">{{ l.state }}</span>{% endif %} <span class="muted small">{{ l.detail }}</span></td></tr>{% endfor %}
+  </tbody></table>
+  <p class="muted small">Trackers below are for anything you'd rather not run through Prowlarr: a tracker's own Torznab feed, a usenet indexer, Jackett, NZBHydra2 or a Prowlarr elsewhere.</p>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Trackers &amp; aggregators</h2>
+  {% if ix.sources %}
+  <table>
+    <thead><tr><th>Source</th><th>Type</th>{% for t in ix.targets %}<th class="num">{{ app_logo(t.name, t.kind) }} {{ t.name }}</th>{% endfor %}<th></th></tr></thead>
+    <tbody>
+    {% for s in ix.sources %}
+      <tr{% if not s.enabled %} class="muted"{% endif %}>
+        <td><b>{{ s.name }}</b><div class="muted small"><code>{{ s.url }}</code>{% if s.detail %} · {{ s.detail }}{% endif %}{% if not s.enabled %} · disabled{% endif %}</div>
+            {% if s.error %}<div class="error small">{{ s.error }}</div>{% endif %}</td>
+        <td class="small">{{ s.type_label }}</td>
+        {% for t in ix.targets %}{% set c = CELL[s.cells[t.name]]|default(("", s.cells[t.name])) %}
+          <td class="num">{% if c[0] is none %}<span class="muted">–</span>{% else %}<span class="pill {{ c[0] }}">{{ c[1] }}</span>{% endif %}</td>{% endfor %}
+        <td><div class="actions"><button class="btn ghost small" data-ix-edit="{{ s.id }}">Edit</button>
+            <button class="btn ghost danger small" data-ix-delete="{{ s.id }}" data-name="{{ s.name }}" data-type="{{ s.type }}" title="remove" aria-label="remove">{{ i.icon('trash') }}</button></div></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">✓ = in that arr · – = not picked for it. Removing a source, or un-picking an arr, removes the indexers wranglarr added there; ones you added by hand are never touched.</p>
+  {% else %}
+  <p class="muted">None yet. {% if ix.stack_prowlarr %}With Prowlarr in the stack you may not need any.{% endif %}</p>
+  {% endif %}
+  {% if ix.errors %}<div class="error small">{% for n, e in ix.errors|items %}<div>{{ n }}: {{ e }}</div>{% endfor %}</div>{% endif %}
+  <div class="muted small" style="margin-top:8px">Indexers per arr right now: {% for n, c in ix.indexer_counts|items %}{{ n }} {{ c }}{{ ', ' if not loop.last }}{% endfor %}</div>
+</section>
+
+<section class="panel" id="ix-form-panel" hidden>
+  <h2 id="ix-form-title">Add tracker or aggregator</h2>
+  <form data-ix-form>
+    <input type="hidden" name="id">
+    <div class="form-row"><label class="l">Type</label><div><select name="type">
+      {% for k, v in ix.types|items %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+      <div class="hint" data-ix-hint></div></div></div>
+    <div class="form-row"><label class="l">Name</label><div><input name="name" required maxlength="60" placeholder="MyTracker"></div></div>
+    <div class="form-row"><label class="l">URL</label><div><input name="url" required placeholder="https://tracker.example/api" style="width:100%">
+      <div class="hint">as the arrs reach it (a container name like <code>http://jackett:9117</code> works inside the stack)</div></div></div>
+    <div class="form-row"><label class="l">API key</label><div><input name="api_key" type="password" autocomplete="off"><div class="hint" data-ix-keyhint></div></div></div>
+    <div class="form-row"><label class="l">Push to</label><div class="inline">
+      {% for t in ix.targets %}<label class="inline"><input type="checkbox" name="apply_to" value="{{ t.name }}" checked> {{ t.name }}</label>{% endfor %}</div></div>
+    <div class="form-row" data-ix-only="torznab newznab jackett nzbhydra"><label class="l">Priority</label><div class="inline"><input type="number" name="priority" min="1" max="50" value="25"> <span class="hint">1 = most preferred (arrs' default 25)</span></div></div>
+    <div class="form-row" data-ix-only="torznab jackett nzbhydra"><label class="l">Min. seeders</label><div class="inline"><input type="number" name="min_seeders" min="0" value="1"></div></div>
+    <div class="form-row" data-ix-only="nzbhydra"><label class="l">Torrents too</label><div class="inline"><input type="checkbox" name="torrents"> <span class="hint">also add Hydra's Torznab feed</span></div></div>
+    <div class="form-row"><label class="l">Enabled</label><div class="inline"><input type="checkbox" name="enabled" checked></div></div>
+    <div class="row" style="margin-top:10px"><button class="btn primary" type="submit">Save &amp; sync</button>
+      <button class="btn ghost" type="button" data-ix-cancel>Cancel</button></div>
+  </form>
+</section>
+
+<script id="ix-sources" type="application/json">{{ sources_json|tojson }}</script>
+{% endblock %}

@@ -1,0 +1,431 @@
+[
+ {
+  "op": "GET",
+  "path": "/api/configs"
+ },
+ {
+  "op": "GET",
+  "path": "/api/configs/examples/x265-small"
+ },
+ {
+  "op": "GET",
+  "path": "/api/configs/examples/nope"
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/check",
+  "body": {
+   "text": "$example:x265-small",
+   "targets": {
+    "radarr": [
+     "radarr"
+    ],
+    "sonarr": []
+   }
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/check",
+  "body": {
+   "text": "{\"wranglarr\": \"wranglarr-config/1\", \"name\": \"Mixed\", \"apps\": {\"radarr\": {\"tags\": [\"anime\", \"new-tag\"], \"customFormats\": [{\"name\": \"Other\", \"specifications\": [{\"name\": \"Lang\", \"implementation\": \"LanguageSpecification\", \"fields\": {\"value\": \"English\", \"exceptLanguage\": false}}]}, {\"name\": \"Opt\", \"extra\": {\"default\": false, \"note\": \"off by default\"}, \"specifications\": [{\"name\": \"t\", \"implementation\": \"ReleaseTitleSpecification\", \"fields\": {\"value\": \"opt\"}}]}, {\"name\": \"Bluray\", \"specifications\": [{\"name\": \"s\", \"implementation\": \"SourceSpecification\", \"fields\": {\"value\": \"bluray\"}}, {\"name\": \"r\", \"implementation\": \"ResolutionSpecification\", \"fields\": {\"value\": \"R1080p\"}}]}], \"qualityDefinitions\": {\"Bluray-1080p\": {\"min\": 5.5, \"max\": null}, \"HDTV-720p\": {\"preferred\": 50}}, \"qualityProfiles\": [{\"name\": \"HD-1080p\", \"cutoff\": \"Bluray-1080p\", \"qualities\": [\"Bluray-1080p\", {\"name\": \"WEB 1080p\", \"qualities\": [\"WEBDL-1080p\", \"WEBRip-1080p\"]}, \"HDTV-1080p\"], \"minFormatScore\": 5, \"language\": \"English\", \"formatScores\": {\"Bluray\": 50, \"Other\": -10, \"Opt\": 5, \"x265-HEVC\": 3}}, {\"name\": \"Fresh\", \"qualities\": [\"Bluray-2160p\"], \"formatScores\": {\"Bluray\": 1}}], \"releaseProfiles\": [{\"name\": \"Old\", \"required\": [\"a\", \"b\"], \"tags\": [\"anime\"]}, {\"name\": \"New RP\", \"ignored\": [\"cam\"]}], \"delayProfiles\": [{\"tags\": [], \"usenetDelay\": 60, \"preferredProtocol\": \"torrent\"}, {\"tags\": [\"anime\"], \"enableUsenet\": false, \"torrentDelay\": 5}], \"autoTags\": [{\"name\": \"Anime HD\", \"tags\": [\"new-tag\"], \"removeTagsAutomatically\": true, \"specifications\": [{\"name\": \"p\", \"implementation\": \"QualityProfileSpecification\", \"fields\": {\"value\": \"HD-1080p\"}}, {\"name\": \"l\", \"implementation\": \"OriginalLanguageSpecification\", \"fields\": {\"value\": \"Japanese\"}}, {\"name\": \"t\", \"implementation\": \"TagSpecification\", \"fields\": {\"value\": [\"anime\"]}}]}], \"naming\": {\"renameMovies\": false, \"standardMovieFormat\": \"{Movie Title} {Quality Full} xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, \"mediaManagement\": {\"deleteEmptyFolders\": true, \"fileDate\": \"none\"}}}}",
+   "extras": {
+    "radarr/customFormats/Opt": true
+   },
+   "resolve": {
+    "radarr|qualityProfiles|HD-1080p": "keep",
+    "radarr|delayProfiles|default": "keep",
+    "radarr|naming|*": "keep",
+    "radarr|tags|anime": "prefix",
+    "radarr|customFormats|Other": "prefix"
+   },
+   "prefix": "Mine "
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/check",
+  "body": {
+   "text": "{\"name\": \"Broken\", \"apps\": {\"radarr\": {\"customFormats\": [{\"name\": \"Bad\", \"specifications\": [{\"name\": \"z\", \"implementation\": \"NopeSpecification\", \"fields\": {}}]}, {\"name\": \"BadField\", \"specifications\": [{\"name\": \"z\", \"implementation\": \"ReleaseTitleSpecification\", \"fields\": {\"zz\": 1}}]}, {\"name\": \"BadChoice\", \"specifications\": [{\"name\": \"z\", \"implementation\": \"SourceSpecification\", \"fields\": {\"value\": \"laserdisc\"}}]}], \"qualityDefinitions\": {\"Nope-9000p\": {\"min\": 1}}, \"qualityProfiles\": [{\"name\": \"Q1\", \"formatScores\": {\"missing\": 1}}, {\"name\": \"Q2\", \"qualities\": [\"Bluray-1080p\", \"Bluray-1080p\"]}, {\"name\": \"Q3\", \"qualities\": [\"Bluray-1080p\"], \"cutoff\": \"DVD\"}, {\"name\": \"Q4\", \"qualities\": [\"Imaginary\"]}, {\"name\": \"Q5\", \"language\": \"Klingon\"}], \"autoTags\": [{\"name\": \"Root\", \"tags\": [\"x\"], \"specifications\": [{\"name\": \"r\", \"implementation\": \"RootFolderSpecification\", \"fields\": {\"value\": \"/movies\"}}]}, {\"name\": \"NoProfile\", \"tags\": [\"x\"], \"specifications\": [{\"name\": \"p\", \"implementation\": \"QualityProfileSpecification\", \"fields\": {\"value\": \"Ghost\"}}]}], \"naming\": {\"renameMovies\": true, \"wat\": \"x\"}}}}"
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/apply",
+  "body": {
+   "text": "{\"name\": \"Broken\", \"apps\": {\"radarr\": {\"customFormats\": [{\"name\": \"Bad\", \"specifications\": [{\"name\": \"z\", \"implementation\": \"NopeSpecification\", \"fields\": {}}]}, {\"name\": \"BadField\", \"specifications\": [{\"name\": \"z\", \"implementation\": \"ReleaseTitleSpecification\", \"fields\": {\"zz\": 1}}]}, {\"name\": \"BadChoice\", \"specifications\": [{\"name\": \"z\", \"implementation\": \"SourceSpecification\", \"fields\": {\"value\": \"laserdisc\"}}]}], \"qualityDefinitions\": {\"Nope-9000p\": {\"min\": 1}}, \"qualityProfiles\": [{\"name\": \"Q1\", \"formatScores\": {\"missing\": 1}}, {\"name\": \"Q2\", \"qualities\": [\"Bluray-1080p\", \"Bluray-1080p\"]}, {\"name\": \"Q3\", \"qualities\": [\"Bluray-1080p\"], \"cutoff\": \"DVD\"}, {\"name\": \"Q4\", \"qualities\": [\"Imaginary\"]}, {\"name\": \"Q5\", \"language\": \"Klingon\"}], \"autoTags\": [{\"name\": \"Root\", \"tags\": [\"x\"], \"specifications\": [{\"name\": \"r\", \"implementation\": \"RootFolderSpecification\", \"fields\": {\"value\": \"/movies\"}}]}, {\"name\": \"NoProfile\", \"tags\": [\"x\"], \"specifications\": [{\"name\": \"p\", \"implementation\": \"QualityProfileSpecification\", \"fields\": {\"value\": \"Ghost\"}}]}], \"naming\": {\"renameMovies\": true, \"wat\": \"x\"}}}}",
+   "ack": true
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/check",
+  "body": {
+   "text": "not json"
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/check",
+  "body": {
+   "text": "{\"wranglarr\": \"wranglarr-config/1\", \"name\": \"Mixed\", \"apps\": {\"radarr\": {\"tags\": [\"anime\", \"new-tag\"], \"customFormats\": [{\"name\": \"Other\", \"specifications\": [{\"name\": \"Lang\", \"implementation\": \"LanguageSpecification\", \"fields\": {\"value\": \"English\", \"exceptLanguage\": false}}]}, {\"name\": \"Opt\", \"extra\": {\"default\": false, \"note\": \"off by default\"}, \"specifications\": [{\"name\": \"t\", \"implementation\": \"ReleaseTitleSpecification\", \"fields\": {\"value\": \"opt\"}}]}, {\"name\": \"Bluray\", \"specifications\": [{\"name\": \"s\", \"implementation\": \"SourceSpecification\", \"fields\": {\"value\": \"bluray\"}}, {\"name\": \"r\", \"implementation\": \"ResolutionSpecification\", \"fields\": {\"value\": \"R1080p\"}}]}], \"qualityDefinitions\": {\"Bluray-1080p\": {\"min\": 5.5, \"max\": null}, \"HDTV-720p\": {\"preferred\": 50}}, \"qualityProfiles\": [{\"name\": \"HD-1080p\", \"cutoff\": \"Bluray-1080p\", \"qualities\": [\"Bluray-1080p\", {\"name\": \"WEB 1080p\", \"qualities\": [\"WEBDL-1080p\", \"WEBRip-1080p\"]}, \"HDTV-1080p\"], \"minFormatScore\": 5, \"language\": \"English\", \"formatScores\": {\"Bluray\": 50, \"Other\": -10, \"Opt\": 5, \"x265-HEVC\": 3}}, {\"name\": \"Fresh\", \"qualities\": [\"Bluray-2160p\"], \"formatScores\": {\"Bluray\": 1}}], \"releaseProfiles\": [{\"name\": \"Old\", \"required\": [\"a\", \"b\"], \"tags\": [\"anime\"]}, {\"name\": \"New RP\", \"ignored\": [\"cam\"]}], \"delayProfiles\": [{\"tags\": [], \"usenetDelay\": 60, \"preferredProtocol\": \"torrent\"}, {\"tags\": [\"anime\"], \"enableUsenet\": false, \"torrentDelay\": 5}], \"autoTags\": [{\"name\": \"Anime HD\", \"tags\": [\"new-tag\"], \"removeTagsAutomatically\": true, \"specifications\": [{\"name\": \"p\", \"implementation\": \"QualityProfileSpecification\", \"fields\": {\"value\": \"HD-1080p\"}}, {\"name\": \"l\", \"implementation\": \"OriginalLanguageSpecification\", \"fields\": {\"value\": \"Japanese\"}}, {\"name\": \"t\", \"implementation\": \"TagSpecification\", \"fields\": {\"value\": [\"anime\"]}}]}], \"naming\": {\"renameMovies\": false, \"standardMovieFormat\": \"{Movie Title} {Quality Full} xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, \"mediaManagement\": {\"deleteEmptyFolders\": true, \"fileDate\": \"none\"}}}}",
+   "targets": {
+    "radarr": [
+     "ghost"
+    ]
+   }
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/apply",
+  "body": {
+   "text": "$example:x265-small",
+   "targets": {
+    "radarr": [
+     "radarr"
+    ],
+    "sonarr": []
+   },
+   "ack": true
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/check",
+  "body": {
+   "text": "$example:x265-small",
+   "targets": {
+    "radarr": [
+     "radarr"
+    ],
+    "sonarr": []
+   }
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/apply",
+  "body": {
+   "text": "{\"wranglarr\": \"wranglarr-config/1\", \"name\": \"Mixed\", \"apps\": {\"radarr\": {\"tags\": [\"anime\", \"new-tag\"], \"customFormats\": [{\"name\": \"Other\", \"specifications\": [{\"name\": \"Lang\", \"implementation\": \"LanguageSpecification\", \"fields\": {\"value\": \"English\", \"exceptLanguage\": false}}]}, {\"name\": \"Opt\", \"extra\": {\"default\": false, \"note\": \"off by default\"}, \"specifications\": [{\"name\": \"t\", \"implementation\": \"ReleaseTitleSpecification\", \"fields\": {\"value\": \"opt\"}}]}, {\"name\": \"Bluray\", \"specifications\": [{\"name\": \"s\", \"implementation\": \"SourceSpecification\", \"fields\": {\"value\": \"bluray\"}}, {\"name\": \"r\", \"implementation\": \"ResolutionSpecification\", \"fields\": {\"value\": \"R1080p\"}}]}], \"qualityDefinitions\": {\"Bluray-1080p\": {\"min\": 5.5, \"max\": null}, \"HDTV-720p\": {\"preferred\": 50}}, \"qualityProfiles\": [{\"name\": \"HD-1080p\", \"cutoff\": \"Bluray-1080p\", \"qualities\": [\"Bluray-1080p\", {\"name\": \"WEB 1080p\", \"qualities\": [\"WEBDL-1080p\", \"WEBRip-1080p\"]}, \"HDTV-1080p\"], \"minFormatScore\": 5, \"language\": \"English\", \"formatScores\": {\"Bluray\": 50, \"Other\": -10, \"Opt\": 5, \"x265-HEVC\": 3}}, {\"name\": \"Fresh\", \"qualities\": [\"Bluray-2160p\"], \"formatScores\": {\"Bluray\": 1}}], \"releaseProfiles\": [{\"name\": \"Old\", \"required\": [\"a\", \"b\"], \"tags\": [\"anime\"]}, {\"name\": \"New RP\", \"ignored\": [\"cam\"]}], \"delayProfiles\": [{\"tags\": [], \"usenetDelay\": 60, \"preferredProtocol\": \"torrent\"}, {\"tags\": [\"anime\"], \"enableUsenet\": false, \"torrentDelay\": 5}], \"autoTags\": [{\"name\": \"Anime HD\", \"tags\": [\"new-tag\"], \"removeTagsAutomatically\": true, \"specifications\": [{\"name\": \"p\", \"implementation\": \"QualityProfileSpecification\", \"fields\": {\"value\": \"HD-1080p\"}}, {\"name\": \"l\", \"implementation\": \"OriginalLanguageSpecification\", \"fields\": {\"value\": \"Japanese\"}}, {\"name\": \"t\", \"implementation\": \"TagSpecification\", \"fields\": {\"value\": [\"anime\"]}}]}], \"naming\": {\"renameMovies\": false, \"standardMovieFormat\": \"{Movie Title} {Quality Full} xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, \"mediaManagement\": {\"deleteEmptyFolders\": true, \"fileDate\": \"none\"}}}}",
+   "resolve": {
+    "radarr|customFormats|Other": "prefix",
+    "radarr|qualityProfiles|HD-1080p": "prefix",
+    "radarr|tags|anime": "prefix"
+   },
+   "ack": true
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/check",
+  "body": {
+   "text": "{\"wranglarr\": \"wranglarr-config/1\", \"name\": \"Mixed\", \"apps\": {\"radarr\": {\"tags\": [\"anime\", \"new-tag\"], \"customFormats\": [{\"name\": \"Other\", \"specifications\": [{\"name\": \"Lang\", \"implementation\": \"LanguageSpecification\", \"fields\": {\"value\": \"English\", \"exceptLanguage\": false}}]}, {\"name\": \"Opt\", \"extra\": {\"default\": false, \"note\": \"off by default\"}, \"specifications\": [{\"name\": \"t\", \"implementation\": \"ReleaseTitleSpecification\", \"fields\": {\"value\": \"opt\"}}]}, {\"name\": \"Bluray\", \"specifications\": [{\"name\": \"s\", \"implementation\": \"SourceSpecification\", \"fields\": {\"value\": \"bluray\"}}, {\"name\": \"r\", \"implementation\": \"ResolutionSpecification\", \"fields\": {\"value\": \"R1080p\"}}]}], \"qualityDefinitions\": {\"Bluray-1080p\": {\"min\": 5.5, \"max\": null}, \"HDTV-720p\": {\"preferred\": 50}}, \"qualityProfiles\": [{\"name\": \"HD-1080p\", \"cutoff\": \"Bluray-1080p\", \"qualities\": [\"Bluray-1080p\", {\"name\": \"WEB 1080p\", \"qualities\": [\"WEBDL-1080p\", \"WEBRip-1080p\"]}, \"HDTV-1080p\"], \"minFormatScore\": 5, \"language\": \"English\", \"formatScores\": {\"Bluray\": 50, \"Other\": -10, \"Opt\": 5, \"x265-HEVC\": 3}}, {\"name\": \"Fresh\", \"qualities\": [\"Bluray-2160p\"], \"formatScores\": {\"Bluray\": 1}}], \"releaseProfiles\": [{\"name\": \"Old\", \"required\": [\"a\", \"b\"], \"tags\": [\"anime\"]}, {\"name\": \"New RP\", \"ignored\": [\"cam\"]}], \"delayProfiles\": [{\"tags\": [], \"usenetDelay\": 60, \"preferredProtocol\": \"torrent\"}, {\"tags\": [\"anime\"], \"enableUsenet\": false, \"torrentDelay\": 5}], \"autoTags\": [{\"name\": \"Anime HD\", \"tags\": [\"new-tag\"], \"removeTagsAutomatically\": true, \"specifications\": [{\"name\": \"p\", \"implementation\": \"QualityProfileSpecification\", \"fields\": {\"value\": \"HD-1080p\"}}, {\"name\": \"l\", \"implementation\": \"OriginalLanguageSpecification\", \"fields\": {\"value\": \"Japanese\"}}, {\"name\": \"t\", \"implementation\": \"TagSpecification\", \"fields\": {\"value\": [\"anime\"]}}]}], \"naming\": {\"renameMovies\": false, \"standardMovieFormat\": \"{Movie Title} {Quality Full} xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}, \"mediaManagement\": {\"deleteEmptyFolders\": true, \"fileDate\": \"none\"}}}}"
+  }
+ },
+ {
+  "op": "GET",
+  "path": "/api/configs/inventory/radarr"
+ },
+ {
+  "op": "GET",
+  "path": "/api/configs/inventory/ghost"
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/export",
+  "body": {
+   "name": "Exp",
+   "author": "me",
+   "apps": {
+    "radarr": {
+     "customFormats": [
+      "Other"
+     ],
+     "qualityProfiles": [
+      "HD-1080p",
+      "v2 · HD-1080p"
+     ],
+     "withFormats": true,
+     "qualityDefinitions": [
+      "Bluray-1080p",
+      "HDTV-720p"
+     ],
+     "releaseProfiles": [
+      "Old",
+      "New RP"
+     ],
+     "delayProfiles": [
+      "default",
+      "tagged v2-anime"
+     ],
+     "autoTags": [
+      "Anime HD"
+     ],
+     "tags": [
+      "v2-anime",
+      "new-tag"
+     ],
+     "naming": [
+      "renameMovies"
+     ],
+     "mediaManagement": [
+      "fileDate",
+      "recycleBin"
+     ],
+     "renames": {
+      "customFormats": {
+       "Other": "Other2"
+      },
+      "tags": {
+       "new-tag": "Fresh-Tag"
+      },
+      "qualityProfiles": {
+       "HD-1080p": "HD 2"
+      }
+     },
+     "extras": {
+      "customFormats": {
+       "other": {
+        "default": false,
+        "note": "x"
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/export",
+  "body": {
+   "apps": {}
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/export",
+  "body": {
+   "apps": {
+    "radarr": {
+     "qualityProfiles": [
+      "Any"
+     ]
+    }
+   }
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/try",
+  "body": {
+   "app": "radarr",
+   "title": "Movie.2024.1080p.BluRay.x265-GRP"
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/try",
+  "body": {
+   "app": "radarr",
+   "title": ""
+  }
+ },
+ {
+  "op": "STORE"
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/history/$H2/undo"
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/history/$H2/undo"
+ },
+ {
+  "op": "STORE"
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/history/$H1/undo"
+ },
+ {
+  "op": "STORE"
+ },
+ {
+  "op": "DELETE",
+  "path": "/api/configs/history/$H1"
+ },
+ {
+  "op": "DELETE",
+  "path": "/api/configs/history/nope"
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/history/nope/undo"
+ },
+ {
+  "op": "GET",
+  "path": "/api/configs"
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/check",
+  "body": {
+   "text": "{\"wranglarr\": \"wranglarr-config/1\", \"name\": \"Music\", \"apps\": {\"lidarr\": {\"tags\": [\"kids\", \"singles\"], \"qualityProfiles\": [{\"name\": \"Lossless\", \"qualities\": [{\"name\": \"Lossless\", \"qualities\": [\"FLAC\", \"ALAC\"]}, \"MP3-320\"], \"cutoff\": \"Lossless\", \"formatScores\": {}}, {\"name\": \"Small\", \"qualities\": [\"MP3-256\"], \"upgradeAllowed\": false, \"formatScores\": {}}], \"metadataProfiles\": [{\"name\": \"Standard\", \"primaryAlbumTypes\": [\"Album\", \"EP\"], \"releaseStatuses\": [\"Official\"]}, {\"name\": \"Singles\", \"primaryAlbumTypes\": [\"single\"], \"secondaryAlbumTypes\": [\"Studio\", \"Live\"]}, {\"name\": \"Bad\", \"primaryAlbumTypes\": [\"Mixtape\"]}], \"delayProfiles\": [{\"tags\": [], \"items\": [{\"name\": \"Torrent\", \"protocol\": \"TorrentDownloadProtocol\", \"allowed\": true, \"delay\": 10}, {\"name\": \"Usenet\", \"protocol\": \"UsenetDownloadProtocol\", \"allowed\": false, \"delay\": 0}]}, {\"tags\": [\"kids\"], \"items\": [{\"protocol\": \"TorrentDownloadProtocol\", \"delay\": 30}]}], \"autoTags\": [{\"name\": \"Single artists\", \"tags\": [\"singles\"], \"specifications\": [{\"name\": \"m\", \"implementation\": \"MetadataProfileSpecification\", \"fields\": {\"value\": \"Singles\"}}, {\"name\": \"t\", \"implementation\": \"TagSpecification\", \"negate\": true, \"fields\": {\"value\": [\"kids\"]}}]}], \"naming\": {\"renameTracks\": true}, \"mediaManagement\": {\"allowFingerprinting\": \"allFiles\", \"watchLibraryForChanges\": false}}}}",
+   "targets": {
+    "lidarr": [
+     "lidarr"
+    ]
+   }
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/check",
+  "body": {
+   "text": "{\"wranglarr\": \"wranglarr-config/1\", \"name\": \"Music\", \"apps\": {\"lidarr\": {\"tags\": [\"kids\", \"singles\"], \"qualityProfiles\": [{\"name\": \"Lossless\", \"qualities\": [{\"name\": \"Lossless\", \"qualities\": [\"FLAC\", \"ALAC\"]}, \"MP3-320\"], \"cutoff\": \"Lossless\", \"formatScores\": {}}, {\"name\": \"Small\", \"qualities\": [\"MP3-256\"], \"upgradeAllowed\": false, \"formatScores\": {}}], \"metadataProfiles\": [{\"name\": \"Standard\", \"primaryAlbumTypes\": [\"Album\", \"EP\"], \"releaseStatuses\": [\"Official\"]}, {\"name\": \"Singles\", \"primaryAlbumTypes\": [\"single\"], \"secondaryAlbumTypes\": [\"Studio\", \"Live\"]}], \"delayProfiles\": [{\"tags\": [], \"items\": [{\"name\": \"Torrent\", \"protocol\": \"TorrentDownloadProtocol\", \"allowed\": true, \"delay\": 10}, {\"name\": \"Usenet\", \"protocol\": \"UsenetDownloadProtocol\", \"allowed\": false, \"delay\": 0}]}, {\"tags\": [\"kids\"], \"items\": [{\"protocol\": \"TorrentDownloadProtocol\", \"delay\": 30}]}], \"autoTags\": [{\"name\": \"Single artists\", \"tags\": [\"singles\"], \"specifications\": [{\"name\": \"m\", \"implementation\": \"MetadataProfileSpecification\", \"fields\": {\"value\": \"Singles\"}}, {\"name\": \"t\", \"implementation\": \"TagSpecification\", \"negate\": true, \"fields\": {\"value\": [\"kids\"]}}]}], \"naming\": {\"renameTracks\": true}, \"mediaManagement\": {\"allowFingerprinting\": \"allFiles\", \"watchLibraryForChanges\": false}}}}",
+   "resolve": {
+    "lidarr|metadataProfiles|Standard": "prefix",
+    "lidarr|tags|kids": "prefix",
+    "lidarr|qualityProfiles|Lossless": "prefix",
+    "lidarr|delayProfiles|tagged kids": "keep",
+    "lidarr|mediaManagement|*": "keep"
+   },
+   "prefix": "New "
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/check",
+  "body": {
+   "text": "[{\"name\": \"Remaster\", \"specifications\": [{\"name\": \"r\", \"implementation\": \"ReleaseTitleSpecification\", \"negate\": false, \"required\": false, \"fields\": [{\"name\": \"value\", \"value\": \"remaster\"}]}]}, {\"name\": \"Opt CF\", \"extra\": {\"default\": false}, \"specifications\": [{\"name\": \"o\", \"implementation\": \"ReleaseTitleSpecification\", \"fields\": {\"value\": \"o\"}}]}]",
+   "targets": {
+    "*": [
+     "radarr",
+     "lidarr"
+    ]
+   }
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/check",
+  "body": {
+   "text": "{\"name\": \"Remaster\", \"specifications\": [{\"name\": \"r\", \"implementation\": \"ReleaseTitleSpecification\", \"negate\": false, \"required\": false, \"fields\": [{\"name\": \"value\", \"value\": \"remaster\"}]}]}"
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/apply",
+  "body": {
+   "text": "[{\"name\": \"Remaster\", \"specifications\": [{\"name\": \"r\", \"implementation\": \"ReleaseTitleSpecification\", \"negate\": false, \"required\": false, \"fields\": [{\"name\": \"value\", \"value\": \"remaster\"}]}]}, {\"name\": \"Opt CF\", \"extra\": {\"default\": false}, \"specifications\": [{\"name\": \"o\", \"implementation\": \"ReleaseTitleSpecification\", \"fields\": {\"value\": \"o\"}}]}]",
+   "targets": {
+    "*": [
+     "radarr",
+     "lidarr"
+    ]
+   },
+   "extras": {
+    "*/customFormats/Opt CF": true
+   },
+   "ack": true
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/apply",
+  "body": {
+   "text": "{\"wranglarr\": \"wranglarr-config/1\", \"name\": \"Music\", \"apps\": {\"lidarr\": {\"tags\": [\"kids\", \"singles\"], \"qualityProfiles\": [{\"name\": \"Lossless\", \"qualities\": [{\"name\": \"Lossless\", \"qualities\": [\"FLAC\", \"ALAC\"]}, \"MP3-320\"], \"cutoff\": \"Lossless\", \"formatScores\": {}}, {\"name\": \"Small\", \"qualities\": [\"MP3-256\"], \"upgradeAllowed\": false, \"formatScores\": {}}], \"metadataProfiles\": [{\"name\": \"Standard\", \"primaryAlbumTypes\": [\"Album\", \"EP\"], \"releaseStatuses\": [\"Official\"]}, {\"name\": \"Singles\", \"primaryAlbumTypes\": [\"single\"], \"secondaryAlbumTypes\": [\"Studio\", \"Live\"]}], \"delayProfiles\": [{\"tags\": [], \"items\": [{\"name\": \"Torrent\", \"protocol\": \"TorrentDownloadProtocol\", \"allowed\": true, \"delay\": 10}, {\"name\": \"Usenet\", \"protocol\": \"UsenetDownloadProtocol\", \"allowed\": false, \"delay\": 0}]}, {\"tags\": [\"kids\"], \"items\": [{\"protocol\": \"TorrentDownloadProtocol\", \"delay\": 30}]}], \"autoTags\": [{\"name\": \"Single artists\", \"tags\": [\"singles\"], \"specifications\": [{\"name\": \"m\", \"implementation\": \"MetadataProfileSpecification\", \"fields\": {\"value\": \"Singles\"}}, {\"name\": \"t\", \"implementation\": \"TagSpecification\", \"negate\": true, \"fields\": {\"value\": [\"kids\"]}}]}], \"naming\": {\"renameTracks\": true}, \"mediaManagement\": {\"allowFingerprinting\": \"allFiles\", \"watchLibraryForChanges\": false}}}}",
+   "resolve": {
+    "lidarr|metadataProfiles|Standard": "prefix"
+   },
+   "prefix": "New ",
+   "ack": true
+  }
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/check",
+  "body": {
+   "text": "{\"wranglarr\": \"wranglarr-config/1\", \"name\": \"Music\", \"apps\": {\"lidarr\": {\"tags\": [\"kids\", \"singles\"], \"qualityProfiles\": [{\"name\": \"Lossless\", \"qualities\": [{\"name\": \"Lossless\", \"qualities\": [\"FLAC\", \"ALAC\"]}, \"MP3-320\"], \"cutoff\": \"Lossless\", \"formatScores\": {}}, {\"name\": \"Small\", \"qualities\": [\"MP3-256\"], \"upgradeAllowed\": false, \"formatScores\": {}}], \"metadataProfiles\": [{\"name\": \"Standard\", \"primaryAlbumTypes\": [\"Album\", \"EP\"], \"releaseStatuses\": [\"Official\"]}, {\"name\": \"Singles\", \"primaryAlbumTypes\": [\"single\"], \"secondaryAlbumTypes\": [\"Studio\", \"Live\"]}], \"delayProfiles\": [{\"tags\": [], \"items\": [{\"name\": \"Torrent\", \"protocol\": \"TorrentDownloadProtocol\", \"allowed\": true, \"delay\": 10}, {\"name\": \"Usenet\", \"protocol\": \"UsenetDownloadProtocol\", \"allowed\": false, \"delay\": 0}]}, {\"tags\": [\"kids\"], \"items\": [{\"protocol\": \"TorrentDownloadProtocol\", \"delay\": 30}]}], \"autoTags\": [{\"name\": \"Single artists\", \"tags\": [\"singles\"], \"specifications\": [{\"name\": \"m\", \"implementation\": \"MetadataProfileSpecification\", \"fields\": {\"value\": \"Singles\"}}, {\"name\": \"t\", \"implementation\": \"TagSpecification\", \"negate\": true, \"fields\": {\"value\": [\"kids\"]}}]}], \"naming\": {\"renameTracks\": true}, \"mediaManagement\": {\"allowFingerprinting\": \"allFiles\", \"watchLibraryForChanges\": false}}}}"
+  }
+ },
+ {
+  "op": "GET",
+  "path": "/api/configs/inventory/lidarr"
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/export",
+  "body": {
+   "name": "Music out",
+   "apps": {
+    "lidarr": {
+     "metadataProfiles": [
+      "Standard",
+      "New Standard",
+      "Singles"
+     ],
+     "qualityProfiles": [
+      "Lossless"
+     ],
+     "delayProfiles": [
+      "default",
+      "tagged kids"
+     ],
+     "autoTags": [
+      "Single artists"
+     ],
+     "tags": [
+      "kids",
+      "singles"
+     ],
+     "naming": [
+      "renameTracks",
+      "standardTrackFormat"
+     ],
+     "mediaManagement": [
+      "allowFingerprinting"
+     ],
+     "renames": {
+      "metadataProfiles": {
+       "Singles": "Only singles"
+      }
+     }
+    },
+    "radarr": {
+     "customFormats": [
+      "Remaster"
+     ],
+     "tags": [
+      "anime"
+     ]
+    }
+   }
+  }
+ },
+ {
+  "op": "STORE"
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/history/$H5/undo"
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/history/$H4/undo"
+ },
+ {
+  "op": "POST",
+  "path": "/api/configs/history/$H3/undo"
+ },
+ {
+  "op": "STORE"
+ },
+ {
+  "op": "GET",
+  "path": "/api/configs"
+ }
+]

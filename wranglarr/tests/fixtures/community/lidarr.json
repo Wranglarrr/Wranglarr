@@ -1,0 +1,688 @@
+{
+ "store": {
+  "customformat": [],
+  "qualitydefinition": [
+   {
+    "id": 1,
+    "quality": {
+     "id": 0,
+     "name": "Unknown"
+    },
+    "title": "Unknown",
+    "minSize": 0,
+    "maxSize": 350,
+    "preferredSize": null
+   },
+   {
+    "id": 2,
+    "quality": {
+     "id": 1,
+     "name": "MP3-192"
+    },
+    "title": "MP3-192",
+    "minSize": 0,
+    "maxSize": 351,
+    "preferredSize": null
+   },
+   {
+    "id": 3,
+    "quality": {
+     "id": 2,
+     "name": "MP3-256"
+    },
+    "title": "MP3-256",
+    "minSize": 0,
+    "maxSize": 352,
+    "preferredSize": null
+   },
+   {
+    "id": 4,
+    "quality": {
+     "id": 4,
+     "name": "MP3-320"
+    },
+    "title": "MP3-320",
+    "minSize": 0,
+    "maxSize": 353,
+    "preferredSize": null
+   },
+   {
+    "id": 5,
+    "quality": {
+     "id": 6,
+     "name": "FLAC"
+    },
+    "title": "FLAC",
+    "minSize": 0,
+    "maxSize": 354,
+    "preferredSize": null
+   },
+   {
+    "id": 6,
+    "quality": {
+     "id": 7,
+     "name": "ALAC"
+    },
+    "title": "ALAC",
+    "minSize": 0,
+    "maxSize": 355,
+    "preferredSize": null
+   },
+   {
+    "id": 7,
+    "quality": {
+     "id": 21,
+     "name": "FLAC 24bit"
+    },
+    "title": "FLAC 24bit",
+    "minSize": 0,
+    "maxSize": 356,
+    "preferredSize": null
+   }
+  ],
+  "qualityprofile": [
+   {
+    "id": 1,
+    "name": "Any",
+    "upgradeAllowed": false,
+    "cutoff": 1001,
+    "items": [
+     {
+      "quality": {
+       "id": 0,
+       "name": "Unknown"
+      },
+      "items": [],
+      "allowed": true
+     },
+     {
+      "id": 1001,
+      "name": "Lossy",
+      "allowed": true,
+      "items": [
+       {
+        "quality": {
+         "id": 1,
+         "name": "MP3-192"
+        },
+        "items": [],
+        "allowed": true
+       },
+       {
+        "quality": {
+         "id": 2,
+         "name": "MP3-256"
+        },
+        "items": [],
+        "allowed": true
+       },
+       {
+        "quality": {
+         "id": 4,
+         "name": "MP3-320"
+        },
+        "items": [],
+        "allowed": true
+       }
+      ]
+     },
+     {
+      "id": 1002,
+      "name": "Lossless",
+      "allowed": true,
+      "items": [
+       {
+        "quality": {
+         "id": 6,
+         "name": "FLAC"
+        },
+        "items": [],
+        "allowed": true
+       },
+       {
+        "quality": {
+         "id": 7,
+         "name": "ALAC"
+        },
+        "items": [],
+        "allowed": true
+       },
+       {
+        "quality": {
+         "id": 21,
+         "name": "FLAC 24bit"
+        },
+        "items": [],
+        "allowed": true
+       }
+      ]
+     }
+    ],
+    "minFormatScore": 0,
+    "cutoffFormatScore": 0,
+    "minUpgradeFormatScore": 1,
+    "formatItems": []
+   },
+   {
+    "id": 2,
+    "name": "Lossless",
+    "upgradeAllowed": true,
+    "cutoff": 1002,
+    "items": [
+     {
+      "quality": {
+       "id": 0,
+       "name": "Unknown"
+      },
+      "items": [],
+      "allowed": false
+     },
+     {
+      "id": 1001,
+      "name": "Lossy",
+      "allowed": false,
+      "items": [
+       {
+        "quality": {
+         "id": 1,
+         "name": "MP3-192"
+        },
+        "items": [],
+        "allowed": false
+       },
+       {
+        "quality": {
+         "id": 2,
+         "name": "MP3-256"
+        },
+        "items": [],
+        "allowed": false
+       },
+       {
+        "quality": {
+         "id": 4,
+         "name": "MP3-320"
+        },
+        "items": [],
+        "allowed": false
+       }
+      ]
+     },
+     {
+      "id": 1002,
+      "name": "Lossless",
+      "allowed": true,
+      "items": [
+       {
+        "quality": {
+         "id": 6,
+         "name": "FLAC"
+        },
+        "items": [],
+        "allowed": true
+       },
+       {
+        "quality": {
+         "id": 7,
+         "name": "ALAC"
+        },
+        "items": [],
+        "allowed": true
+       },
+       {
+        "quality": {
+         "id": 21,
+         "name": "FLAC 24bit"
+        },
+        "items": [],
+        "allowed": true
+       }
+      ]
+     }
+    ],
+    "minFormatScore": 0,
+    "cutoffFormatScore": 0,
+    "minUpgradeFormatScore": 1,
+    "formatItems": []
+   }
+  ],
+  "metadataprofile": [
+   {
+    "id": 1,
+    "name": "Standard",
+    "primaryAlbumTypes": [
+     {
+      "albumType": {
+       "id": 0,
+       "name": "Album"
+      },
+      "allowed": true
+     },
+     {
+      "albumType": {
+       "id": 1,
+       "name": "EP"
+      },
+      "allowed": false
+     },
+     {
+      "albumType": {
+       "id": 2,
+       "name": "Single"
+      },
+      "allowed": false
+     },
+     {
+      "albumType": {
+       "id": 3,
+       "name": "Broadcast"
+      },
+      "allowed": false
+     }
+    ],
+    "secondaryAlbumTypes": [
+     {
+      "albumType": {
+       "id": 0,
+       "name": "Studio"
+      },
+      "allowed": true
+     },
+     {
+      "albumType": {
+       "id": 3,
+       "name": "Live"
+      },
+      "allowed": false
+     },
+     {
+      "albumType": {
+       "id": 4,
+       "name": "Compilation"
+      },
+      "allowed": false
+     }
+    ],
+    "releaseStatuses": [
+     {
+      "releaseStatus": {
+       "id": 0,
+       "name": "Official"
+      },
+      "allowed": true
+     },
+     {
+      "releaseStatus": {
+       "id": 1,
+       "name": "Promotion"
+      },
+      "allowed": false
+     },
+     {
+      "releaseStatus": {
+       "id": 2,
+       "name": "Bootleg"
+      },
+      "allowed": false
+     }
+    ]
+   },
+   {
+    "id": 2,
+    "name": "None",
+    "primaryAlbumTypes": [
+     {
+      "albumType": {
+       "id": 0,
+       "name": "Album"
+      },
+      "allowed": false
+     },
+     {
+      "albumType": {
+       "id": 1,
+       "name": "EP"
+      },
+      "allowed": false
+     },
+     {
+      "albumType": {
+       "id": 2,
+       "name": "Single"
+      },
+      "allowed": false
+     },
+     {
+      "albumType": {
+       "id": 3,
+       "name": "Broadcast"
+      },
+      "allowed": false
+     }
+    ],
+    "secondaryAlbumTypes": [
+     {
+      "albumType": {
+       "id": 0,
+       "name": "Studio"
+      },
+      "allowed": false
+     },
+     {
+      "albumType": {
+       "id": 3,
+       "name": "Live"
+      },
+      "allowed": false
+     },
+     {
+      "albumType": {
+       "id": 4,
+       "name": "Compilation"
+      },
+      "allowed": false
+     }
+    ],
+    "releaseStatuses": [
+     {
+      "releaseStatus": {
+       "id": 0,
+       "name": "Official"
+      },
+      "allowed": false
+     },
+     {
+      "releaseStatus": {
+       "id": 1,
+       "name": "Promotion"
+      },
+      "allowed": false
+     },
+     {
+      "releaseStatus": {
+       "id": 2,
+       "name": "Bootleg"
+      },
+      "allowed": false
+     }
+    ]
+   }
+  ],
+  "tag": [
+   {
+    "id": 1,
+    "label": "kids"
+   }
+  ],
+  "delayprofile": [
+   {
+    "id": 1,
+    "name": "Default",
+    "items": [
+     {
+      "name": "Usenet",
+      "protocol": "UsenetDownloadProtocol",
+      "allowed": true,
+      "delay": 0
+     },
+     {
+      "name": "Torrent",
+      "protocol": "TorrentDownloadProtocol",
+      "allowed": true,
+      "delay": 0
+     }
+    ],
+    "order": 2147483647,
+    "tags": []
+   }
+  ],
+  "releaseprofile": [],
+  "autotagging": []
+ },
+ "single": {
+  "config/naming": {
+   "renameTracks": false,
+   "replaceIllegalCharacters": true,
+   "standardTrackFormat": "{Album Title}/{track:00} {Track Title}",
+   "artistFolderFormat": "{Artist Name}",
+   "id": 1
+  },
+  "config/mediamanagement": {
+   "autoUnmonitorPreviouslyDownloadedTracks": false,
+   "recycleBin": "",
+   "allowFingerprinting": "newFiles",
+   "watchLibraryForChanges": true,
+   "createEmptyArtistFolders": false,
+   "id": 1
+  }
+ },
+ "static": {
+  "customformat/schema": [
+   {
+    "implementation": "ReleaseTitleSpecification",
+    "negate": false,
+    "required": false,
+    "fields": [
+     {
+      "name": "value",
+      "value": "",
+      "type": "textbox"
+     }
+    ]
+   }
+  ],
+  "qualityprofile/schema": {
+   "name": "",
+   "upgradeAllowed": false,
+   "cutoff": 0,
+   "items": [
+    {
+     "quality": {
+      "id": 0,
+      "name": "Unknown"
+     },
+     "items": [],
+     "allowed": false
+    },
+    {
+     "id": 1001,
+     "name": "Lossy",
+     "allowed": false,
+     "items": [
+      {
+       "quality": {
+        "id": 1,
+        "name": "MP3-192"
+       },
+       "items": [],
+       "allowed": false
+      },
+      {
+       "quality": {
+        "id": 2,
+        "name": "MP3-256"
+       },
+       "items": [],
+       "allowed": false
+      },
+      {
+       "quality": {
+        "id": 4,
+        "name": "MP3-320"
+       },
+       "items": [],
+       "allowed": false
+      }
+     ]
+    },
+    {
+     "id": 1002,
+     "name": "Lossless",
+     "allowed": false,
+     "items": [
+      {
+       "quality": {
+        "id": 6,
+        "name": "FLAC"
+       },
+       "items": [],
+       "allowed": false
+      },
+      {
+       "quality": {
+        "id": 7,
+        "name": "ALAC"
+       },
+       "items": [],
+       "allowed": false
+      },
+      {
+       "quality": {
+        "id": 21,
+        "name": "FLAC 24bit"
+       },
+       "items": [],
+       "allowed": false
+      }
+     ]
+    }
+   ],
+   "minFormatScore": 0,
+   "cutoffFormatScore": 0,
+   "minUpgradeFormatScore": 1,
+   "formatItems": []
+  },
+  "metadataprofile/schema": {
+   "id": 0,
+   "name": "",
+   "primaryAlbumTypes": [
+    {
+     "albumType": {
+      "id": 0,
+      "name": "Album"
+     },
+     "allowed": false
+    },
+    {
+     "albumType": {
+      "id": 1,
+      "name": "EP"
+     },
+     "allowed": false
+    },
+    {
+     "albumType": {
+      "id": 2,
+      "name": "Single"
+     },
+     "allowed": false
+    },
+    {
+     "albumType": {
+      "id": 3,
+      "name": "Broadcast"
+     },
+     "allowed": false
+    }
+   ],
+   "secondaryAlbumTypes": [
+    {
+     "albumType": {
+      "id": 0,
+      "name": "Studio"
+     },
+     "allowed": false
+    },
+    {
+     "albumType": {
+      "id": 3,
+      "name": "Live"
+     },
+     "allowed": false
+    },
+    {
+     "albumType": {
+      "id": 4,
+      "name": "Compilation"
+     },
+     "allowed": false
+    }
+   ],
+   "releaseStatuses": [
+    {
+     "releaseStatus": {
+      "id": 0,
+      "name": "Official"
+     },
+     "allowed": false
+    },
+    {
+     "releaseStatus": {
+      "id": 1,
+      "name": "Promotion"
+     },
+     "allowed": false
+    },
+    {
+     "releaseStatus": {
+      "id": 2,
+      "name": "Bootleg"
+     },
+     "allowed": false
+    }
+   ]
+  },
+  "tag/detail": [
+   {
+    "id": 1,
+    "label": "kids",
+    "artistIds": [
+     1
+    ],
+    "delayProfileIds": [],
+    "importListIds": [],
+    "notificationIds": [],
+    "releaseProfileIds": [],
+    "indexerIds": [],
+    "downloadClientIds": [],
+    "autoTagIds": []
+   }
+  ],
+  "autotagging/schema": [
+   {
+    "implementation": "MetadataProfileSpecification",
+    "fields": [
+     {
+      "name": "value",
+      "type": "metadataProfile",
+      "value": 0
+     }
+    ]
+   },
+   {
+    "implementation": "TagSpecification",
+    "fields": [
+     {
+      "name": "value",
+      "type": "artistTag",
+      "value": []
+     }
+    ]
+   }
+  ],
+  "artist": [
+   {
+    "id": 1,
+    "artistName": "A",
+    "qualityProfileId": 2,
+    "metadataProfileId": 1
+   },
+   {
+    "id": 2,
+    "artistName": "B",
+    "qualityProfileId": 1,
+    "metadataProfileId": 2
+   }
+  ]
+ }
+}

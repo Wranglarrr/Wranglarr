@@ -1,0 +1,135 @@
+[workspace]
+members = ["crates/core", "crates/services"]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+rust-version = "1.89"
+
+[workspace.dependencies]
+wranglarr-core = { path = "crates/core" }
+wranglarr-services = { path = "crates/services" }
+axum = "0.8.9"
+bytes = "1.12.1"
+chrono = "0.4.45"
+clap = { version = "4.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions"] }
+croner = "4.0.2"
+data-encoding = "2.11"
+futures = "0.3.34"
+glob = "0.3.4"
+hex = "0.4.3"
+hmac = "0.13"
+http-body-util = "0.1.5"
+hyper = { version = "1.12.0", features = ["client", "http1"] }
+hyper-util = { version = "0.1.21", features = ["client-legacy", "http1", "tokio"] }
+lettre = { version = "0.11.23", default-features = false, features = ["smtp-transport", "tokio1", "tokio1-rustls", "aws-lc-rs", "rustls-platform-verifier", "builder", "hostname"] }
+indexmap = { version = "2.14.2", features = ["serde"] }
+mime_guess = "2.0.5"
+minijinja = { version = "3.0.4", features = ["json", "urlencode", "loop_controls", "serde", "preserve_order"] }
+qrcode = { version = "0.14", default-features = false }
+rand = "0.10"
+regex = "1.13.1"
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "multipart", "query", "form"] }
+roxmltree = "0.21.2"
+rusqlite = { version = "0.41.0", features = ["bundled"] }
+rust-embed = "8.13.0"
+rustix = { version = "1.1.6", features = ["fs", "process", "termios", "thread"] }
+scrypt = "0.12"
+serde = { version = "1.0.229", features = ["derive"] }
+sha1 = "0.11"
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+sha2 = "0.11.1"
+subtle = "2.6"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["full"] }
+toml = "1.1.8"
+tempfile = "3.27.0"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+webauthn-rs = { version = "0.5.5", features = ["conditional-ui", "danger-credential-internals"] }
+webauthn-rs-proto = "0.5.5"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+async-trait = "0.1"
+url = "2.5.8"
+openssl = "0.10"
+tower = { version = "0.5", features = ["util"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+dbg_macro = "warn"
+todo = "warn"
+
+[package]
+name = "wranglarr"
+description = "Backup, versioning and restore for an arr stack"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+wranglarr-core.workspace = true
+wranglarr-services.workspace = true
+axum.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+clap.workspace = true
+croner.workspace = true
+data-encoding.workspace = true
+futures.workspace = true
+hex.workspace = true
+hmac.workspace = true
+lettre.workspace = true
+indexmap.workspace = true
+mime_guess.workspace = true
+minijinja.workspace = true
+qrcode.workspace = true
+rand.workspace = true
+regex.workspace = true
+reqwest.workspace = true
+roxmltree.workspace = true
+rusqlite.workspace = true
+rust-embed.workspace = true
+rustix.workspace = true
+scrypt.workspace = true
+serde.workspace = true
+sha1.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+tokio.workspace = true
+toml.workspace = true
+tempfile.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+webauthn-rs.workspace = true
+webauthn-rs-proto.workspace = true
+zip.workspace = true
+async-trait.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+openssl.workspace = true
+tempfile.workspace = true
+tower.workspace = true
+
+[lints]
+workspace = true
+
+[profile.release]
+lto = "thin"
+strip = true
+codegen-units = 1
+
+# scrypt is far too slow unoptimised (tests hash passwords)
+[profile.dev.package.scrypt]
+opt-level = 3
+
+[profile.dev.package.salsa20]
+opt-level = 3

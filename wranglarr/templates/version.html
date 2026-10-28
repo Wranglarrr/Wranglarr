@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% import "_icons.html" as i %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ m.version }} · {{ suite.name }} · wranglarr{% endblock %}
+{% block crumbs %}<a href="/suites" class="crumb">Suites</a> / <a href="/suites/{{ suite.name }}" class="crumb">{{ suite.name }}</a> / {{ m.version|fmt_ts }}{% endblock %}
+{% block toolbar %}
+  <span class="tb-text">{{ ui.status_pill(m.status) }}</span>
+  <span class="tb-text">{{ m.trigger }} · wranglarr {{ m.wranglarr }}{% if m.postgres_version %} · postgres {{ m.postgres_version }}{% endif %}{% if m.vpn and m.vpn.configured %} · VPN {{ 'up' if m.vpn.ok else 'down' }}{% if m.vpn.public_ip %} ({{ m.vpn.public_ip }}){% endif %}{% endif %} · {{ m.total_bytes|human_bytes }}</span>
+  <span class="spacer"></span>
+  <button class="tb" data-delete-version="{{ m.version }}" data-suite="{{ suite.name }}"><span class="i">{{ i.icon('trash') }}</span>Delete</button>
+{% endblock %}
+{% block content %}
+{% if m.standalone %}
+<div class="banner"><b>Runs without wranglarr.</b>
+  <span class="muted small">This version is a complete stack on its own: plain <code>/config</code> folders, a Postgres auto-restore and a pinned <code>compose.yaml</code>.
+  Copy <code>{{ store_root }}/{{ suite.name }}/{{ m.version }}</code> anywhere and <code>docker compose up -d</code>; see <code>RESTORE.md</code> in that folder.</span></div>
+{% endif %}
+{% for name, a in m.apps|items %}
+{% set d = m.deltas[name]|default({}) %}
+{% set has_cfg = a.config_zip or a.config_snapshot %}
+<section class="panel">
+  <div class="row between">
+    <h2>{{ app_logo(name, a.kind, 'ico-logo app') }} {{ name }} <span class="muted small">{{ a.kind }} {{ a.version or '' }}{% if d.version_changed %} <i class="delta">⬆ was {{ d.prev_version }}</i>{% endif %}</span></h2>
+    <div class="actions">
+      {% if a.databases and has_cfg %}
+        <button class="btn primary" data-restore='{"app":"{{ name }}","databases":true,"config":true}' data-suite="{{ suite.name }}" data-version="{{ m.version }}">↩ Restore all</button>
+      {% endif %}
+      {% if a.databases %}<button class="btn" data-restore='{"app":"{{ name }}","databases":true,"config":false}' data-suite="{{ suite.name }}" data-version="{{ m.version }}">↩ Databases only</button>{% endif %}
+      {% if has_cfg %}<button class="btn" data-restore='{"app":"{{ name }}","databases":false,"config":true}' data-suite="{{ suite.name }}" data-version="{{ m.version }}">↩ Config only</button>{% endif %}
+    </div>
+  </div>
+  {% if a.errors %}<div class="error small">{% for e in a.errors %}<div>{{ i.icon('warning', 'ico-i') }} {{ e }}</div>{% endfor %}</div>{% endif %}
+  <dl class="facts">
+    <dt>Instance</dt><dd>{{ a.instance_name or '–' }}{% if a.branch %} · {{ a.branch }}{% endif %}{% if a.os %} · {{ a.os }}{% endif %}</dd>
+    <dt>Database</dt><dd>{{ a.database_type or '–' }} {{ a.database_version or '' }}{% if a.migration_version %} · migration {{ a.migration_version }}{% endif %}</dd>
+    <dt>Collection</dt><dd>{{ ui.collection_line(a) }}</dd>
+    <dt>Config scope</dt><dd>{{ ui.scope_line(a) or '–' }}</dd>
+    <dt>Files</dt><dd>
+      {% if a.config_zip %}<div><code>{{ a.config_zip.file }}</code> {{ a.config_zip.size|human_bytes }} <span class="muted small">sha256 {{ a.config_zip.sha256[:12] }}…</span></div>{% endif %}
+      {% for db in a.databases %}<div><code>{{ db.file }}</code> {{ db.size|human_bytes }} dump <span class="muted small">· {{ db.db_size|human_bytes }} live · sha256 {{ db.sha256[:12] }}…</span></div>{% endfor %}
+      {% if a.config_snapshot %}<div><code>{{ a.config_snapshot.path }}/</code> {{ a.config_snapshot.files }} files, {{ a.config_snapshot.bytes|human_bytes }} <span class="muted small">· plain copy of /config, mountable as-is · checksums in <code>{{ a.config_snapshot.checksums }}</code></span></div>{% endif %}
+      {% if a.container and (a.container.pinned or a.container.image) %}<div class="muted small">image <code>{{ a.container.pinned or a.container.image }}</code>{% if a.container.version %} ({{ a.container.version }}){% endif %}</div>{% endif %}
+      {% if not has_cfg and not a.databases %}<span class="muted">nothing captured</span>{% endif %}
+    </dd>
+  </dl>
+</section>
+{% endfor %}
+<p class="muted small">Restoring databases {% if docker %}stops the app's container first (docker control is on){% else %}runs while the app is up, then restarts it (mount the docker socket for a stop/restore/start cycle){% endif %}.
+Arr config restores upload the zip to the app, which applies it and restarts itself; config-directory apps (qBittorrent, SABnzbd, NZBGet) are restored with the container stopped.</p>
+{% endblock %}

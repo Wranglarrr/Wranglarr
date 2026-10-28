@@ -1,0 +1,264 @@
+# Builds the wranglarr image (amd64 + arm64) and publishes it to the GitHub Container Registry.
+#
+#   pull request      build and smoke-test both platforms, nothing published
+#   push to main      ghcr.io/<owner>/wranglarr:edge
+#   tag v1.2.3        ghcr.io/<owner>/wranglarr:1.2.3, :1.2, :1 and :latest, then a
+#                     GitHub release whose text is that version's entry in
+#                     wiki/Release-Notes.md
+#
+# Before anything reaches the registry, all of this has to pass on the same commit:
+#   checks    rust.yml: format, lints, docs, unit tests, licences, the black-box
+#             suite (with the slow tests on a tag)
+#   version   a tag matches the version in wranglarr/Cargo.toml and has a dated
+#             entry in the release notes
+#   build     amd64 and arm64, each built on its own native runner (no emulation)
+#             and smoke-tested there (scripts/smoke-image.sh: the version, the
+#             tools, the server answering, and root handing over to PUID:PGID)
+# Only then does push send each platform's image by digest, publish join the two
+# under the tags, and (for a tag) release make the GitHub release.
+name: image
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+    paths-ignore: ["wiki/**", "**.md", "site/**", "assets/**", ".github/workflows/pages.yml"]
+  pull_request:
+    paths: ["wranglarr/**", "scripts/smoke-image.sh", ".github/workflows/image.yml", ".github/workflows/rust.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # on each platform's image (labels) and on the multi-platform index (annotations,
+  # which is what the registry page shows)
+  OCI_META: |
+    org.opencontainers.image.title=wranglarr
+    org.opencontainers.image.description=Backup, version, restore and update a *arr stack on Postgres
+    org.opencontainers.image.licenses=GPL-3.0-or-later
+
+jobs:
+  checks:
+    uses: ./.github/workflows/rust.yml
+
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      image: ${{ steps.v.outputs.image }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image name and version
+        id: v
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/wranglarr" >> "$GITHUB_OUTPUT"
+          version=$(sed -n '0,/^version = /s/^version = "\(.*\)"/\1/p' wranglarr/Cargo.toml)
+          if [ -z "$version" ]; then
+            echo "::error::no version in wranglarr/Cargo.toml"; exit 1
+          fi
+          if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME doesn't match version $version in Cargo.toml"; exit 1
+          fi
+          if [ "${GITHUB_REF_TYPE}" = tag ] && ! scripts/release-notes.sh "$version" >/dev/null; then
+            echo "::error::wiki/Release-Notes.md has no dated \"## $version — YYYY-MM-DD\" entry"; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [checks, version]
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    env:
+      IMAGE: ${{ needs.version.outputs.image }}
+      VERSION: ${{ needs.version.outputs.version }}
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Platform name for caches and artifacts
+        run: echo "PLATFORM_SLUG=${PLATFORM//\//-}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          labels: |
+            ${{ env.OCI_META }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+
+      - name: Build for the smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: ./wranglarr
+          platforms: ${{ env.PLATFORM }}
+          load: true
+          tags: wranglarr:ci
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            WRANGLARR_IMAGE=${{ env.IMAGE }}:${{ github.ref_type == 'tag' && 'latest' || 'edge' }}
+          cache-from: type=gha,scope=${{ env.PLATFORM_SLUG }}
+          cache-to: type=gha,scope=${{ env.PLATFORM_SLUG }},mode=max
+
+      - name: Smoke test
+        run: |
+          test "$(docker image inspect wranglarr:ci --format '{{.Os}}/{{.Architecture}}')" = "$PLATFORM"
+          test "$(docker run --rm wranglarr:ci sh -c 'echo "$WRANGLARR_IMAGE"')" = "$IMAGE:${{ github.ref_type == 'tag' && 'latest' || 'edge' }}"
+          scripts/smoke-image.sh wranglarr:ci "$VERSION"
+
+  # Only once both platforms passed: nothing reaches the registry before that.
+  push:
+    needs: [version, build]
+    if: github.event_name != 'pull_request'
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ${{ needs.version.outputs.image }}
+      VERSION: ${{ needs.version.outputs.version }}
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Platform name for caches and artifacts
+        run: echo "PLATFORM_SLUG=${PLATFORM//\//-}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          labels: |
+            ${{ env.OCI_META }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # the build the smoke test passed: every layer comes from its cache
+      - name: Push by digest
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./wranglarr
+          platforms: ${{ env.PLATFORM }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            WRANGLARR_IMAGE=${{ env.IMAGE }}:${{ github.ref_type == 'tag' && 'latest' || 'edge' }}
+          cache-from: type=gha,scope=${{ env.PLATFORM_SLUG }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Keep the digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ env.PLATFORM_SLUG }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [version, push]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ${{ needs.version.outputs.image }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=edge,enable={{is_default_branch}}
+          annotations: |
+            ${{ env.OCI_META }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+
+      - name: Join the platforms under the tags
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          args=()
+          while IFS= read -r t; do args+=(-t "$t"); done < <(jq -r '.tags[]' <<<"$DOCKER_METADATA_OUTPUT_JSON")
+          if [ "${#args[@]}" -eq 0 ]; then
+            echo "::error::no tags for $GITHUB_REF"; exit 1
+          fi
+          while IFS= read -r a; do args+=(--annotation "$a"); done < <(jq -r '.annotations[]' <<<"$DOCKER_METADATA_OUTPUT_JSON")
+          refs=()
+          for d in *; do refs+=("$IMAGE@sha256:$d"); done
+          test "${#refs[@]}" -eq 2
+          docker buildx imagetools create "${args[@]}" "${refs[@]}"
+
+      - name: Inspect
+        run: docker buildx imagetools inspect "$(jq -r '.tags[0]' <<<"$DOCKER_METADATA_OUTPUT_JSON")"
+
+  release:
+    needs: [version, publish]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: GitHub release from the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/release-notes.sh "$VERSION" > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "wranglarr $VERSION" --notes-file "$RUNNER_TEMP/notes.md"

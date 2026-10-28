@@ -1,0 +1,75 @@
+{% import "_icons.html" as i %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ 'Set up' if mode == 'setup' else 'Sign in' }} · wranglarr</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/static/brand/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/static/brand/favicon-64.png">
+<link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+<link rel="stylesheet" href="/static/style.css?v={{ asset_v }}">
+<script>try{var t=localStorage.getItem('wranglarr-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
+</head>
+<body class="auth-page">
+<main class="auth-card">
+  <div class="auth-logo"><img src="/static/brand/wordmark.png" alt="wranglarr" class="wordmark"></div>
+
+  {% if mode == 'setup' %}
+  <h1>Create the admin account</h1>
+  <p class="muted small">This is the only account. You can add two-factor and passkeys afterwards, under Account.</p>
+  <form id="setup-form" autocomplete="on">
+    <label>Setup code
+      <input name="code" required autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX">
+      <span class="hint">It's in wranglarr's log: <code>docker compose logs wranglarr</code>. It keeps anyone else on your network from claiming wranglarr first.</span>
+    </label>
+    <label>Username
+      <input name="username" value="admin" required autocomplete="username" spellcheck="false">
+    </label>
+    <label>Password
+      <input name="password" type="password" required minlength="12" autocomplete="new-password">
+      <span class="hint">At least 12 characters. A few random words work well.</span>
+    </label>
+    <label>Password again
+      <input name="password2" type="password" required minlength="12" autocomplete="new-password">
+    </label>
+    <div class="auth-msg" role="alert" hidden></div>
+    <button class="btn primary wide" type="submit">Create account</button>
+  </form>
+
+  {% else %}
+  <h1>Sign in</h1>
+  <form id="login-form" autocomplete="on" data-next="{{ next }}">
+    <label>Username
+      <input name="username" required autocomplete="username webauthn" spellcheck="false" autofocus>
+    </label>
+    <label>Password
+      <input name="password" type="password" required autocomplete="current-password">
+    </label>
+    <label class="check-line"><input type="checkbox" name="remember"> Keep me signed in for 30 days</label>
+    <div class="auth-msg" role="alert" hidden></div>
+    <button class="btn primary wide" type="submit">Sign in</button>
+  </form>
+
+  <form id="totp-form" hidden>
+    <p>Enter the 6-digit code from your authenticator app.</p>
+    <label>Code
+      <input name="code" required inputmode="numeric" autocomplete="one-time-code" spellcheck="false" placeholder="123456">
+      <span class="hint">Lost your phone? Type one of your recovery codes instead.</span>
+    </label>
+    <div class="auth-msg" role="alert" hidden></div>
+    <button class="btn primary wide" type="submit">Verify</button>
+    <button class="btn ghost wide" type="button" data-restart>Back</button>
+  </form>
+
+  <div id="passkey-box" {% if not has_passkeys %}hidden{% endif %}>
+    <div class="auth-or"><span>or</span></div>
+    <button class="btn wide" type="button" id="passkey-login">{{ i.icon('key') }} Sign in with a passkey</button>
+    <p class="hint center" id="passkey-why" hidden></p>
+  </div>
+  {% endif %}
+</main>
+<script src="/static/app.js?v={{ asset_v }}"></script>
+<script src="/static/auth.js?v={{ asset_v }}"></script>
+</body>
+</html>

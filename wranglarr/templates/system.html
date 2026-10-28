@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% import "_icons.html" as i %}
+{% import "_macros.html" as ui %}
+{% block title %}System · wranglarr{% endblock %}
+{% block crumbs %}System{% endblock %}
+{% block toolbar %}<button class="tb" data-vpn-refresh><span class="i">{{ i.icon('refresh') }}</span>Refresh</button>{% endblock %}
+{% block content %}
+<div class="grid2">
+<section class="panel">
+  <h2>VPN</h2>
+  {% if not vpn.configured %}
+    <p class="muted">Not configured. With the shared tunnel (compose.vpn.yaml) wranglarr reads gluetun's control server; set <code>[vpn] control_url</code> and <code>api_key</code> in wranglarr.toml.</p>
+  {% else %}
+  <dl class="facts">
+    <dt>Tunnel</dt><dd>{% if vpn.ok %}<span class="pill pill-ok">up</span>{% elif vpn.reachable %}<span class="pill pill-failed">{{ vpn.status or 'down' }}</span>{% else %}<span class="pill pill-failed">unreachable</span>{% endif %}</dd>
+    <dt>Public IP</dt><dd>{{ vpn.public_ip or '–' }}</dd>
+    <dt>Forwarded port</dt><dd>{{ vpn.forwarded_port or '–' }}</dd>
+    {% if vpn_split %}<dt>In the tunnel</dt><dd>{{ vpn_split.inside|join(', ') or '–' }}</dd>
+    <dt>Outside it</dt><dd>{{ vpn_split.outside|join(', ') or '–' }}{% if vpn_split.outside %}
+      <div class="muted small">use your own connection; the dashboard warns if one of them reaches an indexer around the tunnel</div>{% endif %}</dd>{% endif %}
+    <dt>Control server</dt><dd>{{ cfg.vpn.control_url }}{% if vpn.error %} <span class="error">· {{ vpn.error }}</span>{% endif %}</dd>
+  </dl>
+  {% endif %}
+</section>
+<section class="panel">
+  <h2>Status</h2>
+  <dl class="facts">
+    <dt>wranglarr</dt><dd>v{{ version }}</dd>
+    <dt>Postgres</dt><dd>{% if postgres %}<span class="pill pill-ok">ok</span> {{ postgres_version }} @ {{ cfg.postgres.host }}:{{ cfg.postgres.port }}{% else %}<span class="pill pill-failed">unreachable</span>{% endif %}</dd>
+    <dt>Docker control</dt><dd>{% if docker %}<span class="pill pill-ok">on</span> {{ cfg.docker_socket }}{% else %}<span class="pill">off</span> <span class="muted small">mount the socket to stop/start apps around restores and for updates. Mounted but still off: set <code>DOCKER_GID</code> in .env to the socket's group (<code>stat -c %g /var/run/docker.sock</code>)</span>{% endif %}</dd>
+    <dt>Runs as</dt><dd>{% if process.root_on_host %}<span class="pill pill-failed">root on the host</span>
+      <span class="muted small">it doesn't need root: run it as PUID:PGID (compose.yaml does; wiki: Security)</span>
+      {% elif process.root %}<span class="pill">root in the container</span> <span class="muted small">your own user on the host (rootless Podman/Docker)</span>
+      {% else %}<span class="pill pill-ok">{{ process.user }}</span> <span class="muted small">not root</span>{% endif %}</dd>
+    <dt>Login</dt><dd>{% if auth_on %}<span class="pill pill-ok">on</span> <a href="/account">Account</a>{% else %}<span class="pill pill-failed">off</span>
+      <span class="muted small">WRANGLARR_AUTH=off: anyone who can reach this port controls wranglarr. Only behind a reverse proxy that asks for a login.</span>{% endif %}</dd>
+    <dt>Backup store</dt><dd>{{ store_root }} · {{ total_bytes|human_bytes }}</dd>
+  </dl>
+</section>
+</div>
+<section class="panel" id="home-settings">
+  <h2>Dashboard</h2>
+  <p class="muted small">What the dashboard shows on and under each app. The lists are read from the apps every 2 minutes; a download client's queue every few seconds.</p>
+  <form id="home-form" autocomplete="off">
+    <div class="form-row"><label class="l">Card details</label>
+      <div><label class="check-line"><input type="radio" name="details" value="hover" {{ 'checked' if home.details == 'hover' }}> on hover: the key numbers on the poster or card, the rest when you point at it</label>
+        <label class="check-line"><input type="radio" name="details" value="always" {{ 'checked' if home.details == 'always' }}> always: everything, below each poster or card</label></div></div>
+    <div class="form-row"><label class="l">Upcoming</label>
+      <div><label class="check-line"><input type="checkbox" name="upcoming" {{ 'checked' if home.upcoming }}> the arrs' calendar</label>
+        <div class="sub-line">Episodes airing in the next <input type="number" name="days" min="1" max="90" value="{{ home.days }}" style="width:70px"> days</div>
+        <div class="sub-line">Films, albums and books: the next <input type="number" name="release_next" min="1" max="200" value="{{ home.release_next }}" style="width:70px">
+          coming out within <input type="number" name="release_days" min="1" max="365" value="{{ home.release_days }}" style="width:70px"> days
+          <div class="hint">They come out rarely, so a week is usually empty.</div></div>
+        <label class="check-line"><input type="checkbox" name="unmonitored" {{ 'checked' if home.unmonitored }}> include unmonitored ones</label></div></div>
+    <div class="form-row"><label class="l">Missing</label>
+      <div><label class="check-line"><input type="checkbox" name="missing" {{ 'checked' if home.missing }}> what came out but isn't downloaded yet (monitored), newest first,
+          from the last <input type="number" name="missing_days" min="0" max="3650" value="{{ home.missing_days }}" style="width:70px"> days <span class="muted small">(0: all of it)</span></label>
+        <div class="hint">In the same table as what's coming up. Bazarr: its wanted subtitles.</div></div></div>
+    <div class="form-row"><label class="l">Downloads</label>
+      <div><label class="check-line"><input type="checkbox" name="queue" {{ 'checked' if home.queue }}> each download client's queue under its card</label></div></div>
+    <div class="form-row"><label class="l">Others</label>
+      <div><label class="check-line"><input type="checkbox" name="requests" {{ 'checked' if home.requests }}> Seerr's latest requests</label>
+        <label class="check-line"><input type="checkbox" name="indexers" {{ 'checked' if home.indexers }}> Prowlarr's indexers, failing ones first</label></div></div>
+    <div class="form-row"><label class="l">Items per list</label>
+      <div><input type="number" name="limit" min="3" max="200" value="{{ home.limit }}" style="width:90px"> <span class="muted small">for coming up and for missing each; the tables scroll when they get long</span></div></div>
+    <div class="row" style="margin-top:12px"><button class="btn primary" type="submit">Save</button>
+      <a class="btn ghost" href="/">Dashboard</a><span class="spacer" style="flex:1"></span>
+      <button class="btn ghost" type="button" data-home-reset>Reset to defaults</button></div>
+  </form>
+</section>
+
+<section class="panel" id="conn-panel">
+  <div class="panel-head"><h2>App connections</h2>
+    {% if connect.links %}<div class="seg" role="group" aria-label="view" hidden>
+      <button type="button" class="seg-btn" data-conn-view="map" aria-pressed="true">Map</button>
+      <button type="button" class="seg-btn" data-conn-view="list" aria-pressed="false">List</button>
+    </div>{% endif %}</div>
+  {% if connect.links %}
+  <p class="muted small">Download clients are added to every arr with the arr's name as category, so downloads land in
+  <code>/data/torrents/&lt;arr&gt;</code> or <code>/data/usenet/complete/&lt;arr&gt;</code>. Sonarr and Radarr are added to Bazarr (and to Seerr once its own setup is done), and every arr to Prowlarr.
+  {% if connect.auto %}New connections are made automatically when wranglarr starts; ones you removed by hand are not put back.{% else %}Automatic connecting is off (<code>[connect] auto</code>).{% endif %}</p>
+  <div class="cmap" id="cmap" hidden>
+    <div class="cmap-stage" id="cmap-stage"></div>
+    <div class="cmap-legend small muted">
+      <span><svg width="34" height="10" aria-hidden="true"><path d="M2 5H28" class="cmap-key"/><path d="M26 1.5 32 5 26 8.5z" class="cmap-key-head"/></svg> reaches</span>
+      <span><svg width="34" height="10" aria-hidden="true"><path d="M8 5H26" class="cmap-key two"/><path d="M8 1.5 2 5 8 8.5z M26 1.5 32 5 26 8.5z" class="cmap-key-head two"/></svg> both ways</span>
+      <span><i class="cmap-sw s-ok"></i>connected one way</span><span><i class="cmap-sw s-warn"></i>differs / waiting</span>
+      <span><i class="cmap-sw s-missing"></i>not connected</span><span><i class="cmap-sw s-bad"></i>failed</span>
+    </div>
+    <div class="cmap-detail" id="cmap-detail" aria-live="polite"></div>
+  </div>
+  <script id="conn-links" type="application/json">{{ connect.links|tojson }}</script>
+  <table class="compact" id="conn-list">
+    <thead><tr><th>App</th><th>Gets</th><th>At</th><th>State</th><th></th></tr></thead>
+    <tbody>{% for l in connect.links %}
+      <tr>
+        <td>{{ app_logo(l.src, l.src_kind) }} {{ l.src }}</td>
+        <td>{{ app_logo(l.dst, l.dst_kind) }} {{ l.dst }} <span class="muted small">{{ l.what }}</span></td>
+        <td><code>{{ l.target or '–' }}</code></td>
+        <td>{% if l.state == 'connected' %}<span class="pill pill-ok">connected</span>{% elif l.state == 'missing' %}<span class="pill">not connected</span>{% elif l.state == 'differs' %}<span class="pill pill-partial">differs</span>{% elif l.state == 'waiting' %}<span class="pill pill-partial">waiting</span>{% else %}<span class="pill pill-failed">{{ l.state }}</span>{% endif %}
+          {% if l.detail %}<span class="muted small">{{ l.detail }}</span>{% endif %}</td>
+        <td>{% if l.state not in ('connected', 'error', 'waiting') %}<button class="btn ghost small" data-connect="{{ l.key }}" data-label="{{ l.dst }} to {{ l.src }}">connect</button>{% endif %}</td>
+      </tr>{% endfor %}
+    </tbody>
+  </table>
+  <div class="row" style="margin-top:10px"><button class="btn primary" data-connect="">Connect apps</button>
+    <span class="muted small">{{ connect.missing }} not connected</span></div>
+  {% else %}<p class="muted">Nothing to connect: enable an arr together with a download client, or Bazarr with Sonarr/Radarr.</p>{% endif %}
+</section>
+
+<section class="panel" id="events-panel">
+  <h2>Live status</h2>
+  {% if events and events.apps %}
+  <p class="muted small">{% if events.enabled %}Each arr has a <code>wranglarr · live status</code> webhook in Settings → Connect that tells wranglarr when something changes (a health issue, an import, an indexer fixed), so the pages show it right away instead of within five minutes.
+  The apps call <code>{{ events.url }}</code>; if they can't reach wranglarr by that name, set <code>[events] url</code>.{% else %}Off (<code>[events] enabled = false</code>): the webhooks were taken out and the pages refresh every five minutes.{% endif %}</p>
+  <table class="compact">
+    <thead><tr><th>App</th><th>Webhook</th><th>Last event</th></tr></thead>
+    <tbody>{% for a in events.apps %}
+      <tr><td>{{ app_logo(a.name, a.kind) }} {{ a.name }}</td>
+        <td>{% if a.error %}<span class="pill pill-failed">failed</span> <span class="muted small">{{ a.error }}</span>{% elif a.action == 'removed' %}<span class="pill">removed</span>{% elif a.action %}<span class="pill pill-ok">in place</span>{% else %}<span class="pill">not yet</span>{% endif %}</td>
+        <td>{% if a.last_event %}{{ a.last_event.event }} <span class="muted small">{{ a.last_event.at|human_age }}</span>{% else %}<span class="muted">none since wranglarr started</span>{% endif %}</td></tr>
+    {% endfor %}</tbody>
+  </table>
+  <div class="row" style="margin-top:10px"><button class="btn" data-events-wire>Put the webhooks in again</button></div>
+  {% else %}<p class="muted">No arr or Prowlarr is enabled.</p>{% endif %}
+</section>
+
+<section class="panel">
+  <h2>Configuration</h2>
+  {% for s in suites %}
+  <h3>{{ s.name }}</h3>
+  <table class="compact">
+    <thead><tr><th>App</th><th>Kind</th><th>URL</th><th>Databases</th><th>Container</th><th>Config dir</th></tr></thead>
+    <tbody>{% for a in s.apps %}<tr><td>{{ app_logo(a.name, a.kind) }} {{ a.name }}</td><td>{{ a.kind }}</td><td>{{ a.url }}</td><td>{{ a.databases|join(', ') or '–' }}</td><td>{{ a.container or '–' }}</td><td>{{ a.config_dir or '–' }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endfor %}
+  {% if shared %}
+  <h3>Shared settings</h3>
+  <ul class="plain small">{% for r in shared %}<li><b>{{ r.name }}</b> <span class="muted">{{ r.label }} · {{ r.base.implementation }} · {{ r.apply_to|join(', ') or 'all apps' }}</span></li>{% endfor %}</ul>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/connmap.js?v={{ asset_v }}"></script>{% endblock %}

@@ -1,0 +1,37 @@
+# Add-on to compose.vpn.yaml: Prowlarr joins the download clients in the tunnel.
+#
+#   COMPOSE_FILE=compose.yaml:compose.vpn.yaml:compose.vpn-prowlarr.yaml
+#
+# Prowlarr is the app that talks to the indexers.  With every indexer in
+# Prowlarr, the arrs only talk to Prowlarr, the download clients and metadata
+# servers, so they can stay outside the tunnel.  This holds only while:
+#   - every indexer the arrs use comes from Prowlarr (none added to an arr by
+#     hand or from wranglarr's Indexers page, which the arrs then query directly);
+#   - Prowlarr's "Redirect" is off for each indexer (with it on, an arr fetches
+#     the .torrent / .nzb from the indexer itself).
+# wranglarr's VPN panel lists anything that breaks this.
+
+x-via-vpn: &via-vpn
+  network_mode: "service:vpn"
+  networks: !reset []
+  ports: !reset []
+  depends_on:
+    vpn:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+
+services:
+  vpn:
+    ports:
+      - ${PROWLARR_PORT:-9696}:9696
+    networks:
+      arrs:
+        aliases: [prowlarr]
+
+  prowlarr:
+    <<: *via-vpn
+
+  wranglarr:
+    environment:
+      WRANGLARR_VPN_APPS: qbittorrent,sabnzbd,nzbget,prowlarr

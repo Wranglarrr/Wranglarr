@@ -1,0 +1,27 @@
+# cargo deny check: licences compatible with GPL-3.0-or-later, no known advisories,
+# crates only from crates.io.
+[graph]
+all-features = false
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+allow = [
+  "MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause",
+  "ISC", "Zlib", "0BSD", "CC0-1.0", "BSL-1.0", "MPL-2.0", "Unicode-3.0", "Unlicense",
+  "CDLA-Permissive-2.0", "GPL-3.0-or-later",
+]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+# the workspace crates name each other by path; none of them is published
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

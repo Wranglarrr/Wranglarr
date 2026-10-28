@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wranglarr docs</title>
+<meta name="description" content="wranglarr: a Postgres-backed *arr stack in Docker Compose, with the app that backs it up, versions and restores it.">
+<link rel="icon" type="image/png" sizes="64x64" href="wiki/images/brand/favicon-64.png">
+<link rel="apple-touch-icon" href="wiki/images/brand/apple-touch-icon.png">
+<!--
+  Docs site for GitHub Pages. It renders README.md and wiki/*.md in the
+  browser, so it never goes out of date: edit the Markdown, not this file.
+
+  Published by .github/workflows/pages.yml, which puts this page next to
+  README.md, ROADMAP.md, wiki/ and wranglarr/README.md (Settings -> Pages -> Source:
+  GitHub Actions).
+
+  Preview locally:  python3 site/serve.py  ->  http://127.0.0.1:8000
+-->
+<style>
+:root {
+  --hdr-bg: #3a3f51; --hdr-fg: #e1e2e3; --hdr-muted: #a9adba;
+  --bg: #ffffff; --bg-soft: #f5f7fa; --bg-code: #f3f4f7; --bg-hover: #eef0f4;
+  --fg: #3b3d42; --fg-strong: #15171c; --muted: #6e7179; --line: #e3e5ea; --line-strong: #cfd3da;
+  --accent: #e0a93b; --accent-ink: #9a6a0c; --accent-soft: #fbf1dc; --link: #2f5fb3;
+  --mark: #ffe8a3; --shadow: 0 12px 40px rgba(20, 24, 36, .18);
+  --hl-kw: #a626a4; --hl-str: #2a7a3b; --hl-num: #b0570a; --hl-com: #8a8f98; --hl-attr: #2f5fb3; --hl-title: #8a4b00;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --hdr-bg: #262626; --hdr-fg: #e1e2e3; --hdr-muted: #9a9a9a;
+    --bg: #1c1c1e; --bg-soft: #232325; --bg-code: #2a2a2d; --bg-hover: #2c2c2f;
+    --fg: #cfd0d3; --fg-strong: #f1f1f2; --muted: #9b9ca1; --line: #333336; --line-strong: #45454a;
+    --accent: #e0a93b; --accent-ink: #f0c060; --accent-soft: #3a2f17; --link: #8fb4ff;
+    --mark: #6b5414; --shadow: 0 12px 40px rgba(0, 0, 0, .55);
+    --hl-kw: #d7a0ff; --hl-str: #9ad48a; --hl-num: #f0b070; --hl-com: #8a8c92; --hl-attr: #8fb4ff; --hl-title: #f0c060;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --hdr-bg: #262626; --hdr-fg: #e1e2e3; --hdr-muted: #9a9a9a;
+  --bg: #1c1c1e; --bg-soft: #232325; --bg-code: #2a2a2d; --bg-hover: #2c2c2f;
+  --fg: #cfd0d3; --fg-strong: #f1f1f2; --muted: #9b9ca1; --line: #333336; --line-strong: #45454a;
+  --accent: #e0a93b; --accent-ink: #f0c060; --accent-soft: #3a2f17; --link: #8fb4ff;
+  --mark: #6b5414; --shadow: 0 12px 40px rgba(0, 0, 0, .55);
+  --hl-kw: #d7a0ff; --hl-str: #9ad48a; --hl-num: #f0b070; --hl-com: #8a8c92; --hl-attr: #8fb4ff; --hl-title: #f0c060;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-padding-top: 72px; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre, kbd { font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- header ---- */
+.top {
+  position: sticky; top: 0; z-index: 30; height: 56px;
+  display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  background: var(--hdr-bg); color: var(--hdr-fg);
+}
+.brand { display: flex; align-items: center; gap: 10px; color: var(--hdr-fg); font-weight: 650; font-size: 17px; letter-spacing: .2px; }
+.brand:hover { text-decoration: none; }
+.brand .wordmark { height: 34px; width: auto; display: block; flex: none; }
+.brand small { align-self: flex-end; margin-bottom: 9px; }
+.brand small { color: var(--hdr-muted); font-weight: 450; font-size: 14px; }
+.top .grow { flex: 1; }
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--hdr-fg); cursor: pointer;
+}
+.icon-btn:hover { background: rgba(255, 255, 255, .1); }
+.search-btn {
+  display: flex; align-items: center; gap: 8px; height: 36px; min-width: 240px; padding: 0 10px 0 12px;
+  border: 1px solid rgba(255, 255, 255, .16); border-radius: 8px; background: rgba(255, 255, 255, .07);
+  color: var(--hdr-muted); cursor: pointer; font-size: 14px;
+}
+.search-btn:hover { background: rgba(255, 255, 255, .12); color: var(--hdr-fg); }
+.search-btn .grow { flex: 1; text-align: left; }
+.search-btn kbd, .modal kbd {
+  font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, .22); color: var(--hdr-muted);
+}
+#menu-btn { display: none; }
+
+/* ---- layout ---- */
+.layout { display: grid; grid-template-columns: 272px minmax(0, 1fr) 232px; max-width: 1480px; margin: 0 auto; }
+.side {
+  position: sticky; top: 56px; height: calc(100vh - 56px); overflow-y: auto;
+  padding: 22px 12px 40px 16px; border-right: 1px solid var(--line); background: var(--bg);
+}
+.side h4 {
+  margin: 18px 10px 6px; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 650;
+}
+.side h4:first-child { margin-top: 0; }
+.side a {
+  display: block; padding: 5px 10px; margin: 1px 0; border-radius: 6px; color: var(--fg); font-size: 14.5px; line-height: 1.45;
+  border-left: 3px solid transparent;
+}
+.side a:hover { background: var(--bg-hover); text-decoration: none; }
+.side a.active { background: var(--accent-soft); color: var(--fg-strong); font-weight: 600; border-left-color: var(--accent); }
+main { min-width: 0; padding: 36px 48px 80px; }
+article { max-width: 820px; margin: 0 auto; }
+.toc { position: sticky; top: 56px; height: calc(100vh - 56px); overflow-y: auto; padding: 36px 16px 40px 8px; font-size: 13.5px; }
+.toc h5 { margin: 0 0 8px; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.toc a { display: block; padding: 3px 0 3px 10px; color: var(--muted); border-left: 2px solid var(--line); line-height: 1.4; }
+.toc a.l3 { padding-left: 22px; font-size: 13px; }
+.toc a:hover { color: var(--fg-strong); text-decoration: none; }
+.toc a.on { color: var(--accent-ink); border-left-color: var(--accent); }
+
+/* ---- content ---- */
+.crumb { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.crumb a { color: var(--muted); }
+article h1, article h2, article h3, article h4 { color: var(--fg-strong); line-height: 1.25; position: relative; }
+article h1 { font-size: 2.1rem; margin: 0 0 .6em; letter-spacing: -.01em; }
+article h2 { font-size: 1.5rem; margin: 2.1em 0 .6em; padding-bottom: .3em; border-bottom: 1px solid var(--line); }
+article h3 { font-size: 1.18rem; margin: 1.8em 0 .5em; }
+article h4 { font-size: 1rem; margin: 1.5em 0 .4em; }
+article .anchor { position: absolute; left: -1.1em; padding-right: .3em; color: var(--muted); opacity: 0; font-weight: 400; }
+article h2:hover .anchor, article h3:hover .anchor, article h4:hover .anchor, article .anchor:focus { opacity: 1; text-decoration: none; }
+article p, article ul, article ol { margin: 0 0 1em; }
+article li { margin: .25em 0; }
+article li > ul, article li > ol { margin: .25em 0 0; }
+article img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, .06); display: block; margin: 1em 0; }
+article img.banner { display: inline-block; border: 0; border-radius: 0; box-shadow: none; margin: .2em auto; width: min(420px, 100%); }
+article img.badge { display: inline-block; height: 20px; width: auto; border: 0; border-radius: 0; box-shadow: none; margin: 2px 1px; vertical-align: middle; }
+article [align="center"] img:not(.banner):not(.badge) { margin-left: auto; margin-right: auto; }
+article td img { margin: 0 0 .6em; }
+@media (max-width: 720px) {
+  article table.cards, article table.cards tbody, article table.cards tr, article table.cards td { display: block; width: auto !important; }
+  article table.cards td img[width] { display: inline-block; width: 46%; margin-right: 2%; }
+}
+article hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
+article strong { color: var(--fg-strong); }
+article :not(pre) > code {
+  font-size: .86em; padding: .12em .38em; border-radius: 5px; background: var(--bg-code); color: var(--fg-strong);
+  overflow-wrap: anywhere;
+}
+article blockquote {
+  margin: 1.2em 0; padding: .7em 1em; border-left: 4px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0;
+}
+article blockquote > :last-child { margin-bottom: 0; }
+.pre-wrap { position: relative; margin: 0 0 1.2em; }
+article pre {
+  margin: 0; padding: 14px 16px; overflow-x: auto; border-radius: 9px; background: var(--bg-code); border: 1px solid var(--line);
+  font-size: 13.5px; line-height: 1.55; color: var(--fg-strong);
+}
+article pre code { background: none; padding: 0; font-size: inherit; }
+.copy {
+  position: absolute; top: 7px; right: 7px; padding: 3px 9px; font-size: 12px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line-strong); background: var(--bg); color: var(--muted); opacity: 0; transition: opacity .15s;
+}
+.pre-wrap:hover .copy, .copy:focus { opacity: 1; }
+.copy.done { color: var(--accent-ink); border-color: var(--accent); opacity: 1; }
+.table-wrap { overflow-x: auto; margin: 0 0 1.2em; border: 1px solid var(--line); border-radius: 9px; }
+article table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+article th, article td { padding: 8px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+article tr:last-child td { border-bottom: 0; }
+article th { background: var(--bg-soft); color: var(--fg-strong); font-weight: 600; white-space: nowrap; }
+article td code, article th code { overflow-wrap: normal; }
+article td:first-child code { white-space: nowrap; }
+.modal input::-webkit-search-cancel-button { display: none; }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in { color: var(--hl-kw); }
+.hljs-string, .hljs-regexp, .hljs-symbol { color: var(--hl-str); }
+.hljs-number, .hljs-literal { color: var(--hl-num); }
+.hljs-comment, .hljs-quote { color: var(--hl-com); font-style: italic; }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable, .hljs-property { color: var(--hl-attr); }
+.hljs-title, .hljs-section, .hljs-meta, .hljs-name, .hljs-type { color: var(--hl-title); }
+
+.pager { max-width: 820px; margin: 56px auto 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.pager a {
+  display: block; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; color: var(--fg-strong);
+}
+.pager a:hover { border-color: var(--accent); text-decoration: none; background: var(--bg-soft); }
+.pager span { display: block; font-size: 12.5px; color: var(--muted); }
+.pager .next { text-align: right; grid-column: 2; }
+.page-foot { max-width: 820px; margin: 28px auto 0; font-size: 13px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; }
+.page-foot a { color: var(--muted); }
+.notice { padding: 16px 18px; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; background: var(--bg-soft); }
+.loading { color: var(--muted); padding: 40px 0; }
+
+/* ---- search ---- */
+.modal-bg { position: fixed; inset: 0; z-index: 50; background: rgba(10, 12, 18, .5); display: none; }
+.modal-bg.open { display: block; }
+.modal {
+  position: fixed; z-index: 51; left: 50%; top: 9vh; transform: translateX(-50%); width: min(680px, calc(100vw - 32px));
+  max-height: 78vh; display: none; flex-direction: column; background: var(--bg); border-radius: 12px; box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+}
+.modal.open { display: flex; }
+.modal .q { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.modal input {
+  flex: 1; border: 0; outline: 0; background: transparent; color: var(--fg-strong); font-size: 17px; min-width: 0;
+}
+.modal kbd { color: var(--muted); border-color: var(--line-strong); }
+.results { overflow-y: auto; padding: 8px; }
+.results a { display: block; padding: 10px 12px; border-radius: 8px; color: var(--fg); }
+.results a:hover, .results a.sel { background: var(--accent-soft); text-decoration: none; }
+.results b { display: block; color: var(--fg-strong); font-weight: 600; }
+.results .where { font-size: 12px; color: var(--muted); }
+.results .snip { display: block; font-size: 13.5px; color: var(--muted); margin-top: 2px; }
+.results mark { background: var(--mark); color: inherit; border-radius: 2px; padding: 0 1px; }
+.results .empty { padding: 18px 12px; color: var(--muted); }
+
+/* ---- narrow screens ---- */
+@media (max-width: 1240px) {
+  .layout { grid-template-columns: 260px minmax(0, 1fr); }
+  .toc { display: none; }
+}
+@media (max-width: 900px) {
+  #menu-btn { display: inline-flex; }
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .side {
+    position: fixed; z-index: 40; top: 56px; left: 0; width: min(300px, 86vw); transform: translateX(-102%);
+    transition: transform .2s ease; visibility: hidden;
+  }
+  body.nav-open .side { transform: none; visibility: visible; box-shadow: var(--shadow); }
+  body.nav-open .scrim { display: block; }
+  main { padding: 24px 16px 64px; }
+  .search-btn { min-width: 0; width: 38px; padding: 0; justify-content: center; border: 0; background: transparent; color: var(--hdr-fg); }
+  .search-btn .grow, .search-btn kbd { display: none; }
+  .brand small { display: none; }
+  article h1 { font-size: 1.7rem; }
+  article .anchor { display: none; }
+  .pager { grid-template-columns: 1fr; }
+  .pager .next { grid-column: 1; }
+}
+.scrim { display: none; position: fixed; inset: 56px 0 0; z-index: 35; background: rgba(10, 12, 18, .4); }
+</style>
+</head>
+<body>
+<header class="top">
+  <button class="icon-btn" id="menu-btn" aria-label="Menu" aria-expanded="false">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+  <a class="brand" href="#/">
+    <img src="wiki/images/brand/wordmark-header.png" alt="wranglarr" class="wordmark">
+    <small>docs</small>
+  </a>
+  <span class="grow"></span>
+  <button class="search-btn" id="search-btn" aria-label="Search the docs">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <span class="grow">Search the docs</span><kbd>/</kbd>
+  </button>
+  <button class="icon-btn" id="theme-btn" aria-label="Theme"></button>
+  <a class="icon-btn" id="repo-link" hidden aria-label="Source code" target="_blank" rel="noopener">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.7 5.38-5.26 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>
+  </a>
+</header>
+<div class="scrim" id="scrim"></div>
+<div class="layout">
+  <nav class="side" id="side" aria-label="Pages"></nav>
+  <main>
+    <article id="doc"><p class="loading">Loading…</p></article>
+    <nav class="pager" id="pager" aria-label="Previous and next page"></nav>
+    <div class="page-foot" id="foot"></div>
+  </main>
+  <aside class="toc" id="toc" aria-label="On this page"></aside>
+</div>
+<div class="modal-bg" id="modal-bg"></div>
+<div class="modal" id="modal" role="dialog" aria-label="Search">
+  <div class="q">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="color:var(--muted)"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Search the docs" autocomplete="off" spellcheck="false" aria-label="Search">
+    <kbd>Esc</kbd>
+  </div>
+  <div class="results" id="results"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js"></script>
+<script>
+(() => {
+  // Set REPO to the GitHub repository URL to get "View source" / "Edit this
+  // page" links and source links for files that aren't Markdown. Left empty,
+  // it's guessed from a <user>.github.io/<repo>/ address.
+  let REPO = 'https://github.com/Wranglarrr/Wranglarr';
+  const BRANCH = 'main';
+
+  // Sidebar order. [route, file, title]: route '' is the README; a wiki page's
+  // route is its file name without .md. Wiki pages not listed still open
+  // from links.
+  const NAV = [
+    ['Start here', [
+      ['', 'README.md', 'Overview'],
+      ['Quickstart', 'wiki/Quickstart.md', 'Quickstart'],
+      ['Setup', 'wiki/Setup.md', 'Setup'],
+      ['Importing-Existing-Apps', 'wiki/Importing-Existing-Apps.md', 'Bringing in existing apps'],
+      ['TrueNAS', 'wiki/TrueNAS.md', 'TrueNAS SCALE'],
+      ['Environment-Variables', 'wiki/Environment-Variables.md', 'Environment variables'],
+      ['Login', 'wiki/Login.md', 'Login'],
+      ['App-Logins', 'wiki/App-Logins.md', 'App logins and AuthTunnel'],
+      ['Security', 'wiki/Security.md', 'Security'],
+    ]],
+    ['Using wranglarr', [
+      ['Dashboard', 'wiki/Dashboard.md', 'Dashboard, links and logins'],
+      ['Notifications', 'wiki/Notifications.md', 'Notifications'],
+      ['Connections', 'wiki/Connections.md', 'Connections: media servers, Seerr'],
+      ['Backups-and-Restore', 'wiki/Backups-and-Restore.md', 'Backups and restore'],
+      ['Updates', 'wiki/Updates.md', 'Container updates'],
+      ['Release-Notes', 'wiki/Release-Notes.md', 'Release notes'],
+      ['ROADMAP.md', 'ROADMAP.md', 'Roadmap'],
+      ['App-Connections', 'wiki/App-Connections.md', 'App connections'],
+      ['Indexers', 'wiki/Indexers.md', 'Indexers'],
+      ['Community-Configs', 'wiki/Community-Configs.md', 'Community configs'],
+      ['Shared-Settings', 'wiki/Shared-Settings.md', 'Shared settings'],
+    ]],
+    ['Services', [
+      ['Service-wranglarr', 'wiki/Service-wranglarr.md', 'wranglarr'],
+      ['Service-Postgres', 'wiki/Service-Postgres.md', 'Postgres'],
+      ['Service-Radarr-Sonarr-Lidarr', 'wiki/Service-Radarr-Sonarr-Lidarr.md', 'Radarr, Sonarr, Lidarr'],
+      ['Service-Prowlarr', 'wiki/Service-Prowlarr.md', 'Prowlarr'],
+      ['Service-Bazarr', 'wiki/Service-Bazarr.md', 'Bazarr'],
+      ['Service-qBittorrent', 'wiki/Service-qBittorrent.md', 'qBittorrent'],
+      ['Service-SABnzbd', 'wiki/Service-SABnzbd.md', 'SABnzbd'],
+      ['Service-NZBGet', 'wiki/Service-NZBGet.md', 'NZBGet'],
+      ['Service-Seerr', 'wiki/Service-Seerr.md', 'Seerr'],
+    ]],
+    ['Networking', [
+      ['VPN-Shared-Tunnel', 'wiki/VPN-Shared-Tunnel.md', 'VPN: shared tunnel'],
+      ['VPN-Per-App', 'wiki/VPN-Per-App.md', 'VPN: per app'],
+      ['Remote-Access', 'wiki/Remote-Access.md', 'Remote access'],
+      ['Reverse-Proxy', 'wiki/Reverse-Proxy.md', 'Reverse proxy'],
+    ]],
+    ['Reference', [
+      ['Architecture', 'wiki/Architecture.md', 'Architecture'],
+      ['Troubleshooting', 'wiki/Troubleshooting.md', 'Troubleshooting'],
+      ['API', 'wiki/API.md', 'HTTP API'],
+      ['Development', 'wiki/Development.md', 'Development'],
+      ['wranglarr/README.md', 'wranglarr/README.md', 'wranglarr package'],
+      ['Home', 'wiki/Home.md', 'Wiki index'],
+    ]],
+  ];
+  const FLAT = NAV.flatMap(([, items]) => items);
+  const TITLE = Object.fromEntries(FLAT.map(([r, , t]) => [r, t]));
+  const GROUP = Object.fromEntries(NAV.flatMap(([g, items]) => items.map(([r]) => [r, g])));
+
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) { /* private mode */ } },
+  };
+
+  if (!REPO) {
+    const m = location.hostname.match(/^([\w-]+)\.github\.io$/);
+    const seg = location.pathname.split('/').filter(Boolean)[0];
+    if (m && seg) REPO = `https://github.com/${m[1]}/${seg}`;
+  }
+  if (REPO) { const a = $('#repo-link'); a.href = REPO; a.hidden = false; }
+
+  // ---- routes and paths --------------------------------------------------------------
+  const routeToPath = r => !r ? 'README.md' : r.endsWith('.md') ? r : `wiki/${r}.md`;
+  const pathToRoute = p => p === 'README.md' ? '' : (/^wiki\/[^/]+\.md$/.test(p) ? p.slice(5, -3) : p);
+  const href = (route, id) => `#/${route}${id ? '?id=' + encodeURIComponent(id) : ''}`;
+  function parseHash() {
+    const h = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
+    const [route, query = ''] = h.split('?');
+    const id = new URLSearchParams(query).get('id') || '';
+    return { route, id };
+  }
+  // A link or image path inside `fromPath`, as a path from the site root (or null if external).
+  function resolve(link, fromPath) {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(link) || link.startsWith('//')) return null;
+    const u = new URL(link, 'https://site.invalid/' + fromPath);
+    return { path: decodeURIComponent(u.pathname.slice(1)), frag: decodeURIComponent(u.hash.slice(1)) };
+  }
+
+  // GitHub's heading anchors: lower-case, punctuation dropped, each space a hyphen, repeats numbered.
+  function slugger() {
+    const seen = {};
+    return text => {
+      let s = text.toLowerCase().trim().replace(/[^\p{L}\p{M}\p{N}\p{Pc} -]/gu, '').replace(/ /g, '-');
+      const base = s;
+      if (seen[base] !== undefined) { seen[base] += 1; s = `${base}-${seen[base]}`; } else seen[base] = 0;
+      return s;
+    };
+  }
+  const plain = md => md.replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[`*]/g, '').replace(/\\([<>#*_`[\]])/g, '$1').replace(/<[^>]+>/g, '').trim();
+
+  // ---- fetching -----------------------------------------------------------------------
+  const cache = {};
+  function load(path) {
+    if (!cache[path]) cache[path] = fetch(path, { cache: 'no-cache' }).then(r => {
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      return r.text();
+    });
+    return cache[path];
+  }
+
+  // ---- sidebar --------------------------------------------------------------------------
+  function renderNav(active) {
+    $('#side').innerHTML = NAV.map(([g, items]) =>
+      `<h4>${esc(g)}</h4>` + items.map(([r, , t]) =>
+        `<a href="${href(r)}" class="${r === active ? 'active' : ''}"${r === active ? ' aria-current="page"' : ''}>${esc(t)}</a>`).join('')).join('');
+  }
+
+  // ---- page ---------------------------------------------------------------------------------
+  let current = null, spy = null;
+  async function show(route, id) {
+    const path = routeToPath(route);
+    renderNav(route);
+    closeNav();
+    if (current === route) { jump(id); return; }
+    current = route;
+    const doc = $('#doc');
+    doc.innerHTML = '<p class="loading">Loading…</p>';
+    $('#pager').innerHTML = ''; $('#foot').innerHTML = ''; $('#toc').innerHTML = '';
+    let md;
+    try { md = await load(path); }
+    catch (e) {
+      if (current !== route) return;
+      doc.innerHTML = location.protocol === 'file:'
+        ? `<h1>Serve this folder first</h1><div class="notice">Browsers don't let a page opened from a file read other files.
+           In the repository folder run <code>python3 site/serve.py</code> and open
+           <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a>.</div>`
+        : `<h1>Page not found</h1><div class="notice"><code>${esc(path)}</code> couldn't be loaded (${esc(e.message)}).
+           <a href="#/">Back to the overview</a>.</div>`;
+      document.title = 'Not found · wranglarr docs';
+      return;
+    }
+    if (current !== route) return;
+    const html = DOMPurify.sanitize(marked.parse(md, { gfm: true }), { ADD_TAGS: ['picture', 'source'], ADD_ATTR: ['srcset', 'media'] });
+    doc.innerHTML = (GROUP[route] ? `<div class="crumb">${esc(GROUP[route])}</div>` : '') + html;
+    enhance(doc, path);
+    const h1 = doc.querySelector('h1');
+    document.title = `${TITLE[route] || (h1 ? h1.textContent : path)} · wranglarr docs`;
+    pager(route, path);
+    toc(doc);
+    jump(id);
+  }
+
+  function enhance(doc, path) {
+    const slug = slugger();
+    doc.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(h => {
+      h.id = slug(h.textContent);
+      if (h.tagName !== 'H1') h.insertAdjacentHTML('afterbegin', `<a class="anchor" href="${href(current, h.id)}" aria-hidden="true" tabindex="-1">#</a>`);
+    });
+    doc.querySelectorAll('a[href]').forEach(a => {
+      if (a.classList.contains('anchor')) return;
+      const raw = a.getAttribute('href');
+      if (raw.startsWith('#')) { a.setAttribute('href', href(current, decodeURIComponent(raw.slice(1)))); return; }
+      const t = resolve(raw, path);
+      if (!t) { a.target = '_blank'; a.rel = 'noopener'; return; }
+      if (t.path.endsWith('.md')) { a.setAttribute('href', href(pathToRoute(t.path), t.frag)); return; }
+      a.setAttribute('href', REPO ? `${REPO}/blob/${BRANCH}/${t.path}` : t.path);
+      if (REPO) { a.target = '_blank'; a.rel = 'noopener'; }
+    });
+    // <picture> with a dark <source>: keep one <img> that follows this site's theme toggle, not just the OS
+    doc.querySelectorAll('picture').forEach(p => {
+      const img = p.querySelector('img');
+      if (!img) { p.remove(); return; }
+      const s = p.querySelector('source[media*="dark"]');
+      if (s) { const t = resolve(s.getAttribute('srcset'), path); img.dataset.dark = t ? t.path : s.getAttribute('srcset'); }
+      p.replaceWith(img);
+    });
+    doc.querySelectorAll('img[src]').forEach(img => {
+      const t = resolve(img.getAttribute('src'), path);
+      if (t) img.setAttribute('src', t.path);
+      if (img.dataset.dark) img.dataset.light = img.getAttribute('src');
+      img.loading = 'lazy';
+      if (img.closest('h1[align="center"]')) { img.classList.add('banner'); return; }   // the wordmark banner
+      if (/^https:\/\/img\.shields\.io\//.test(img.getAttribute('src'))) { img.classList.add('badge'); return; }
+      const a = document.createElement('a');
+      a.href = img.getAttribute('src'); a.target = '_blank'; a.rel = 'noopener';
+      img.replaceWith(a); a.append(img);
+    });
+    themeImages(doc);
+    doc.querySelectorAll('table').forEach(t => {
+      if (t.querySelector('img')) t.classList.add('cards');   // screenshot grids stack on a phone
+      const w = document.createElement('div'); w.className = 'table-wrap';
+      t.replaceWith(w); w.append(t);
+    });
+    doc.querySelectorAll('pre > code').forEach(code => {
+      // ASCII diagrams and plain output stay as they are; only fenced blocks with a language are coloured
+      if (/\blanguage-\w/.test(code.className) && window.hljs) {
+        try { hljs.highlightElement(code); } catch (e) { /* unknown language */ }
+      }
+      const pre = code.parentElement, w = document.createElement('div');
+      w.className = 'pre-wrap'; pre.replaceWith(w); w.append(pre);
+      const b = document.createElement('button');
+      b.className = 'copy'; b.type = 'button'; b.textContent = 'Copy';
+      b.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(code.textContent); b.textContent = 'Copied'; b.classList.add('done'); }
+        catch (e) { b.textContent = 'Select and copy'; }
+        setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('done'); }, 1600);
+      });
+      w.append(b);
+    });
+  }
+
+  function pager(route, path) {
+    const i = FLAT.findIndex(([r]) => r === route);
+    let h = '';
+    if (i > 0) h += `<a class="prev" href="${href(FLAT[i - 1][0])}"><span>← Previous</span>${esc(FLAT[i - 1][2])}</a>`;
+    if (i >= 0 && i < FLAT.length - 1) h += `<a class="next" href="${href(FLAT[i + 1][0])}"><span>Next →</span>${esc(FLAT[i + 1][2])}</a>`;
+    $('#pager').innerHTML = h;
+    $('#foot').innerHTML = (REPO ? `<a href="${REPO}/edit/${BRANCH}/${path}" target="_blank" rel="noopener">Edit this page</a>` : '') +
+      `<a href="${esc(path)}" target="_blank" rel="noopener">View Markdown</a><span>GPL-3.0-or-later</span>`;
+  }
+
+  function toc(doc) {
+    const hs = [...doc.querySelectorAll('h2, h3')];
+    if (spy) spy.disconnect();
+    if (hs.length < 2) return;
+    $('#toc').innerHTML = '<h5>On this page</h5>' + hs.map(h =>
+      `<a class="${h.tagName === 'H3' ? 'l3' : ''}" href="${href(current, h.id)}" data-id="${esc(h.id)}">${esc(h.textContent.replace(/^#/, ''))}</a>`).join('');
+    const links = Object.fromEntries([...$('#toc').querySelectorAll('a')].map(a => [a.dataset.id, a]));
+    const visible = new Set();
+    spy = new IntersectionObserver(entries => {
+      entries.forEach(e => e.isIntersecting ? visible.add(e.target.id) : visible.delete(e.target.id));
+      const first = hs.find(h => visible.has(h.id));
+      if (!first) return;
+      Object.values(links).forEach(a => a.classList.remove('on'));
+      links[first.id] && links[first.id].classList.add('on');
+    }, { rootMargin: '-64px 0px -65% 0px' });
+    hs.forEach(h => spy.observe(h));
+  }
+
+  function jump(id) {
+    if (!id) { window.scrollTo(0, 0); return; }
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView();
+  }
+
+  // ---- navigation drawer (narrow screens) ---------------------------------------------------------
+  function closeNav() { document.body.classList.remove('nav-open'); $('#menu-btn').setAttribute('aria-expanded', 'false'); }
+  $('#menu-btn').addEventListener('click', () => {
+    const open = document.body.classList.toggle('nav-open');
+    $('#menu-btn').setAttribute('aria-expanded', String(open));
+  });
+  $('#scrim').addEventListener('click', closeNav);
+
+  // ---- theme ------------------------------------------------------------------------------------
+  const ICONS = {
+    auto: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 4v16" /><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>',
+    light: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+    dark: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>',
+  };
+  function isDark() {
+    const t = document.documentElement.getAttribute('data-theme');
+    return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  function themeImages(root) {
+    const dark = isDark();
+    (root || document).querySelectorAll('img[data-dark]').forEach(img => {
+      const want = dark ? img.dataset.dark : img.dataset.light;
+      if (img.getAttribute('src') !== want) img.setAttribute('src', want);
+      if (img.parentElement.tagName === 'A') img.parentElement.href = want;
+    });
+  }
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => themeImages());
+  function setTheme(t) {
+    if (t === 'auto') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', t);
+    themeImages();
+    const b = $('#theme-btn'); b.innerHTML = ICONS[t];
+    b.title = b.ariaLabel = `Theme: ${t === 'auto' ? 'follow the system' : t}`;
+  }
+  let theme = store.get('wranglarr-docs-theme') || 'auto';
+  setTheme(theme);
+  $('#theme-btn').addEventListener('click', () => {
+    theme = { auto: 'light', light: 'dark', dark: 'auto' }[theme];
+    store.set('wranglarr-docs-theme', theme === 'auto' ? null : theme);
+    setTheme(theme);
+  });
+
+  // ---- search -----------------------------------------------------------------------------------
+  // Every listed page, split at its headings into sections.
+  let index = null;
+  function buildIndex() {
+    if (index) return index;
+    index = Promise.all(FLAT.map(([r, p, t]) => load(p).then(md => ({ r, t, md }), () => null))).then(pages => {
+      const out = [];
+      for (const pg of pages.filter(Boolean)) {
+        const slug = slugger();
+        let sec = { route: pg.r, page: pg.t, head: pg.t, id: '', text: [] }, fence = false;
+        const push = () => { if (sec.text.length || sec.id) out.push({ ...sec, text: plain(sec.text.join(' ')).replace(/\s+/g, ' ') }); };
+        for (const line of pg.md.split('\n')) {
+          if (/^\s*(```|~~~)/.test(line)) { fence = !fence; continue; }
+          const m = !fence && line.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/);
+          if (m) {
+            const text = plain(m[2]), id = slug(text);
+            if (m[1].length === 1) { sec.head = text; continue; }
+            if (m[1].length <= 3) { push(); sec = { route: pg.r, page: pg.t, head: text, id, text: [] }; continue; }
+            sec.text.push(text);
+            continue;
+          }
+          sec.text.push(line.replace(/^\s*[|>-]\s?/, '').replace(/\|/g, ' '));
+        }
+        push();
+      }
+      return out;
+    });
+    return index;
+  }
+  const re = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  function hl(text, terms) {
+    let out = esc(text);
+    terms.forEach(t => { out = out.replace(new RegExp(`(${re(esc(t))})`, 'gi'), '<mark>$1</mark>'); });
+    return out;
+  }
+  function snippet(text, terms) {
+    const low = text.toLowerCase();
+    let at = -1;
+    for (const t of terms) { at = low.indexOf(t); if (at >= 0) break; }
+    if (at < 0) return text.slice(0, 150) + (text.length > 150 ? '…' : '');
+    const start = Math.max(0, at - 60);
+    return (start ? '…' : '') + text.slice(start, start + 170) + (start + 170 < text.length ? '…' : '');
+  }
+  let hits = [], sel = 0;
+  async function search(q) {
+    const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const box = $('#results');
+    if (!terms.length) { box.innerHTML = '<div class="empty">Type to search every page.</div>'; hits = []; return; }
+    const secs = await buildIndex();
+    if ($('#q').value !== q) return;
+    hits = secs.map(s => {
+      const head = s.head.toLowerCase(), body = s.text.toLowerCase();
+      let score = 0;
+      for (const t of terms) {
+        const inHead = head.includes(t), inBody = body.includes(t);
+        if (!inHead && !inBody && !s.page.toLowerCase().includes(t)) return null;
+        score += (inHead ? 10 : 0) + (inBody ? 1 + Math.min(4, body.split(t).length - 1) * .5 : 0) + (s.page.toLowerCase().includes(t) ? 2 : 0);
+      }
+      return { s, score };
+    }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 30);
+    sel = 0;
+    box.innerHTML = hits.length ? hits.map(({ s }, i) =>
+      `<a href="${href(s.route, s.id)}" class="${i === 0 ? 'sel' : ''}"><span class="where">${esc(s.page)}</span>` +
+      `<b>${hl(s.head, terms)}</b><span class="snip">${hl(snippet(s.text, terms), terms)}</span></a>`).join('')
+      : `<div class="empty">Nothing matches “${esc(q)}”.</div>`;
+  }
+  function openSearch() {
+    $('#modal').classList.add('open'); $('#modal-bg').classList.add('open');
+    const q = $('#q'); q.focus(); q.select(); search(q.value); buildIndex();
+  }
+  function closeSearch() { $('#modal').classList.remove('open'); $('#modal-bg').classList.remove('open'); }
+  function move(d) {
+    const as = [...$('#results').querySelectorAll('a')];
+    if (!as.length) return;
+    as[sel] && as[sel].classList.remove('sel');
+    sel = (sel + d + as.length) % as.length;
+    as[sel].classList.add('sel'); as[sel].scrollIntoView({ block: 'nearest' });
+  }
+  $('#search-btn').addEventListener('click', openSearch);
+  $('#modal-bg').addEventListener('click', closeSearch);
+  $('#results').addEventListener('click', e => { if (e.target.closest('a')) closeSearch(); });
+  $('#q').addEventListener('input', e => search(e.target.value));
+  $('#q').addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Enter') { const a = $('#results').querySelectorAll('a')[sel]; if (a) { location.hash = a.getAttribute('href'); closeSearch(); } }
+  });
+  document.addEventListener('keydown', e => {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if (e.key === 'Escape') { closeSearch(); closeNav(); }
+    else if (!typing && (e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'))) { e.preventDefault(); openSearch(); }
+  });
+
+  // ---- start ---------------------------------------------------------------------------------------
+  const route = () => { const { route: r, id } = parseHash(); show(r, id); };
+  window.addEventListener('hashchange', route);
+  route();
+})();
+</script>
+</body>
+</html>

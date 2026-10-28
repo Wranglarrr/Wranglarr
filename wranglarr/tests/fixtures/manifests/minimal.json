@@ -1,0 +1,19 @@
+{
+  "suite": "c7",
+  "version": "20260101T000000Z",
+  "status": "ok",
+  "apps": {
+    "radarr7": {
+      "name": "radarr7",
+      "kind": "radarr",
+      "errors": [],
+      "databases": [
+        {
+          "name": "radarr",
+          "file": "radarr7/radarr.dump",
+          "sha256": "18ac3e7343f016890c510e93f935261169d9e3f565436429830faf0934f4f8e4"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Fake Postgres tool for the black-box tests: the server is always ready.
+exit 0

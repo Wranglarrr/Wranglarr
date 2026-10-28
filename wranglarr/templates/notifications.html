@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% import "_icons.html" as i %}
+{% block title %}Notifications · wranglarr{% endblock %}
+{% block crumbs %}Notifications{% endblock %}
+{% block toolbar %}
+  <button class="tb primary" data-add title="add a place to send messages"><span class="i">{{ i.icon('plus') }}</span>Add channel</button>
+  <button class="tb" data-check title="look at the stack now instead of waiting for the next check"><span class="i">{{ i.icon('refresh') }}</span>Check now</button>
+  <span class="spacer"></span>
+  <span class="tb-text">messages about things you may want to act on</span>
+{% endblock %}
+{% block content %}
+<section class="panel" id="editor" hidden>
+  <h2 id="ed-title">Add a channel</h2>
+  <div class="kind-grid" id="kind-grid"></div>
+  <form id="ch-form" autocomplete="off" hidden>
+    <div class="form-row"><label class="l">Name</label>
+      <div><input name="name" maxlength="60" style="max-width:300px"><div class="hint">Only for you; also its name in the arrs.</div></div></div>
+    <div id="ch-fields"></div>
+    <div class="form-row"><label class="l">Send me</label>
+      <div>
+        <div class="ev-grid" id="ch-events"></div>
+        <div class="hint"><button class="linkish" type="button" data-ev="all">all</button> · <button class="linkish" type="button" data-ev="none">none</button> · <button class="linkish" type="button" data-ev="default">the usual</button></div>
+      </div></div>
+    <div class="form-row"><label class="l">Also in the arrs</label>
+      <div>
+        <div class="hint" style="margin:0 0 6px">Adds this channel to each picked arr's own Settings → Connect, so the arr tells you itself
+          when it grabs or imports something. wranglarr keeps it in step: change or delete it here, not there.</div>
+        <div class="row" id="ch-arrs"></div>
+        <div class="ev-grid" id="ch-arr-events" style="margin-top:6px"></div>
+      </div></div>
+    <div class="form-row"><label class="l">On</label>
+      <div><label class="check-line"><input type="checkbox" name="enabled" checked> send through this channel</label></div></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" type="submit">Save</button>
+      <button class="btn" type="button" data-test>Send a test</button>
+      <button class="btn ghost" type="button" data-cancel>Cancel</button>
+      <span class="small" id="ch-result"></span>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Channels</h2>
+  <div id="channels"><p class="muted">loading…</p></div>
+</section>
+
+<section class="panel">
+  <h2>What wranglarr watches</h2>
+  <form id="watch-form" autocomplete="off">
+    <div class="form-row"><label class="l">Look every</label>
+      <div class="row"><input type="number" name="interval" min="1" max="1440"> minutes
+        <span class="hint" style="margin:0">Apps offline, health warnings, the VPN, disk space, stuck downloads, imports an arr can't do,
+          new container updates. Each problem is sent once; an app or the VPN coming back is sent too.</span></div></div>
+    <div class="form-row"><label class="l">Low disk</label>
+      <div class="row">below <input type="number" name="disk_free_gb" min="0" step="1"> GB free <span class="hint" style="margin:0">on the arrs' root folders and the backup folder; 0 = off</span></div></div>
+    <div class="form-row"><label class="l">Stuck download</label>
+      <div class="row">stalled for <input type="number" name="stall_minutes" min="0"> minutes <span class="hint" style="margin:0">0 = off</span></div></div>
+    <div class="form-row"><label class="l">Link in messages</label>
+      <div><input name="link" placeholder="https://wranglarr.example.com" spellcheck="false" style="max-width:340px">
+        <div class="hint">Where you open wranglarr, added to the end of each message. Blank: no link.</div></div></div>
+    <div class="row" style="margin-top:10px"><button class="btn primary" type="submit">Save</button></div>
+  </form>
+  <h3>Open right now</h3>
+  <div id="watching" class="small"></div>
+</section>
+
+<section class="panel">
+  <h2>Sent</h2>
+  <table class="compact notify-log"><thead><tr><th>When</th><th>What</th><th>To</th></tr></thead>
+    <tbody id="log"><tr><td class="muted" colspan="3">loading…</td></tr></tbody></table>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/notifications.js?v={{ asset_v }}"></script>{% endblock %}

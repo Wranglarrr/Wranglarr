@@ -1,0 +1,19 @@
+# Proposes updates as pull requests, which run rust.yml and image.yml like any other.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /wranglarr
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: cargo
+    directory: /wranglarr
+    schedule:
+      interval: weekly
+    groups:
+      # one pull request for the routine minor and patch updates
+      minor-and-patch:
+        update-types: [minor, patch]

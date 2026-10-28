@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Activity · wranglarr{% endblock %}
+{% block crumbs %}Activity{% endblock %}
+{% block toolbar %}<span class="tb-text">last {{ runs|length }} runs</span>{% endblock %}
+{% block content %}
+<section class="panel">{% if runs %}{{ ui.runs_table(runs) }}{% else %}<p class="muted">No runs yet.</p>{% endif %}</section>
+{% endblock %}

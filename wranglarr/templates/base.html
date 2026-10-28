@@ -1,0 +1,78 @@
+<!doctype html>
+{% import "_icons.html" as i %}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}wranglarr{% endblock %}</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/static/brand/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/static/brand/favicon-64.png">
+<link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+<link rel="stylesheet" href="/static/style.css?v={{ asset_v }}">
+<script>try{var t=localStorage.getItem('wranglarr-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
+</head>
+<body>
+<header class="hdr">
+  <button class="ibtn nav-toggle" type="button" data-nav-toggle aria-label="Menu" aria-controls="sidebar" aria-expanded="false">{{ i.icon('menu') }}</button>
+  <a class="logo" href="/"><img src="/static/brand/wordmark.png" alt="wranglarr" class="wordmark"></a>
+  <div class="hdr-mid">{% block crumbs %}{% endblock %}</div>
+  <div class="hdr-right">
+    <a id="vpn-pill" class="vpn-pill" href="/system" hidden></a>
+    <button class="ibtn theme-btn" data-theme title="Light or dark" aria-label="Switch light or dark">{{ i.icon('theme') }}</button>
+    {% if user %}<a class="ibtn user {{ 'on' if page == 'account' }}" href="/account" title="Account: {{ user }}">{{ i.icon('account') }}<span class="user-name">{{ user }}</span></a>
+    {% elif auth_on is defined and not auth_on %}<a class="ibtn warn" href="/system" title="Login is off (WRANGLARR_AUTH=off)">{{ i.icon('warning') }}</a>{% endif %}
+  </div>
+</header>
+<div class="shell">
+  {% macro nav(href, key, label, ico, extra='') -%}
+    <a href="{{ href }}" class="{{ 'active' if page == key }}"{{ ' aria-current="page"' if page == key }}>{{ i.icon(ico) }}<span class="lbl">{{ label }}</span>{{ extra }}</a>
+  {%- endmacro %}
+  <nav class="sidebar" id="sidebar" aria-label="Main">
+    {{ nav('/', 'home', 'Dashboard', 'dashboard') }}
+
+    <div class="nav-sec">Backups</div>
+    {{ nav('/suites', 'suites', 'Suites', 'suites') }}
+    {% for s in nav_suites %}
+    <a href="/suites/{{ s.name }}" class="sub {{ 'active' if page == 'suite:' ~ s.name }}"{{ ' aria-current="page"' if page == 'suite:' ~ s.name }}
+       title="{% if s.running %}running now{% elif s.version %}last backup {{ s.version|human_age }}: {{ s.status }}{% else %}no backup yet{% endif %}">
+      <span class="sdot {{ 'run' if s.running else ('s-' ~ s.status if s.status else 'none') }}"></span><span class="lbl">{{ s.name }}</span>
+      <span class="age">{% if s.running %}now{% elif s.version %}{{ s.version|human_age|replace(' ago', '') }}{% else %}–{% endif %}</span></a>
+    {% endfor %}
+    {{ nav('/activity', 'activity', 'Activity', 'activity') }}
+
+    <div class="nav-sec">Apps</div>
+    {{ nav('/indexers', 'indexers', 'Indexers', 'indexers') }}
+    {{ nav('/connections', 'connections', 'Connections', 'connections') }}
+    {{ nav('/keys', 'keys', 'API keys', 'key') }}
+    {{ nav('/notifications', 'notifications', 'Notifications', 'notifications') }}
+    {{ nav('/configs', 'configs', 'Community configs', 'configs') }}
+
+    <div class="nav-sec">Server</div>
+    {% set badge %}{% if updates_available %}<span class="badge" title="{{ updates_available }} container(s) have a newer image">{{ updates_available }}</span>{% endif %}{% endset %}
+    {{ nav('/updates', 'updates', 'Updates', 'updates', badge) }}
+    {{ nav('/proxy', 'proxy', 'Reverse proxy', 'proxy') }}
+    {{ nav('/system', 'system', 'System', 'system') }}
+
+    <div class="foot">wranglarr v{{ version }}</div>
+  </nav>
+  <div class="nav-scrim" data-nav-toggle hidden></div>
+  <main class="page">
+    <div class="toolbar">{% block toolbar %}{% endblock %}</div>
+    <div class="content">
+      {% if restore_plan and restore_plan.items %}
+      <div class="banner">
+        <b>Pending restore plan</b>
+        <span class="muted small">from {{ restore_plan.source or 'setup' }}: {% for i in restore_plan['items'] %}{{ i.app }}@{{ i.version }}{{ ' (interrupted: review required)' if i.started else ('' if i.available else ' (missing)') }}{{ ', ' if not loop.last }}{% endfor %}</span>
+        <span class="actions"><button class="btn primary small" data-plan-run>Run plan</button><button class="btn ghost small" data-plan-discard>Discard</button></span>
+      </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+<div id="toast" class="toast" hidden></div>
+<script id="w-data" type="application/json">{{ {"services": SERVICES, "collection": COLLECTION_LABELS, "scope": SCOPE_LABELS}|tojson }}</script>
+<script src="/static/app.js?v={{ asset_v }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

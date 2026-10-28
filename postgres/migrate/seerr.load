@@ -1,0 +1,10 @@
+-- pgloader command file for Seerr (wiki/Importing-Existing-Apps.md): copies the rows of an old
+-- SQLite db.sqlite3 into the stack's "seerr" database. Like the command line the Seerr docs give,
+-- plus one thing: the old "migrations" table is left out. Seerr keeps separate migration lists
+-- for SQLite and Postgres, and the Postgres one it made on first start must stay.
+-- PGU and PGP come from the environment (docker run -e PGU -e PGP).
+LOAD DATABASE
+  FROM sqlite:///old/db.sqlite3
+  INTO postgresql://{{PGU}}:{{PGP}}@postgres:5432/seerr
+  WITH data only, quote identifiers
+  EXCLUDING TABLE NAMES LIKE 'migrations';

@@ -1,0 +1,116 @@
+# ALTERNATIVE VPN option: one WireGuard tunnel PER APP, hotio-style
+# (https://hotio.dev/containers/radarr/#wireguard).  The default is the shared
+# tunnel (compose.vpn.yaml, which can also cover only some apps); use this one
+# if you want different exit servers per app.
+#
+# Enable by adding this file to COMPOSE_FILE in .env:
+#     COMPOSE_FILE=compose.yaml:compose.vpn-per-app.yaml
+# then set VPN_* in .env and, per app, RADARR_VPN=true / SONARR_VPN=true / ...
+#
+# This swaps the arrs to ghcr.io/hotio images (same /config layout, same
+# config.xml, so wranglarr and the init/patch scripts are unaffected) and adds
+# hotio's WireGuard block.  Put a wg0.conf at appdata/<app>/wireguard/wg0.conf
+# for VPN_PROVIDER=generic / proton; with VPN_PROVIDER=pia it is downloaded
+# from your VPN_PIA_USER / VPN_PIA_PASS.  Each app needs its own WireGuard
+# peer config: one key cannot be used by several tunnels at once.
+#
+# Bazarr's hotio image has VPN support too (BAZARR_VPN).
+
+x-vpn: &vpn-env
+  VPN_CONF: ${VPN_CONF:-wg0}
+  VPN_PROVIDER: ${VPN_PROVIDER:-generic}
+  VPN_LAN_NETWORK: ${VPN_LAN_NETWORK:?set VPN_LAN_NETWORK (e.g. 192.168.1.0/24) in .env, hotio needs it to allow UI access}
+  VPN_LAN_LEAK_ENABLED: ${VPN_LAN_LEAK_ENABLED:-false}
+  VPN_EXPOSE_PORTS_ON_LAN: ${VPN_EXPOSE_PORTS_ON_LAN:-}
+  VPN_AUTO_PORT_FORWARD: ${VPN_AUTO_PORT_FORWARD:-false}
+  VPN_PORT_REDIRECTS: ${VPN_PORT_REDIRECTS:-}
+  VPN_HEALTHCHECK_ENABLED: ${VPN_HEALTHCHECK_ENABLED:-true}
+  VPN_NAMESERVERS: ${VPN_NAMESERVERS:-}
+  VPN_INTERFACE_PREFIXES: ${VPN_INTERFACE_PREFIXES:-}
+  VPN_PIA_USER: ${VPN_PIA_USER:-}
+  VPN_PIA_PASS: ${VPN_PIA_PASS:-}
+  VPN_PIA_PREFERRED_REGION: ${VPN_PIA_PREFERRED_REGION:-}
+  VPN_PIA_DIP_TOKEN: ${VPN_PIA_DIP_TOKEN:-}
+  VPN_PIA_PORT_FORWARD_PERSIST: ${VPN_PIA_PORT_FORWARD_PERSIST:-false}
+  PRIVOXY_ENABLED: ${PRIVOXY_ENABLED:-false}
+  UNBOUND_ENABLED: ${UNBOUND_ENABLED:-false}
+  UNBOUND_NAMESERVERS: ${UNBOUND_NAMESERVERS:-}
+
+x-vpn-service: &vpn-service
+  cap_add: [NET_ADMIN]
+  sysctls:
+    net.ipv6.conf.all.disable_ipv6: 1
+
+services:
+  radarr:
+    <<: *vpn-service
+    image: ${RADARR_IMAGE:-ghcr.io/hotio/radarr:latest}
+    hostname: radarr.internal
+    environment:
+      <<: *vpn-env
+      WEBUI_PORTS: 7878/tcp
+      VPN_ENABLED: ${RADARR_VPN:-false}
+
+  sonarr:
+    <<: *vpn-service
+    image: ${SONARR_IMAGE:-ghcr.io/hotio/sonarr:latest}
+    hostname: sonarr.internal
+    environment:
+      <<: *vpn-env
+      WEBUI_PORTS: 8989/tcp
+      VPN_ENABLED: ${SONARR_VPN:-false}
+
+  lidarr:
+    <<: *vpn-service
+    image: ${LIDARR_IMAGE:-ghcr.io/hotio/lidarr:latest}
+    hostname: lidarr.internal
+    environment:
+      <<: *vpn-env
+      WEBUI_PORTS: 8686/tcp
+      VPN_ENABLED: ${LIDARR_VPN:-false}
+
+  prowlarr:
+    <<: *vpn-service
+    image: ${PROWLARR_IMAGE:-ghcr.io/hotio/prowlarr:latest}
+    hostname: prowlarr.internal
+    environment:
+      <<: *vpn-env
+      WEBUI_PORTS: 9696/tcp
+      VPN_ENABLED: ${PROWLARR_VPN:-false}
+
+  bazarr:
+    <<: *vpn-service
+    image: ${BAZARR_IMAGE:-ghcr.io/hotio/bazarr:latest}
+    hostname: bazarr.internal
+    environment:
+      <<: *vpn-env
+      WEBUI_PORTS: 6767/tcp
+      VPN_ENABLED: ${BAZARR_VPN:-false}
+
+  qbittorrent:
+    <<: *vpn-service
+    image: ${QBITTORRENT_IMAGE:-ghcr.io/hotio/qbittorrent:latest}
+    hostname: qbittorrent.internal
+    environment:
+      <<: *vpn-env
+      WEBUI_PORTS: 8090/tcp
+      VPN_ENABLED: ${QBITTORRENT_VPN:-false}
+      VPN_AUTO_PORT_FORWARD: ${VPN_AUTO_PORT_FORWARD:-false}
+
+  sabnzbd:
+    <<: *vpn-service
+    image: ${SABNZBD_IMAGE:-ghcr.io/hotio/sabnzbd:latest}
+    hostname: sabnzbd.internal
+    environment:
+      <<: *vpn-env
+      WEBUI_PORTS: 8080/tcp
+      VPN_ENABLED: ${SABNZBD_VPN:-false}
+
+  nzbget:
+    <<: *vpn-service
+    image: ${NZBGET_IMAGE:-ghcr.io/hotio/nzbget:latest}
+    hostname: nzbget.internal
+    environment:
+      <<: *vpn-env
+      WEBUI_PORTS: 6789/tcp
+      VPN_ENABLED: ${NZBGET_VPN:-false}

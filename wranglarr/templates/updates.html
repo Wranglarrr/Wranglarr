@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% import "_icons.html" as i %}
+{% import "_macros.html" as ui %}
+{% block title %}Updates · wranglarr{% endblock %}
+{% block crumbs %}Updates{% endblock %}
+{% set STATUS_TEXT = {"current": "up to date", "available": "update available", "local": "local build", "pinned": "pinned",
+                      "self": "wranglarr", "missing": "not running", "error": "check failed", "unchecked": "not checked",
+                      "blocked": "update blocked"} %}
+{% block toolbar %}
+  <button class="tb" data-updates-check {{ 'disabled' if not u.docker }}><span class="i">{{ i.icon('refresh') }}</span>Check now</button>
+  <button class="tb primary" data-updates-apply {{ 'disabled' if not u.available }}><span class="i">{{ i.icon('updates') }}</span>Update all{% if u.available %} ({{ u.available }}){% endif %}</button>
+  <span class="spacer"></span>
+  <span class="tb-text">next check {{ u.next.check|fmt_ts }}{% if u.settings.auto_update %} · next auto-update {{ u.next.auto|fmt_ts }}{% endif %}{% if u.settings.self_update %} · next wranglarr update {{ u.next.self|fmt_ts }}{% endif %}</span>
+{% endblock %}
+{% block content %}
+{% if not u.docker %}
+<div class="banner"><b>Docker control is off.</b><span class="muted small">Updates need the Docker socket: keep <code>/var/run/docker.sock</code> mounted into wranglarr and <code>[docker] socket</code> set in wranglarr.toml.</span></div>
+{% endif %}
+<section class="panel">
+  <h2>Containers</h2>
+  <table>
+    <thead><tr><th>Container</th><th>Image / update track</th><th>Version</th><th>Status</th><th>Last change</th><th></th></tr></thead>
+    <tbody>
+    {% for t in u.targets %}
+    <tr>
+      <td><div class="u-name">
+                {%- if t.status == 'self' %}<img class="ico-logo" src="/static/brand/favicon-64.png" alt="">
+        {%- elif t.app %}<img class="ico-logo app" src="/api/apps/{{ t.app|urlencode }}/logo" alt="" loading="lazy" data-fallback="{{ KIND_ICON[t.kind]|default('') }}">
+        {%- elif t.role == 'postgres' %}<img class="ico-logo" src="/static/icons/postgres.svg?v={{ asset_v }}" alt="">
+        {%- elif t.role == 'vpn' and 'gluetun' in (t.image or '') %}<img class="ico-logo" src="/static/icons/gluetun.svg?v={{ asset_v }}" alt="">
+        {%- elif t.role == 'vpn' %}<img class="ico-logo" src="/static/icons/wireguard.svg?v={{ asset_v }}" alt="">
+        {%- else %}<img class="ico-logo" src="/static/icons/docker.svg?v={{ asset_v }}" alt="">{% endif %}
+        <div><b>{{ t.container }}</b>
+          <div class="muted small">{{ t.role }}{% if t.suite %} · suite {{ t.suite }}{% endif %}{% if t.running is defined and not t.running %} · stopped{% endif %}</div></div></div></td>
+      <td class="small"><code>{{ t.image or '–' }}</code>{% if t.image_id %}<div class="muted">{{ t.image_id[7:19] }}{% if t.remote_digest and t.status == 'available' %} → registry {{ t.remote_digest[7:19] }}{% endif %}</div>{% endif %}
+        <form data-update-track="{{ t.container }}" style="margin-top:8px">
+          <label for="track-{{ loop.index }}">Update track</label>
+          <div class="row">
+            <input id="track-{{ loop.index }}" name="tag" list="tracks-{{ loop.index }}" value="{{ t.track.tag or '' }}"
+                   placeholder="Follow deployed image" maxlength="128" pattern="[A-Za-z0-9_][A-Za-z0-9_.\-]{0,127}"
+                   autocomplete="off" spellcheck="false" style="width:150px">
+            <datalist id="tracks-{{ loop.index }}">{% for choice in t.track.choices %}<option value="{{ choice.tag }}">{{ choice.label }}</option>{% endfor %}</datalist>
+            <button type="submit" class="btn small">Save track</button>
+            {% if t.track.source == 'ui' %}<button type="button" class="btn ghost small" data-track-reset="{{ t.container }}">Reset</button>{% endif %}
+          </div>
+          <div class="hint">{% if t.track.tag %}Following <code>{{ t.track.tag }}</code> · {{ t.track.source }}{% else %}Following deployed tag or digest{% endif %}
+            {% if t.track.docs %} · <a href="{{ t.track.docs }}" target="_blank" rel="noopener noreferrer">Publisher's tracks</a>{% endif %}</div>
+          {% if t.track.changed %}<div class="hint">Next update: <code>{{ t.track.image }}</code></div>{% endif %}
+          {% if t.track.image and (t.track.changed or t.status == 'self') %}
+            <div class="hint">Keep your Compose image set to <code>{{ t.track.image }}</code> so a later deployment follows this track.</div>
+            {% if t.status == 'self' %}<div class="hint">Set <code>WRANGLARR_IMAGE={{ t.track.image }}</code> in <code>.env</code>, then run <code>docker compose pull {{ t.compose_service or 'wranglarr' }}</code> and <code>docker compose up -d {{ t.compose_service or 'wranglarr' }}</code>.</div>{% endif %}
+          {% endif %}
+          {% if t.track.error %}<div class="error">{{ t.track.error }}</div>{% endif %}
+        </form>
+      </td>
+      <td class="small">{{ t.version or '–' }}{% if t.image_created %}<div class="muted">built {{ t.image_created|fmt_ts }}</div>{% endif %}</td>
+      <td><span class="pill pill-u-{{ t.status }}">{{ STATUS_TEXT[t.status]|default(t.status) }}</span>
+          {% if t.held %}<span class="pill pill-u-held" title="{{ t.hold_reason }}">held</span>{% endif %}
+          {% if t.interrupted %}<div class="small warn-text">An update was interrupted. <code>{{ t.interrupted }}</code> is the container from before it.
+            If {{ t.container }} works, remove <code>{{ t.interrupted }}</code>; if not, remove {{ t.container }} and rename <code>{{ t.interrupted }}</code> back to {{ t.container }}.
+            Updates and rollbacks of this container wait until then.</div>{% endif %}
+          {% if t.error and t.status not in ('current', 'available') %}<div class="small {{ 'warn-text' if t.newer else 'muted' }}">{{ t.error }}</div>{% endif %}
+          {% if t.status == 'self' %}<div class="small"><a href="{{ RELEASE_NOTES }}" target="_blank" rel="noopener">Release notes</a></div>{% endif %}
+          {% if t.checked %}<div class="muted small">checked {{ t.checked|fmt_ts }}</div>{% endif %}</td>
+      <td class="small">{% if t.last_update %}{{ t.last_update.action }} {{ ui.status_pill(t.last_update.status) }}<div class="muted">{{ t.last_update.at|fmt_ts }}{% if t.last_update.new_version %} · {{ t.last_update.old_version or '?' }} → {{ t.last_update.new_version }}{% endif %}</div>{% else %}<span class="muted">–</span>{% endif %}</td>
+      <td><div class="actions">
+        {% if t.status == 'self' and t.self_update %}
+          {%- set rejected = t.blocked and t.remote_digest in (t.blocked.digests or []) %}
+          <button class="btn {{ 'small' if rejected else 'primary small' }}" data-self-update
+                  {% if rejected %}title="this image didn't come up last time ({{ t.blocked.reason }}); try it again"{% endif %}>{{ 'Try again' if rejected else 'Update now' }}</button>
+        {% elif t.status == 'available' and not t.interrupted %}<button class="btn primary small" data-update-one="{{ t.container }}">Update</button>
+        {% elif t.status == 'blocked' %}<button class="btn small" data-update-one="{{ t.container }}" title="this image was rejected before; try it again">Try again</button>{% endif %}
+        {% if t.can_rollback and not t.interrupted %}<button class="btn small" data-rollback="{{ t.container }}" data-to="{{ t.rollback_to }}">Roll back</button>{% endif %}
+        {% if t.held %}<button class="btn ghost small" data-hold="{{ t.container }}" data-on="0">Release hold</button>
+        {% elif t.status not in ('self', 'missing') %}<button class="btn ghost small" data-hold="{{ t.container }}" data-on="1" title="skip this container in automatic and 'update all' runs">Hold</button>{% endif %}
+      </div></td>
+    </tr>
+    {% else %}<tr><td colspan="6" class="muted">No containers are managed: set <code>container = "…"</code> on the apps in wranglarr.toml.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small">Save a tag to select its update track, or leave it blank to follow the deployed image. Suggestions come from the image publisher; a custom tag works for any repository. Saving does not restart a container: press Check now, then Update. Scheduled updates also follow the saved track. Development tracks may migrate databases; returning to an older track can require a backup restore. Wranglarr's own row follows its track when you press Update now.</p>
+  <p class="muted small">Checks ask the registry for the current digest of each tag without pulling anything. An update backs up the affected suite first (Postgres updates back up every suite with databases), pulls the image, then recreates the container with its exact mounts, environment, networks and labels. If the new container isn't healthy within the timeout the old one is put back. Apps sharing the VPN container's network are recreated with it.</p>
+</section>
+
+<div class="grid2">
+<section class="panel">
+  <h2>Automation</h2>
+  <form data-update-settings>
+    <div class="form-row"><label class="l">Enabled</label><div class="inline"><input type="checkbox" name="enabled" {{ 'checked' if u.settings.enabled }}> <span class="hint">off = no scheduled checks or updates</span></div></div>
+    <div class="form-row"><label class="l">Check schedule</label><div><input name="check_schedule" value="{{ u.settings.check_schedule }}" placeholder="0 */6 * * *"><div class="hint">cron · blank = only when you press Check now</div></div></div>
+    <div class="form-row"><label class="l">Auto-update</label><div class="inline"><input type="checkbox" name="auto_update" {{ 'checked' if u.settings.auto_update }}> <span class="hint">apply available updates (not held ones) on the schedule below</span></div></div>
+    <div class="form-row"><label class="l">Auto-update schedule</label><div><input name="auto_schedule" value="{{ u.settings.auto_schedule }}" placeholder="0 5 * * *"><div class="hint">cron, in the container's TZ</div></div></div>
+    <div class="form-row"><label class="l">Back up first</label><div class="inline"><input type="checkbox" name="backup_first" {{ 'checked' if u.settings.backup_first }}> <span class="hint">an app whose pre-update backup fails is not updated</span></div></div>
+    <div class="form-row"><label class="l">Update wranglarr</label><div class="inline"><input type="checkbox" name="self_update" {{ 'checked' if u.settings.self_update }}> <span class="hint">replace wranglarr's own container with a newer image on the schedule below; never part of Update all or the auto-update above{% if u.own and u.own.self_update_blocker %} · <span class="warn-text">not here: {{ u.own.self_update_blocker }}</span>{% endif %}</span></div></div>
+    <div class="form-row"><label class="l">wranglarr's schedule</label><div><input name="self_schedule" value="{{ u.settings.self_schedule }}" placeholder="30 5 * * *"><div class="hint">cron, in the container's TZ · an image that failed to come up before is skipped</div></div></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn primary" type="submit">Save</button>
+      {% if u.settings.source == 'ui' %}<button class="btn ghost" type="button" data-updates-reset>reset to config file</button>{% endif %}
+      <span class="muted small">settings from {{ u.settings.source }}</span>
+    </div>
+  </form>
+</section>
+<section class="panel">
+  <h2>History</h2>
+  {% if u.history %}
+  <table class="compact">
+    <thead><tr><th>When</th><th>Container</th><th>Change</th><th>Status</th></tr></thead>
+    <tbody>{% for h in u.history %}
+      <tr><td class="muted small">{{ h.at|fmt_ts }}</td><td>{{ h.container }}</td>
+          <td class="small">{{ h.action }} · {% if h.old_version and h.old_version == h.new_version %}{{ h.new_version }} <span class="muted">({{ h.old_image[7:19] }} → {{ h.new_image[7:19] }})</span>{% else %}{{ h.old_version or (h.old_image[7:19] if h.old_image) or '?' }} → {{ h.new_version or (h.new_image[7:19] if h.new_image) or '?' }}{% endif %}{% if h.note %}<div class="muted">{{ h.note }}</div>{% endif %}</td>
+          <td>{{ ui.status_pill(h.status) }}{% if h.run_id %} <a class="small" href="/runs/{{ h.run_id }}">#{{ h.run_id }}</a>{% endif %}</td></tr>
+    {% endfor %}</tbody>
+  </table>
+  {% else %}<p class="muted">No updates yet.</p>{% endif %}
+</section>
+</div>
+{% endblock %}

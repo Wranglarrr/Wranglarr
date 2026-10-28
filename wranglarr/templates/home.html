@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% import "_icons.html" as i %}
+{% block title %}wranglarr{% endblock %}
+{% block crumbs %}Dashboard{% endblock %}
+{% block toolbar %}
+  <button class="tb" data-home-refresh title="re-read stats from the apps"><span class="i">{{ i.icon('refresh') }}</span>Refresh</button>
+  <button class="tb" data-links-edit aria-expanded="false" aria-controls="links-panel"><span class="i">{{ i.icon('link') }}</span>Links</button>
+  <button class="tb" data-logins-edit aria-expanded="false" aria-controls="logins-panel"><span class="i">{{ i.icon('key') }}</span>Logins</button>
+  <a class="tb" href="/system#home-settings"><span class="i">{{ i.icon('system') }}</span>Customize</a>
+  <span class="spacer"></span>
+  <span class="tb-text">click a card to open the app; hover it for more</span>
+{% endblock %}
+{% block content %}
+{% if own and own.newer %}
+<div class="banner" data-self-banner>
+  <b>A newer wranglarr is out</b>
+  <span class="muted small">this one is {{ own.version or '?' }} · <a href="{{ RELEASE_NOTES }}" target="_blank" rel="noopener">Release notes</a>{% if not own.self_update %} · {{ own.update_hint }}{% endif %}</span>
+  <span class="actions">{% if own.self_update %}<button class="btn primary small" data-self-update>Update now</button>{% endif %}<a class="btn ghost small" href="/updates">Updates</a></span>
+</div>
+{% endif %}
+<section class="panel" id="links-panel" hidden>
+  <h2>Where the apps open</h2>
+  <form id="links-form" autocomplete="off">
+    <div class="form-row">
+      <label class="l">Open apps at</label>
+      <div>
+        <label class="check-line"><input type="radio" name="mode" value="port" {{ 'checked' if links.mode == 'port' }}> this machine's address and each app's port <span class="muted small">e.g. http://{{ browser_host or '192.168.1.10' }}:7878</span></label>
+        <label class="check-line"><input type="radio" name="mode" value="domain" {{ 'checked' if links.mode == 'domain' }}> a domain per app <span class="muted small">e.g. https://radarr.home.example.com, through your reverse proxy</span></label>
+      </div>
+    </div>
+    <div class="form-row" data-mode-only="port">
+      <label class="l">Address</label>
+      <div>
+        <div class="row">
+          <select name="scheme" style="width:auto"><option value="http" {{ 'selected' if links.scheme == 'http' }}>http://</option><option value="https" {{ 'selected' if links.scheme == 'https' }}>https://</option></select>
+          <input name="host" value="{{ links.host }}" placeholder="{{ browser_host }}" spellcheck="false" style="max-width:300px">
+        </div>
+        <div class="hint">An IP address or host name, without a port. Blank: the address you opened wranglarr at (now <code>{{ browser_host }}</code>).
+          The port is the one Docker publishes each app on, read from the container.</div>
+      </div>
+    </div>
+    <div class="form-row" data-mode-only="domain">
+      <label class="l">Domain pattern</label>
+      <div>
+        <input name="pattern" value="{{ links.pattern }}" placeholder="https://{name}.home.example.com" spellcheck="false">
+        <div class="hint"><code>{name}</code> becomes the app's name (radarr, sonarr, qbittorrent…), <code>{kind}</code> its type.</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="l">Per app</label>
+      <div>
+        <div class="hint" style="margin:0 0 6px">Blank: use the rule above. Fill in to send one app somewhere else: a local IP (<code>http://192.168.1.20:8080</code>) or a domain (<code>https://sab.example.com</code>).</div>
+        <table class="compact links-table"><tbody>
+        {% for s in suites %}{% for a in s.apps %}
+          <tr><td>{{ a.name }}</td>
+              <td><input name="app:{{ a.name }}" value="{{ links.apps[a.name]|default('') }}" placeholder="{{ a.link.url if a.link.how != 'set' and a.link.url else 'http://…' }}" spellcheck="false"></td></tr>
+        {% endfor %}{% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" type="submit">Save</button>
+      <button class="btn ghost" type="button" data-links-cancel>Cancel</button>
+      <span class="spacer" style="flex:1"></span>
+      <button class="btn ghost" type="button" data-links-reset>Reset to defaults</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel" id="logins-panel" hidden>
+  <h2>App logins</h2>
+  <p><b>{{ apps_auth_text }}</b> <span class="muted small">(APPS_AUTH={{ apps_auth }})</span></p>
+  <div id="logins-summary" class="muted small"></div>
+  <table class="compact logins-table"><thead><tr><th>App</th><th>Login now</th><th></th></tr></thead>
+    <tbody id="logins-apps"><tr><td class="muted" colspan="3">loading…</td></tr></tbody></table>
+  <h3 style="margin-top:16px">Changing it</h3>
+  <p class="muted small">The apps' logins are set when the stack is set up, not from here. In the stack's folder:</p>
+  <ol class="small">
+    <li>Pick the new setup in the setup wizard, Logins only (it changes nothing else in <code>.env</code>), then open <code>http://localhost:8788</code>:
+      <pre class="env">{{ rerun[0] }}</pre></li>
+    <li>Apply it. This sets each app's login and, for AuthTunnel, starts or removes wranglarr-gate:
+      <pre class="env">{{ rerun[1] }}</pre></li>
+  </ol>
+  <p class="muted small">The three ways and their trade-offs: wiki, App Logins.</p>
+  <div class="row" style="margin-top:12px"><button class="btn ghost" type="button" data-logins-cancel>Close</button></div>
+</section>
+
+<div id="home" class="details-{{ home_settings.details }}" data-show-queue="{{ 'on' if home_settings.queue else 'off' }}">
+{% for g in groups %}
+<section class="app-group" data-group="{{ g.key }}">
+  <h3>{{ g.title }}{% if g.suite %} <a class="small" href="/suites/{{ g.suite }}">backups ›</a>{% endif %}</h3>
+  <div class="app-cols{{ ' poster-cols' if g.key == 'media' }}">
+    {% for a in g.apps %}
+    {% set url = a.link.url %}
+    {% set poster = g.key == 'media' %}
+    {% set more %}
+          <span class="more-stats"></span>
+          <span class="more-foot"><span class="note-login"></span>
+            {% if url %}<span class="card-link">{{ (url|split('://', 1))[1]|trim('/') }}</span>{% endif %}</span>{% endset %}
+    <article class="app-col{{ ' is-poster' if poster else ' is-card' }}" data-app="{{ a.name }}" data-kind="{{ a.kind }}" data-suite="{{ a.suite }}" data-url="{{ url or '' }}" style="--k: {{ (SERVICES[a.kind]|default({})).color or '#e0a93b' }}">
+      <div class="card-wrap">
+        {% if poster %}
+        {# the media arrs keep their poster: key stats on it, everything else over it on hover #}
+        {% if url %}<a class="poster" href="{{ url }}" target="_blank" rel="noopener" title="Open {{ a.name }}: {{ url }}">{% else %}<div class="poster nolink" title="{{ a.link.note }}">{% endif %}
+          <span class="poster-status"><span class="dot pending"></span><span class="poster-ver"></span><span class="card-warn" hidden>{{ i.icon('warning', 'ico-i') }}</span></span>
+          <span class="poster-art"><img src="/api/apps/{{ a.name }}/logo" alt="" loading="lazy" data-fallback="{{ KIND_ICON[a.kind]|default('') }}"></span>
+          <span class="poster-title">{{ a.name }}</span>
+          <span class="note-stats">loading…</span>
+          <span class="poster-more">{{ more }}</span>
+          {% if url %}<span class="poster-open">Open ↗</span>{% endif %}
+        {% if url %}</a>{% else %}</div>{% endif %}
+        {% else %}
+        {% if url %}<a class="card" href="{{ url }}" target="_blank" rel="noopener" title="Open {{ a.name }}: {{ url }}">{% else %}<div class="card nolink" title="{{ a.link.note }}">{% endif %}
+          <span class="card-art poster-art"><img src="/api/apps/{{ a.name }}/logo" alt="" loading="lazy" data-fallback="{{ KIND_ICON[a.kind]|default('') }}"></span>
+          <span class="card-body">
+            <span class="card-top"><span class="dot pending"></span><b class="card-title">{{ a.name }}</b><span class="poster-ver"></span>
+              <span class="card-speed" hidden></span><span class="card-warn" hidden>{{ i.icon('warning', 'ico-i') }}</span></span>
+            <span class="note-stats">loading…</span>
+          </span>
+          {% if url %}<span class="card-open">Open ↗</span>{% endif %}
+        {% if url %}</a>{% else %}</div>{% endif %}
+        {% endif %}
+        <div class="card-more">{{ more }}{% if not url %}<button class="linkish small" type="button" data-links-edit>no link: set one</button>{% endif %}</div>
+      </div>
+      <div class="app-lists">
+        <div class="app-warn" role="status" hidden></div>
+        {% if (SERVICES[a.kind]|default({})).downloads %}{% if home_settings.queue %}<div data-queue></div>{% endif %}{% else %}<div data-feed></div>{% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/home.js?v={{ asset_v }}"></script>{% endblock %}

@@ -1,0 +1,90 @@
+{
+  "suite": "media",
+  "version": "20261027T160723Z",
+  "created": "2026-10-27T16:07:23.758581+00:00",
+  "trigger": "manual",
+  "wranglarr": "0.2.0",
+  "status": "ok",
+  "apps": {
+    "radarr": {
+      "name": "radarr",
+      "kind": "radarr",
+      "databases": [
+        {
+          "name": "radarr",
+          "file": "radarr/radarr.dump",
+          "size": 20,
+          "sha256": "ab4b127c7aae1b66ed77d927ba377bf1443aef70ab2cd49562228cc28bcd31ce",
+          "db_size": 123456789
+        }
+      ],
+      "config_zip": {
+        "file": "radarr/radarr_backup_v5.14.0.9383_2026.10.21_0.zip",
+        "size": 289,
+        "sha256": "040ad536fdd8a8bb48453209879e0f8092a6e22de2bc38f83c3366a314db1855",
+        "format": "zip"
+      },
+      "config_snapshot": null,
+      "collection": {
+        "movies": 3,
+        "with_file": 2,
+        "missing": 1,
+        "size_on_disk": 7000000000
+      },
+      "scope": {
+        "indexer": 2,
+        "downloadclient": 0,
+        "qualityprofile": 3,
+        "importlist": 0,
+        "notification": 1,
+        "tag": 4,
+        "customformat": 12,
+        "rootfolder": 1,
+        "root_free_space": 900000000000
+      },
+      "errors": [],
+      "container": {
+        "image": "lscr.io/linuxserver/radarr:latest",
+        "image_id": "sha256:a53b7894a203f394c5b118981c2131657ece3954c4a4161b8f8a0217a9715338",
+        "pinned": "lscr.io/linuxserver/radarr@sha256:b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+        "version": "5.14.0.9383-ls250",
+        "env": {
+          "PUID": "1000",
+          "PGID": "1000",
+          "TZ": "UTC"
+        },
+        "ports": [],
+        "mounts": [
+          {
+            "source": "/srv/appdata/radarr",
+            "target": "/config",
+            "ro": false
+          }
+        ],
+        "network_mode": "arrs",
+        "vpn": false
+      },
+      "version": "5.14.0.9383",
+      "database_type": "postgreSQL",
+      "database_version": "17.2",
+      "migration_version": 241,
+      "instance_name": "Radarr",
+      "branch": "master",
+      "os": "alpine"
+    }
+  },
+  "postgres_version": "17.2",
+  "vpn": null,
+  "total_bytes": 4805,
+  "postgres_container": null,
+  "globals": {
+    "file": "globals.sql",
+    "size": 14
+  },
+  "standalone": [
+    "compose.yaml",
+    ".env",
+    "postgres/initdb/10-restore.sh",
+    "RESTORE.md"
+  ]
+}

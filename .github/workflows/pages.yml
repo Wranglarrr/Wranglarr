@@ -1,0 +1,39 @@
+# Publishes the docs website (site/index.html, which renders README.md and wiki/)
+# to GitHub Pages. Turn it on once: Settings -> Pages -> Source: GitHub Actions.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths: ["README.md", "ROADMAP.md", "wiki/**", "wranglarr/README.md", "site/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble the site
+        run: |
+          mkdir -p _site/wranglarr
+          cp site/index.html README.md ROADMAP.md _site/
+          cp -r wiki _site/
+          cp wranglarr/README.md _site/wranglarr/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

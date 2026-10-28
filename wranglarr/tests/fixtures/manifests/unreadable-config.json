@@ -1,0 +1,68 @@
+{
+  "suite": "perms",
+  "version": "20261027T160715Z",
+  "created": "2026-10-27T16:07:15.091721+00:00",
+  "trigger": "manual",
+  "wranglarr": "0.2.0",
+  "status": "failed",
+  "apps": {
+    "radarr2": {
+      "name": "radarr2",
+      "kind": "radarr",
+      "databases": [],
+      "config_zip": {
+        "file": "radarr2/radarr_backup_v5.14.0.9383_2026.10.21_0.zip",
+        "size": 289,
+        "sha256": "7abb233f52ac23cb3ca3388ccd462a663ffc825342e43627dfa44babc4941b25",
+        "format": "zip"
+      },
+      "config_snapshot": {
+        "path": "radarr2/config",
+        "files": 3,
+        "bytes": 78,
+        "skipped": 0,
+        "checksums": "radarr2/config.sha256",
+        "unreadable": [
+          "secret.xml (Permission denied)",
+          "sub/ (Permission denied)"
+        ]
+      },
+      "collection": {
+        "movies": 3,
+        "with_file": 2,
+        "missing": 1,
+        "size_on_disk": 7000000000
+      },
+      "scope": {
+        "indexer": 2,
+        "downloadclient": 0,
+        "qualityprofile": 3,
+        "importlist": 0,
+        "notification": 1,
+        "tag": 4,
+        "customformat": 12,
+        "rootfolder": 1,
+        "root_free_space": 900000000000
+      },
+      "errors": [
+        "config copy: 2 file(s) or folder(s) couldn't be read (permissions?): secret.xml (Permission denied), sub/ (Permission denied)"
+      ],
+      "container": null,
+      "version": "5.14.0.9383",
+      "database_type": "postgreSQL",
+      "database_version": "17.2",
+      "migration_version": 241,
+      "instance_name": "Radarr",
+      "branch": "master",
+      "os": "alpine"
+    }
+  },
+  "postgres_version": "",
+  "vpn": null,
+  "total_bytes": 3448,
+  "standalone": [
+    "compose.yaml",
+    ".env",
+    "RESTORE.md"
+  ]
+}

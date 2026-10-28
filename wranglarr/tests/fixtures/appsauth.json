@@ -1,0 +1,265 @@
+[
+  {
+    "stdout": "apps-auth: mode apps, login \"me\": radarr, bazarr, sabnzbd, qbittorrent, nzbget\napps-auth: radarr: login page, user me, asked everywhere: signed in with it\napps-auth: bazarr: login page, user me: signed in with it\napps-auth: sabnzbd: login page, user me: signed in with it\napps-auth: qbittorrent: login page, user me: signed in with it\napps-auth: radarr: updated its qbittorrent login\napps-auth: nzbget: FAILED: NZBGET_USER is \"other\", not \"me\": set NZBGET_USER and NZBGET_PASS in .env to the apps' login\napps-auth: 1 app(s) failed; fix the cause and re-run: ./scripts/init.sh --auth\n",
+    "code": 1,
+    "report": {
+      "mode": "apps",
+      "username": "me",
+      "required": "enabled",
+      "apps": {
+        "radarr": {
+          "ok": true,
+          "detail": "login page, user me, asked everywhere: signed in with it"
+        },
+        "bazarr": {
+          "ok": true,
+          "detail": "login page, user me: signed in with it"
+        },
+        "sabnzbd": {
+          "ok": true,
+          "detail": "login page, user me: signed in with it"
+        },
+        "qbittorrent": {
+          "ok": true,
+          "detail": "login page, user me: signed in with it"
+        },
+        "nzbget": {
+          "ok": false,
+          "detail": "NZBGET_USER is \"other\", not \"me\": set NZBGET_USER and NZBGET_PASS in .env to the apps' login"
+        }
+      }
+    },
+    "host": {
+      "id": 1,
+      "bindAddress": "*",
+      "authenticationMethod": "forms",
+      "username": "me",
+      "password": "Correct-Horse-9",
+      "authenticationRequired": "enabled",
+      "passwordConfirmation": "Correct-Horse-9"
+    },
+    "dl": [
+      {
+        "id": 3,
+        "name": "qBittorrent",
+        "implementation": "QBittorrent",
+        "fields": [
+          {
+            "name": "host",
+            "value": "qbittorrent"
+          },
+          {
+            "name": "username",
+            "value": "me"
+          },
+          {
+            "name": "password",
+            "value": "Correct-Horse-9"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "name": "SAB",
+        "implementation": "Sabnzbd",
+        "fields": []
+      }
+    ],
+    "bazarr_auth": {
+      "type": "form",
+      "username": "me",
+      "password": "Correct-Horse-9"
+    },
+    "sab": [
+      "me",
+      "Correct-Horse-9"
+    ]
+  },
+  {
+    "stdout": "apps-auth: mode apps, login \"me\": radarr, bazarr, sabnzbd\napps-auth: radarr: login page, user me, asked everywhere: signed in with it\napps-auth: bazarr: login page, user me: signed in with it\napps-auth: sabnzbd: login page, user me: signed in with it\napps-auth: done\n",
+    "code": 0,
+    "report": {
+      "mode": "apps",
+      "username": "me",
+      "required": "enabled",
+      "apps": {
+        "radarr": {
+          "ok": true,
+          "detail": "login page, user me, asked everywhere: signed in with it"
+        },
+        "bazarr": {
+          "ok": true,
+          "detail": "login page, user me: signed in with it"
+        },
+        "sabnzbd": {
+          "ok": true,
+          "detail": "login page, user me: signed in with it"
+        }
+      }
+    },
+    "host": {
+      "id": 1,
+      "bindAddress": "*",
+      "authenticationMethod": "forms",
+      "username": "me",
+      "password": "Correct-Horse-9",
+      "authenticationRequired": "enabled",
+      "passwordConfirmation": "Correct-Horse-9"
+    },
+    "dl": [
+      {
+        "id": 3,
+        "name": "qBittorrent",
+        "implementation": "QBittorrent",
+        "fields": [
+          {
+            "name": "host",
+            "value": "qbittorrent"
+          },
+          {
+            "name": "username",
+            "value": "admin"
+          },
+          {
+            "name": "password",
+            "value": "********"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "name": "SAB",
+        "implementation": "Sabnzbd",
+        "fields": []
+      }
+    ],
+    "bazarr_auth": {
+      "type": "form",
+      "username": "me",
+      "password": "Correct-Horse-9"
+    },
+    "sab": [
+      "me",
+      "Correct-Horse-9"
+    ]
+  },
+  {
+    "stdout": "apps-auth: mode tunnel: radarr, bazarr, sabnzbd, qbittorrent, nzbget\napps-auth: radarr: External: no login of its own, the gate signs you in\napps-auth: bazarr: no login of its own, the gate signs you in\napps-auth: sabnzbd: no login of its own, the gate signs you in\napps-auth: qbittorrent: FAILED: the gate's network isn't whitelisted, so qBittorrent would ask for its own login too\napps-auth: nzbget: logs in as me; the gate signs you in to it\napps-auth: 1 app(s) failed; fix the cause and re-run: ./scripts/init.sh --auth\n",
+    "code": 1,
+    "report": {
+      "mode": "tunnel",
+      "username": "",
+      "required": "",
+      "apps": {
+        "radarr": {
+          "ok": true,
+          "detail": "External: no login of its own, the gate signs you in"
+        },
+        "bazarr": {
+          "ok": true,
+          "detail": "no login of its own, the gate signs you in"
+        },
+        "sabnzbd": {
+          "ok": true,
+          "detail": "no login of its own, the gate signs you in"
+        },
+        "qbittorrent": {
+          "ok": false,
+          "detail": "the gate's network isn't whitelisted, so qBittorrent would ask for its own login too"
+        },
+        "nzbget": {
+          "ok": true,
+          "detail": "logs in as me; the gate signs you in to it"
+        }
+      }
+    },
+    "host": {
+      "id": 1,
+      "bindAddress": "*",
+      "authenticationMethod": "external",
+      "username": "",
+      "password": "",
+      "authenticationRequired": "enabled"
+    },
+    "dl": [
+      {
+        "id": 3,
+        "name": "qBittorrent",
+        "implementation": "QBittorrent",
+        "fields": [
+          {
+            "name": "host",
+            "value": "qbittorrent"
+          },
+          {
+            "name": "username",
+            "value": "admin"
+          },
+          {
+            "name": "password",
+            "value": "********"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "name": "SAB",
+        "implementation": "Sabnzbd",
+        "fields": []
+      }
+    ],
+    "bazarr_auth": {
+      "type": "None",
+      "username": null,
+      "password": null
+    },
+    "sab": [
+      "",
+      ""
+    ]
+  },
+  {
+    "stdout": "apps-auth: APPS_AUTH=\"x\": use apps, tunnel or manual\n",
+    "code": 2,
+    "report": null,
+    "host": {
+      "id": 1,
+      "bindAddress": "*",
+      "authenticationMethod": "none",
+      "username": "",
+      "password": ""
+    },
+    "dl": [
+      {
+        "id": 3,
+        "name": "qBittorrent",
+        "implementation": "QBittorrent",
+        "fields": [
+          {
+            "name": "host",
+            "value": "qbittorrent"
+          },
+          {
+            "name": "username",
+            "value": "admin"
+          },
+          {
+            "name": "password",
+            "value": "********"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "name": "SAB",
+        "implementation": "Sabnzbd",
+        "fields": []
+      }
+    ],
+    "bazarr_auth": null,
+    "sab": [
+      "",
+      ""
+    ]
+  }
+]

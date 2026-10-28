@@ -1,0 +1,788 @@
+{
+  "wranglarr": "wranglarr-config/1",
+  "name": "x265 first, smallest size",
+  "description": "Prefers x265 and takes the best x265 it can find at the smallest size; with no x265 it takes anything from SD up, so a show that only exists in SD (old anime) is still grabbed. Every quality from SDTV to 1080p (to 2160p in x265-4k) is in one group, so only the scores rank releases. Tiers: 1080p +2000, 720p +1500, SD 0, x265 +1000. x265 beats one step up in resolution (x265 720p over x264 1080p) but never HD (x264 720p over x265 SD), so an x265 SD release never replaces an HD file. Within a tier: Blu-ray +20, WEB +10, 10-bit +5, and -5 for each size step the file is over (films 3, 4, 5, 6, 8, 10, 15, 20 GB; episodes 0.5 to 6 GB; a season pack counts as one big release). Upgrades go on until the top score (x265 Blu-ray 10-bit under the first size step); a smaller file at the same resolution counts as an upgrade. CAM, telesync and remuxes are left out. Every name starts with x265-, so nothing of yours is changed except the quality sizes: those only get low minimums that catch broken releases (they apply to the whole app; keep yours if you like).",
+  "author": "wranglarr",
+  "apps": {
+    "radarr": {
+      "customFormats": [
+        {
+          "name": "x265-HEVC",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "x265 / HEVC",
+              "implementation": "ReleaseTitleSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "[xh][ ._-]?265|\\bHEVC(\\b|\\d)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Res 2160p",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "2160p",
+              "implementation": "ResolutionSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "R2160p"
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Res 1080p",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "1080p",
+              "implementation": "ResolutionSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "R1080p"
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Res 720p",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "720p",
+              "implementation": "ResolutionSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "R720p"
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Source Bluray",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "Bluray",
+              "implementation": "SourceSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "BLURAY"
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Source WEB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "WEBDL",
+              "implementation": "SourceSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "WEBDL"
+              }
+            },
+            {
+              "name": "WEBRIP",
+              "implementation": "SourceSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "WEBRIP"
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-10bit",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "10-bit",
+              "implementation": "ReleaseTitleSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "\\b10[ ._-]?bits?\\b|\\bHi10P?\\b"
+              }
+            }
+          ],
+          "extra": {
+            "default": true,
+            "note": "+5 for 10-bit, a tiebreak only. It matches H.264 10-bit too, and some older TVs and sticks can't play 10-bit HEVC: switch it off for those."
+          }
+        },
+        {
+          "name": "x265-Size >3GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 3 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 3,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >4GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 4 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 4,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >5GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 5 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 5,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >6GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 6 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 6,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >8GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 8 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 8,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >10GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 10 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 10,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >15GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 15 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 15,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >20GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 20 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 20,
+                "max": 1000
+              }
+            }
+          ]
+        }
+      ],
+      "qualityProfiles": [
+        {
+          "name": "x265-1080p",
+          "upgradeAllowed": true,
+          "cutoff": "x265-any",
+          "qualities": [
+            {
+              "name": "x265-any",
+              "qualities": [
+                "SDTV",
+                "DVD",
+                "DVD-R",
+                "WEBDL-480p",
+                "WEBRip-480p",
+                "Bluray-480p",
+                "Bluray-576p",
+                "HDTV-720p",
+                "WEBDL-720p",
+                "WEBRip-720p",
+                "Bluray-720p",
+                "HDTV-1080p",
+                "WEBDL-1080p",
+                "WEBRip-1080p",
+                "Bluray-1080p"
+              ]
+            }
+          ],
+          "minFormatScore": 0,
+          "cutoffFormatScore": 3025,
+          "minUpgradeFormatScore": 5,
+          "formatScores": {
+            "x265-HEVC": 1000,
+            "x265-Res 1080p": 2000,
+            "x265-Res 720p": 1500,
+            "x265-Source Bluray": 20,
+            "x265-Source WEB": 10,
+            "x265-10bit": 5,
+            "x265-Size >3GB": -5,
+            "x265-Size >4GB": -5,
+            "x265-Size >5GB": -5,
+            "x265-Size >6GB": -5,
+            "x265-Size >8GB": -5,
+            "x265-Size >10GB": -5,
+            "x265-Size >15GB": -5,
+            "x265-Size >20GB": -5
+          }
+        },
+        {
+          "name": "x265-4k",
+          "upgradeAllowed": true,
+          "cutoff": "x265-any",
+          "qualities": [
+            {
+              "name": "x265-any",
+              "qualities": [
+                "SDTV",
+                "DVD",
+                "DVD-R",
+                "WEBDL-480p",
+                "WEBRip-480p",
+                "Bluray-480p",
+                "Bluray-576p",
+                "HDTV-720p",
+                "WEBDL-720p",
+                "WEBRip-720p",
+                "Bluray-720p",
+                "HDTV-1080p",
+                "WEBDL-1080p",
+                "WEBRip-1080p",
+                "Bluray-1080p",
+                "HDTV-2160p",
+                "WEBDL-2160p",
+                "WEBRip-2160p",
+                "Bluray-2160p"
+              ]
+            }
+          ],
+          "minFormatScore": 0,
+          "cutoffFormatScore": 3525,
+          "minUpgradeFormatScore": 5,
+          "formatScores": {
+            "x265-HEVC": 1000,
+            "x265-Res 1080p": 2000,
+            "x265-Res 720p": 1500,
+            "x265-Source Bluray": 20,
+            "x265-Source WEB": 10,
+            "x265-10bit": 5,
+            "x265-Res 2160p": 2500,
+            "x265-Size >3GB": -5,
+            "x265-Size >4GB": -5,
+            "x265-Size >5GB": -5,
+            "x265-Size >6GB": -5,
+            "x265-Size >8GB": -5,
+            "x265-Size >10GB": -5,
+            "x265-Size >15GB": -5,
+            "x265-Size >20GB": -5
+          },
+          "extra": {
+            "default": true,
+            "note": "the same, with 2160p on top: x265 4K first, x265 1080p before x264 4K."
+          }
+        }
+      ],
+      "qualityDefinitions": {
+        "HDTV-720p": {
+          "min": 1
+        },
+        "WEBDL-720p": {
+          "min": 1
+        },
+        "WEBRip-720p": {
+          "min": 1
+        },
+        "Bluray-720p": {
+          "min": 1
+        },
+        "HDTV-1080p": {
+          "min": 2
+        },
+        "WEBDL-1080p": {
+          "min": 2
+        },
+        "WEBRip-1080p": {
+          "min": 2
+        },
+        "Bluray-1080p": {
+          "min": 2
+        },
+        "HDTV-2160p": {
+          "min": 4
+        },
+        "WEBDL-2160p": {
+          "min": 4
+        },
+        "WEBRip-2160p": {
+          "min": 4
+        },
+        "Bluray-2160p": {
+          "min": 4
+        }
+      }
+    },
+    "sonarr": {
+      "customFormats": [
+        {
+          "name": "x265-HEVC",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "x265 / HEVC",
+              "implementation": "ReleaseTitleSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "[xh][ ._-]?265|\\bHEVC(\\b|\\d)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Res 2160p",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "2160p",
+              "implementation": "ResolutionSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "R2160p"
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Res 1080p",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "1080p",
+              "implementation": "ResolutionSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "R1080p"
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Res 720p",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "720p",
+              "implementation": "ResolutionSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "R720p"
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Source Bluray",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "Bluray",
+              "implementation": "SourceSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "Bluray"
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Source WEB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "Web",
+              "implementation": "SourceSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "Web"
+              }
+            },
+            {
+              "name": "WebRip",
+              "implementation": "SourceSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "WebRip"
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-10bit",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "10-bit",
+              "implementation": "ReleaseTitleSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "value": "\\b10[ ._-]?bits?\\b|\\bHi10P?\\b"
+              }
+            }
+          ],
+          "extra": {
+            "default": true,
+            "note": "+5 for 10-bit, a tiebreak only. It matches H.264 10-bit too, and some older TVs and sticks can't play 10-bit HEVC: switch it off for those."
+          }
+        },
+        {
+          "name": "x265-Size >0.5GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 0.5 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 0.5,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >0.75GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 0.75 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 0.75,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >1GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 1 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 1,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >1.5GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 1.5 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 1.5,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >2GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 2 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 2,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >3GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 3 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 3,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >4GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 4 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 4,
+                "max": 1000
+              }
+            }
+          ]
+        },
+        {
+          "name": "x265-Size >6GB",
+          "includeCustomFormatWhenRenaming": false,
+          "specifications": [
+            {
+              "name": "over 6 GB",
+              "implementation": "SizeSpecification",
+              "negate": false,
+              "required": false,
+              "fields": {
+                "min": 6,
+                "max": 1000
+              }
+            }
+          ]
+        }
+      ],
+      "qualityProfiles": [
+        {
+          "name": "x265-1080p",
+          "upgradeAllowed": true,
+          "cutoff": "x265-any",
+          "qualities": [
+            {
+              "name": "x265-any",
+              "qualities": [
+                "SDTV",
+                "DVD",
+                "WEBDL-480p",
+                "WEBRip-480p",
+                "Bluray-480p",
+                "Bluray-576p",
+                "HDTV-720p",
+                "WEBDL-720p",
+                "WEBRip-720p",
+                "Bluray-720p",
+                "HDTV-1080p",
+                "WEBDL-1080p",
+                "WEBRip-1080p",
+                "Bluray-1080p"
+              ]
+            }
+          ],
+          "minFormatScore": 0,
+          "cutoffFormatScore": 3025,
+          "minUpgradeFormatScore": 5,
+          "formatScores": {
+            "x265-HEVC": 1000,
+            "x265-Res 1080p": 2000,
+            "x265-Res 720p": 1500,
+            "x265-Source Bluray": 20,
+            "x265-Source WEB": 10,
+            "x265-10bit": 5,
+            "x265-Size >0.5GB": -5,
+            "x265-Size >0.75GB": -5,
+            "x265-Size >1GB": -5,
+            "x265-Size >1.5GB": -5,
+            "x265-Size >2GB": -5,
+            "x265-Size >3GB": -5,
+            "x265-Size >4GB": -5,
+            "x265-Size >6GB": -5
+          }
+        },
+        {
+          "name": "x265-4k",
+          "upgradeAllowed": true,
+          "cutoff": "x265-any",
+          "qualities": [
+            {
+              "name": "x265-any",
+              "qualities": [
+                "SDTV",
+                "DVD",
+                "WEBDL-480p",
+                "WEBRip-480p",
+                "Bluray-480p",
+                "Bluray-576p",
+                "HDTV-720p",
+                "WEBDL-720p",
+                "WEBRip-720p",
+                "Bluray-720p",
+                "HDTV-1080p",
+                "WEBDL-1080p",
+                "WEBRip-1080p",
+                "Bluray-1080p",
+                "HDTV-2160p",
+                "WEBDL-2160p",
+                "WEBRip-2160p",
+                "Bluray-2160p"
+              ]
+            }
+          ],
+          "minFormatScore": 0,
+          "cutoffFormatScore": 3525,
+          "minUpgradeFormatScore": 5,
+          "formatScores": {
+            "x265-HEVC": 1000,
+            "x265-Res 1080p": 2000,
+            "x265-Res 720p": 1500,
+            "x265-Source Bluray": 20,
+            "x265-Source WEB": 10,
+            "x265-10bit": 5,
+            "x265-Res 2160p": 2500,
+            "x265-Size >0.5GB": -5,
+            "x265-Size >0.75GB": -5,
+            "x265-Size >1GB": -5,
+            "x265-Size >1.5GB": -5,
+            "x265-Size >2GB": -5,
+            "x265-Size >3GB": -5,
+            "x265-Size >4GB": -5,
+            "x265-Size >6GB": -5
+          },
+          "extra": {
+            "default": true,
+            "note": "the same, with 2160p on top: x265 4K first, x265 1080p before x264 4K."
+          }
+        }
+      ],
+      "qualityDefinitions": {
+        "HDTV-720p": {
+          "min": 1
+        },
+        "WEBDL-720p": {
+          "min": 1
+        },
+        "WEBRip-720p": {
+          "min": 1
+        },
+        "Bluray-720p": {
+          "min": 1
+        },
+        "HDTV-1080p": {
+          "min": 2
+        },
+        "WEBDL-1080p": {
+          "min": 2
+        },
+        "WEBRip-1080p": {
+          "min": 2
+        },
+        "Bluray-1080p": {
+          "min": 2
+        },
+        "HDTV-2160p": {
+          "min": 4
+        },
+        "WEBDL-2160p": {
+          "min": 4
+        },
+        "WEBRip-2160p": {
+          "min": 4
+        },
+        "Bluray-2160p": {
+          "min": 4
+        }
+      }
+    }
+  }
+}

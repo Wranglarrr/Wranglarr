@@ -1,0 +1,9 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Sourced by the nginx image's entrypoint before it renders the templates.
+# Where they're rendered to (/tmp is the only writable place: the container is read-only).
+mkdir -p "${NGINX_ENVSUBST_OUTPUT_DIR:-/tmp/gate}"
+# NZBGet's login from .env as a Basic header, so the gate signs NZBGet in for you
+# and the login never sits in a file.
+WR_NZBGET_AUTH="$(printf '%s:%s' "${NZBGET_USER:-nzbget}" "${NZBGET_PASS:-tegbzn6789}" | base64 | tr -d '\n')"
+export WR_NZBGET_AUTH

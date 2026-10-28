@@ -1,0 +1,130 @@
+# Phase-1 compose, used only by scripts/init.sh.
+#
+# Brings up the config.xml-based arrs WITHOUT Postgres so each writes a fresh
+# config.xml (API key, ports, ...) into the bind-mounted config dir; then the
+# `patch-config` one-shot rewrites those files to point at Postgres.  Bazarr is
+# not here: it takes Postgres settings from the environment (see compose.yaml).
+#
+# Uses the same profiles as compose.yaml, so COMPOSE_PROFILES in .env decides
+# which apps get initialised.
+
+x-arr-init: &arr-init
+  environment:
+    PUID: ${PUID:-1000}
+    PGID: ${PGID:-1000}
+    TZ: ${TZ:-UTC}
+  networks: [arrs-init]
+
+services:
+  radarr:
+    <<: *arr-init
+    profiles: [radarr]
+    image: ${RADARR_IMAGE:-lscr.io/linuxserver/radarr:latest}
+    container_name: radarr-init
+    volumes:
+      - ${APPDATA:-./appdata}/radarr:/config
+
+  sonarr:
+    <<: *arr-init
+    profiles: [sonarr]
+    image: ${SONARR_IMAGE:-lscr.io/linuxserver/sonarr:latest}
+    container_name: sonarr-init
+    volumes:
+      - ${APPDATA:-./appdata}/sonarr:/config
+
+  lidarr:
+    <<: *arr-init
+    profiles: [lidarr]
+    image: ${LIDARR_IMAGE:-lscr.io/linuxserver/lidarr:latest}
+    container_name: lidarr-init
+    volumes:
+      - ${APPDATA:-./appdata}/lidarr:/config
+
+  prowlarr:
+    <<: *arr-init
+    profiles: [prowlarr]
+    image: ${PROWLARR_IMAGE:-lscr.io/linuxserver/prowlarr:latest}
+    container_name: prowlarr-init
+    volumes:
+      - ${APPDATA:-./appdata}/prowlarr:/config
+
+  # Download clients: started once so each writes its default config, which
+  # patch-config then points at /data (see scripts/patch_downloads.py).
+  qbittorrent:
+    <<: *arr-init
+    profiles: [qbittorrent]
+    image: ${QBITTORRENT_IMAGE:-lscr.io/linuxserver/qbittorrent:latest}
+    container_name: qbittorrent-init
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-UTC}
+      WEBUI_PORT: "8090"
+    volumes:
+      - ${APPDATA:-./appdata}/qbittorrent:/config
+
+  sabnzbd:
+    <<: *arr-init
+    profiles: [sabnzbd]
+    image: ${SABNZBD_IMAGE:-lscr.io/linuxserver/sabnzbd:latest}
+    container_name: sabnzbd-init
+    volumes:
+      - ${APPDATA:-./appdata}/sabnzbd:/config
+
+  nzbget:
+    <<: *arr-init
+    profiles: [nzbget]
+    image: ${NZBGET_IMAGE:-lscr.io/linuxserver/nzbget:latest}
+    container_name: nzbget-init
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-UTC}
+      NZBGET_USER: ${NZBGET_USER:-nzbget}
+      NZBGET_PASS: ${NZBGET_PASS:-tegbzn6789}
+    volumes:
+      - ${APPDATA:-./appdata}/nzbget:/config
+
+  # One-shot: insert/update the Postgres* elements in each config.xml, and
+  # point the download clients' save paths at /data (only where still default).
+  # Idempotent. Run by scripts/init.sh, which sets ARR_APPS and stops the apps first.
+  patch-config:
+    image: python:3.13-alpine
+    profiles: [tools]
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      ARR_APPS: ${ARR_APPS:-}
+      DL_APPS: ${DL_APPS:-}
+      TORRENTS_DIR: ${TORRENTS_DIR:-/data/torrents}
+      USENET_DIR: ${USENET_DIR:-/data/usenet}
+      SABNZBD_NZB_BACKUP: ${SABNZBD_NZB_BACKUP-nzb-backup}
+      # apps / tunnel: write qBittorrent's web login (and, for tunnel, let the gate in)
+      APPS_AUTH: ${APPS_AUTH:-manual}
+      QBITTORRENT_USER: ${QBITTORRENT_USER:-admin}
+      QBITTORRENT_PASSWORD: ${QBITTORRENT_PASSWORD:-}
+    volumes:
+      - ./scripts/patch_config.py:/patch_config.py:ro
+      - ./scripts/patch_downloads.py:/patch_downloads.py:ro
+      - ${APPDATA:-./appdata}/radarr:/config/radarr
+      - ${APPDATA:-./appdata}/sonarr:/config/sonarr
+      - ${APPDATA:-./appdata}/lidarr:/config/lidarr
+      - ${APPDATA:-./appdata}/prowlarr:/config/prowlarr
+      - ${APPDATA:-./appdata}/qbittorrent:/config/qbittorrent
+      - ${APPDATA:-./appdata}/sabnzbd:/config/sabnzbd
+      - ${APPDATA:-./appdata}/nzbget:/config/nzbget
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        if [ -n "$$ARR_APPS" ]; then python3 -I /patch_config.py /config; fi
+        if [ -n "$$DL_APPS" ]; then python3 -I /patch_downloads.py /config; fi
+    networks: [arrs-init]
+
+networks:
+  arrs-init:
+    name: arrs-init

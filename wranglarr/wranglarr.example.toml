@@ -1,0 +1,219 @@
+# wranglarr configuration.  ${VAR} is expanded from the environment.
+
+[server]
+bind = "0.0.0.0"
+port = 8787
+# log_level = "info"
+
+[storage]
+root = "/backups"                 # backup sets live under <root>/<suite>/<timestamp>/
+state_db = "/config/wranglarr.db" # settings + run history (SQLite)
+
+[postgres]
+host = "postgres"
+port = 5432
+user = "${POSTGRES_USER}"
+password = "${POSTGRES_PASSWORD}"
+container = "arrs-postgres"       # for container updates
+
+# Docker control is required for database and config-directory restores.
+# Wranglarr confirms the app is stopped before writing, and restarts it after
+# success only if it was running before. Failed restores leave it stopped for
+# recovery; without Docker control these restores are refused.
+# The socket also enables container updates ([updates] below).
+[docker]
+socket = "/var/run/docker.sock"
+
+# Container image updates (needs [docker]).  Every app with `container` set is
+# managed, plus Postgres and the VPN.  Checks only ask the registry (no pull);
+# an update backs up the affected suite, pulls, recreates the container with
+# the same settings and puts the old one back if the new one isn't healthy.
+# UI changes are stored in the state db and win over this section.
+[updates]
+check_schedule = "0 */6 * * *"   # "" = only when you press Check now
+auto_update = false              # true = apply available updates on auto_schedule
+auto_schedule = "0 5 * * *"
+backup_first = true
+health_timeout = 300             # seconds for the new container to become healthy
+# wranglarr itself is never part of auto_update.  self_update = true lets it
+# replace its own container (through a helper) on self_schedule; the UI's
+# Update now button does the same on demand.
+self_update = false
+self_schedule = "30 5 * * *"
+# include_postgres = true        # [postgres] container
+# include_vpn = true             # [vpn] container
+# extra = ["prowlarr"]           # more containers to manage (no backup, health check only)
+# exclude = ["arrs-postgres"]    # never touch these
+# Per-container image tags. Omitted containers follow their deployed tag/digest.
+# UI track choices override these; saving a track does not restart anything.
+# [updates.tracks]
+# wranglarr = "edge"             # development builds from main; "latest" = stable
+# radarr = "develop"             # LinuxServer tag; Hotio calls this "testing"
+# bazarr = "development"         # LinuxServer prereleases
+# arrs-postgres = "17"           # stay on a major; major upgrades are refused
+
+# Wire the apps together (System -> App connections): every download client
+# into every arr (category = the arr's name), Sonarr/Radarr into Bazarr, every
+# arr into Prowlarr.  `auto` does it at startup for links never made before;
+# it never overwrites, and doesn't re-add what you removed by hand.
+[connect]
+auto = true
+
+# Live status: wranglarr keeps a "wranglarr · live status" webhook in each arr
+# and Prowlarr, so the pages show a change (a health warning cleared, an import)
+# right away. `url` is where the apps reach wranglarr (default
+# http://wranglarr:<port>); set it when they can't by that name.
+[events]
+enabled = true
+# url = "http://192.168.1.10:8787"
+
+# Shared-tunnel VPN status (compose.vpn.yaml): gluetun's control server.
+# Only active when "vpn" is in WRANGLARR_ENABLED_APPS (compose.vpn.yaml adds it).
+[vpn]
+control_url = "http://vpn:8000"
+api_key = "${GLUETUN_API_KEY}"
+container = "arrs-vpn"            # for container updates
+
+# A suite is a group of apps backed up together with one schedule + retention.
+# The values here are defaults; anything changed in the UI is stored in the
+# state db and wins over this file.
+[[suite]]
+name = "media"
+schedule = "30 3 * * *"   # cron, in the container's TZ.  "" = no schedule
+enabled = true
+keep_last = 14            # keep at most this many versions (0 = unlimited)
+keep_days = 60            # delete versions older than this (0 = unlimited)
+
+  [[suite.app]]
+  name = "radarr"
+  kind = "radarr"                         # radarr | sonarr | lidarr | readarr | prowlarr | whisparr
+  url = "http://radarr:7878"
+  api_key_file = "/arrconfig/radarr/config.xml"   # or: api_key = "${RADARR_API_KEY}"
+  config_dir = "/arrconfig/radarr"                  # copied into every version as radarr/config/
+  databases = ["radarr", "radarr-log"]        # omit/empty for SQLite apps
+  container = "radarr"                             # docker stop/start on restore + updates
+
+  [[suite.app]]
+  name = "sonarr"
+  kind = "sonarr"
+  url = "http://sonarr:8989"
+  api_key_file = "/arrconfig/sonarr/config.xml"
+  config_dir = "/arrconfig/sonarr"                  # copied into every version as sonarr/config/
+  databases = ["sonarr", "sonarr-log"]
+  container = "sonarr"
+
+  [[suite.app]]
+  name = "lidarr"
+  kind = "lidarr"
+  url = "http://lidarr:8686"
+  api_key_file = "/arrconfig/lidarr/config.xml"
+  config_dir = "/arrconfig/lidarr"                  # copied into every version as lidarr/config/
+  databases = ["lidarr", "lidarr-log"]
+  container = "lidarr"
+
+  [[suite.app]]
+  name = "prowlarr"
+  kind = "prowlarr"
+  url = "http://prowlarr:9696"
+  api_key_file = "/arrconfig/prowlarr/config.xml"
+  config_dir = "/arrconfig/prowlarr"
+  databases = ["prowlarr", "prowlarr-log"]
+  container = "prowlarr"
+
+  # Bazarr: zips are read from, and config restored into, its mounted /config.
+  [[suite.app]]
+  name = "bazarr"
+  kind = "bazarr"
+  url = "http://bazarr:6767"
+  api_key_file = "/arrconfig/bazarr/config/config.yaml"
+  config_dir = "/arrconfig/bazarr"
+  databases = ["bazarr"]
+  container = "bazarr"
+
+# Download clients: no backup API, so their /config is copied as-is into each
+# version (logs excluded) and restored with the container stopped.
+[[suite]]
+name = "downloads"
+schedule = "0 4 * * *"
+keep_last = 7
+
+  [[suite.app]]
+  name = "qbittorrent"
+  kind = "qbittorrent"
+  url = "http://qbittorrent:8090"
+  username = "${QBITTORRENT_USER}"
+  password = "${QBITTORRENT_PASSWORD}"     # from .env: set it in the qBittorrent UI first
+  config_dir = "/arrconfig/qbittorrent"
+  container = "qbittorrent"
+
+  [[suite.app]]
+  name = "sabnzbd"
+  kind = "sabnzbd"
+  url = "http://sabnzbd:8080"
+  api_key_file = "/arrconfig/sabnzbd/sabnzbd.ini"
+  config_dir = "/arrconfig/sabnzbd"
+  container = "sabnzbd"
+
+  [[suite.app]]
+  name = "nzbget"
+  kind = "nzbget"
+  url = "http://nzbget:6789"
+  username = "${NZBGET_USER}"                      # from .env: the image applies them at launch,
+  password = "${NZBGET_PASS}"                      # nzbget.conf keeps the default
+  api_key_file = "/arrconfig/nzbget/nzbget.conf"   # fallback: ControlUsername/ControlPassword
+  config_dir = "/arrconfig/nzbget"
+  container = "nzbget"
+
+# ---------------------------------------------------------------------------
+# Shared ("global") settings: define once, push to every app with the
+# "Sync shared settings" button (or POST /api/suites/<suite>/sync).  Matched by
+# name in each app: created if missing, updated otherwise.  `fields` are the
+# app's own field names (what the app's UI posts); per-kind differences go in
+# overrides.<kind>.  `apply_to` lists app kinds or app names; omit for all.
+# ---------------------------------------------------------------------------
+
+# [[shared.download_client]]
+# name = "qBittorrent"
+# implementation = "QBittorrent"      # configContract defaults to "<implementation>Settings"
+# protocol = "torrent"
+# priority = 1
+# apply_to = ["radarr", "sonarr", "lidarr"]
+# test = true                         # run the app's connection test before saving
+#   [shared.download_client.fields]
+#   host = "qbittorrent"
+#   port = 8090                        # qBittorrent's port inside the network
+#   username = "${QBITTORRENT_USER}"
+#   password = "${QBITTORRENT_PASSWORD}"
+#   useSsl = false
+#   [shared.download_client.overrides.radarr.fields]
+#   movieCategory = "radarr"
+#   [shared.download_client.overrides.sonarr.fields]
+#   tvCategory = "sonarr"
+#   [shared.download_client.overrides.lidarr.fields]
+#   musicCategory = "lidarr"
+
+# [[shared.notification]]
+# name = "Discord"
+# implementation = "Discord"
+# on_grab = true
+# on_health_issue = true
+# on_application_update = true
+#   [shared.notification.fields]
+#   webHookUrl = "${DISCORD_WEBHOOK}"
+
+# ---- requests (profile seerr) ----------------------------------------------
+# Seerr: requests and users in Postgres, settings.json (API key, Radarr/Sonarr
+# entries, media server) in its /app/config.
+[[suite]]
+name = "requests"
+schedule = "15 4 * * *"
+keep_last = 14
+
+  [[suite.app]]
+  name = "seerr"
+  kind = "seerr"
+  url = "http://seerr:5055"
+  api_key_file = "/arrconfig/seerr/settings.json"
+  config_dir = "/arrconfig/seerr"
+  databases = ["seerr"]
+  container = "seerr"

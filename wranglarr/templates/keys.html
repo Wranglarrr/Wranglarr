@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% import "_icons.html" as i %}
+{% block title %}API keys · wranglarr{% endblock %}
+{% block crumbs %}API keys{% endblock %}
+{% block toolbar %}
+  <button class="tb" data-keys-show title="show every key"><span class="i">{{ i.icon('key') }}</span><span data-keys-show-label>Show all</span></button>
+  <span class="spacer"></span>
+  <span class="tb-text">read from each app's own config; a key changed in an app is updated in the apps that keep a copy</span>
+{% endblock %}
+{% block content %}
+<section class="panel">
+  <h2>The apps' API keys</h2>
+  {% if apps %}
+  <table class="compact keys-table" id="keys" data-live>
+    <thead><tr><th>App</th><th>Address in the stack</th><th>API key</th><th></th></tr></thead>
+    <tbody>
+      <tr data-own>
+        <td><img class="ico-logo app" src="/static/brand/favicon-32.png" alt=""> wranglarr</td>
+        <td><code class="copyable">{{ own_url }}</code> <button class="btn ghost small" data-copy-url="{{ own_url }}" title="copy the address">{{ i.icon('copy') }}</button></td>
+        <td class="key-cell"><span class="own-keys muted small">{% if auth_on %}loading…{% else %}none needed: sign-in is off{% endif %}</span></td>
+        <td class="nowrap">{% if auth_on %}<button class="btn ghost small" data-own-new>{{ i.icon('plus') }} New key</button>{% endif %}</td>
+      </tr>{% for a in apps %}
+      <tr data-key-app="{{ a.name }}">
+        <td>{{ ui.app_logo(a.name, a.kind) }} {{ a.name }}</td>
+        <td><code class="copyable">{{ a.url }}</code> <button class="btn ghost small" data-copy-url="{{ a.url }}" title="copy the address">{{ i.icon('copy') }}</button></td>
+        <td class="key-cell"><code class="key-val muted">loading…</code></td>
+        <td class="nowrap"><button class="btn ghost small" data-key-toggle disabled>Show</button>
+          <button class="btn ghost small" data-key-copy disabled title="copy the key">{{ i.icon('copy') }} Copy</button></td>
+      </tr>{% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small" id="keys-source"></p>
+  {% else %}<p class="muted">No app with an API key is enabled.</p>{% endif %}
+  {% if auth_on %}<p class="muted small">wranglarr keeps only a hash of its own keys, so a new one is shown once, here. Send it as the <code>X-Api-Key</code> header; revoke keys on <a href="/account">your account</a>.</p>{% endif %}
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/keys.js?v={{ asset_v }}"></script>{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "_icons.html" as i %}
+{% import "_macros.html" as ui %}
+{% block title %}run #{{ run.id }} · wranglarr{% endblock %}
+{% block crumbs %}<a href="/activity" class="crumb">Activity</a> / run #{{ run.id }}{% endblock %}
+{% block toolbar %}
+  <span class="tb-text" id="run-status">{{ ui.status_pill(run.status) }}</span>
+  <span class="tb-text">{{ run.kind }} {{ run.target }} · {{ run.suite }} · started {{ run.started|fmt_ts }}{% if run.finished %} · finished {{ run.finished|fmt_ts }}{% endif %}</span>
+  <span class="spacer"></span>
+  {% if run.kind in ('update', 'rollback') %}<a class="tb" href="/updates"><span class="i">{{ i.icon('updates') }}</span>Updates</a>{% endif %}
+  {% if run.kind == 'indexers' %}<a class="tb" href="/indexers"><span class="i">{{ i.icon('indexers') }}</span>Indexers</a>{% endif %}
+  {% if run.kind == 'connect' %}<a class="tb" href="/system"><span class="i">{{ i.icon('system') }}</span>App connections</a>{% endif %}
+  {% if run.result.version %}<a class="tb" href="/suites/{{ run.suite }}/versions/{{ run.result.version }}"><span class="i">{{ i.icon('package') }}</span>Version</a>{% endif %}
+{% endblock %}
+{% block content %}
+<pre id="run-log" class="log">{{ run.log }}</pre>
+{% endblock %}
+{% block scripts %}<script>W.followRun({{ run.id }}, "{{ run.status }}");</script>{% endblock %}
