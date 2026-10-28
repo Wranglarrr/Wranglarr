@@ -63,12 +63,13 @@ needed.
 ## Behind the shared VPN
 
 Published on the `vpn` service as `${QBITTORRENT_PORT}:8090`. For an inbound
-port with PIA/ProtonVPN set `VPN_PORT_FORWARDING=on` and uncomment the
-`VPN_PORT_FORWARDING_UP_COMMAND` line in `compose.vpn.yaml`, which pushes the
-forwarded port into qBittorrent over `127.0.0.1:8090` (tick "Bypass
-authentication for clients on localhost" in its Web UI options). Set the
-network interface to `tun0` in Advanced settings so torrenting is bound to
-the tunnel.
+port with PIA/ProtonVPN set `VPN_PORT_FORWARDING=on` (and
+`VPN_PORT_FORWARD_ONLY=on`). gluetun's `VPN_PORT_FORWARDING_UP_COMMAND` in
+`compose.vpn.yaml` then pushes the forwarded port into qBittorrent over
+`127.0.0.1:8090` and binds it to the tunnel's interface; tick "Bypass
+authentication for clients on localhost" in its Web UI options so it can.
+Without port forwarding, set the network interface to `tun0` in Advanced
+settings yourself, so torrenting is bound to the tunnel.
 
 ## wranglarr integration
 

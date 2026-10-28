@@ -98,9 +98,12 @@ https://github.com/qdm12/gluetun-wiki/tree/main/setup/providers
 
 `VPN_PORT_FORWARDING=on` asks the provider for an inbound port (PIA, ProtonVPN,
 Perfect Privacy, PrivateVPN; PIA/Proton also need `VPN_USER`/`VPN_PASSWORD`).
-The port is shown in wranglarr's header. To push it into qBittorrent
-automatically, uncomment `VPN_PORT_FORWARDING_UP_COMMAND` in
-`compose.vpn.yaml` (see [Service: qBittorrent](Service-qBittorrent.md)).
+The port is shown in wranglarr's header. With PIA or ProtonVPN, set
+`VPN_PORT_FORWARD_ONLY=on` too, so gluetun picks a server that can forward one
+(on ProtonVPN, the P2P servers). gluetun pushes the port into qBittorrent and
+binds it to the tunnel's interface each time it changes; tick "Bypass
+authentication for clients on localhost" in qBittorrent's Web UI options so it
+can (see [Service: qBittorrent](Service-qBittorrent.md)).
 
 ## Control server
 

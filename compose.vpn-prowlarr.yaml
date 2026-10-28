@@ -7,19 +7,11 @@
 # servers, so they can stay outside the tunnel.  This holds only while:
 #   - every indexer the arrs use comes from Prowlarr (none added to an arr by
 #     hand or from wranglarr's Indexers page, which the arrs then query directly);
-#   - Prowlarr's "Redirect" is off for each indexer (with it on, an arr fetches
-#     the .torrent / .nzb from the indexer itself).
+#   - Prowlarr's "Redirect" is off for each torrent indexer (with it on, an arr
+#     fetches the .torrent from the indexer itself). Prowlarr always redirects
+#     Usenet grabs, so the arrs fetch each .nzb from your own address; the
+#     download itself still goes through the tunnel.
 # wranglarr's VPN panel lists anything that breaks this.
-
-x-via-vpn: &via-vpn
-  network_mode: "service:vpn"
-  networks: !reset []
-  ports: !reset []
-  depends_on:
-    vpn:
-      condition: service_healthy
-    postgres:
-      condition: service_healthy
 
 services:
   vpn:
@@ -30,7 +22,16 @@ services:
         aliases: [prowlarr]
 
   prowlarr:
-    <<: *via-vpn
+    network_mode: "service:vpn"
+    # !reset is written out per service: some Compose versions (2.35, for
+    # one) drop it when it arrives through a YAML merge (<<), and refuse the file.
+    networks: !reset []
+    ports: !reset []
+    depends_on:
+      vpn:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
   wranglarr:
     environment:

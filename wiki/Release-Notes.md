@@ -96,6 +96,10 @@ reverse proxy, plus one place to set where each app opens.
   update checkers can find the release notes. A locally built image has them
   too.
 - Built on Rust 1.99.1 and Alpine 3.24.
+- **VPN port forwarding is wired up.** With `VPN_PORT_FORWARDING=on`, gluetun
+  now pushes the forwarded port into qBittorrent and binds it to the tunnel
+  (tick "Bypass authentication for clients on localhost" in qBittorrent).
+  `VPN_PORT_FORWARD_ONLY=on` picks only servers that can forward a port.
 
 ### Fixed
 
@@ -117,6 +121,9 @@ reverse proxy, plus one place to set where each app opens.
   `AUTH_LOGIN_URL` is only used under `AUTH_COOKIE_DOMAIN`.
 - With AuthTunnel and no domain on the Reverse proxy page, the links follow
   `AUTH_COOKIE_DOMAIN`.
+- **The VPN compose files failed on some Compose versions** (2.35, for one),
+  which drop `!reset` when it comes through a YAML merge. Each service now
+  spells it out.
 - **VPN: "has Redirect on" warnings you couldn't clear.** With Prowlarr in the
   tunnel and the arrs outside it, wranglarr asked you to turn Redirect off for
   Usenet indexers, which Prowlarr refuses ("Redirect must be enabled for Usenet

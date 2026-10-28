@@ -8,16 +8,6 @@
 # indexers they use.  The arrs' metadata lookups and update checks go through
 # it too, so they stop if the tunnel is down.
 
-x-via-vpn: &via-vpn
-  network_mode: "service:vpn"
-  networks: !reset []
-  ports: !reset []
-  depends_on:
-    vpn:
-      condition: service_healthy
-    postgres:
-      condition: service_healthy
-
 services:
   vpn:
     ports:
@@ -31,15 +21,52 @@ services:
         aliases: [radarr, sonarr, lidarr, prowlarr, bazarr]
 
   radarr:
-    <<: *via-vpn
+    network_mode: "service:vpn"
+    # !reset is written out per service: some Compose versions (2.35, for
+    # one) drop it when it arrives through a YAML merge (<<), and refuse the file.
+    networks: !reset []
+    ports: !reset []
+    depends_on:
+      vpn:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
   sonarr:
-    <<: *via-vpn
+    network_mode: "service:vpn"
+    networks: !reset []
+    ports: !reset []
+    depends_on:
+      vpn:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
   lidarr:
-    <<: *via-vpn
+    network_mode: "service:vpn"
+    networks: !reset []
+    ports: !reset []
+    depends_on:
+      vpn:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
   prowlarr:
-    <<: *via-vpn
+    network_mode: "service:vpn"
+    networks: !reset []
+    ports: !reset []
+    depends_on:
+      vpn:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
   bazarr:
-    <<: *via-vpn
+    network_mode: "service:vpn"
+    networks: !reset []
+    ports: !reset []
+    depends_on:
+      vpn:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
   wranglarr:
     environment:
