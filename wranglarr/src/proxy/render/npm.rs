@@ -21,7 +21,10 @@ pub(super) fn npm(on: &[&Plan], _s: &ProxySettings, lan: &[String]) -> Out {
     l.push(String::new());
     for (fqdn, ps) in sites(on) {
         l.push(format!("Hosts → Proxy Hosts → Add Proxy Host:  {fqdn}"));
-        if let Some(root) = ps.iter().find(|p| p.path.is_empty()) {
+        // NPM requires a default forward target even when every route is a path.
+        // Prefer wranglarr in that case; bare wranglarr routes remain supported.
+        if let Some(root) = ps.iter().find(|p| p.path.is_empty()).or_else(|| ps.iter().find(|p| p.kind == "wranglarr"))
+        {
             let (h, port) = rpartition(&root.up);
             l.extend([
                 format!("    ({}, {})", root.name, tag(root)),
@@ -41,12 +44,6 @@ pub(super) fn npm(on: &[&Plan], _s: &ProxySettings, lan: &[String]) -> Out {
             let slash = if p.strip { "/" } else { "" };
             l.push(format!("    Custom locations → Add location {}{slash}  ({}, {})", p.path, p.name, tag(p)));
             l.push(format!("        Scheme http · Forward Hostname/IP {h}{slash} · Forward Port {port}"));
-            if p.expose == "lan" {
-                l.push(
-                    "        (NPM's access lists are per host: put LAN-only apps on a host of their own, or use subdomains)"
-                        .into(),
-                );
-            }
         }
         l.push("    SSL: Request a new SSL Certificate · Force SSL: on · HTTP/2: on".into());
         l.push(String::new());

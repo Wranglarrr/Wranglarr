@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% import "_macros.html" as ui %}
+{% import "_macros.html" as ui with context %}
 {% import "_icons.html" as i %}
 {% block title %}{{ suite.name }} · wranglarr{% endblock %}
-{% block crumbs %}<a href="/suites" class="crumb">Suites</a> / {{ suite.name }}{% endblock %}
+{% block crumbs %}<a href="{{ base }}/suites" class="crumb">Suites</a> / {{ suite.name }}{% endblock %}
 {% block toolbar %}
   {% if suite.active_run %}
-    <a class="tb running" href="/runs/{{ suite.active_run.id }}"><span class="i">{{ i.icon('running') }}</span>{{ suite.active_run.kind }}…</a>
+    <a class="tb running" href="{{ base }}/runs/{{ suite.active_run.id }}"><span class="i">{{ i.icon('running') }}</span>{{ suite.active_run.kind }}…</a>
   {% else %}
     <button class="tb primary" data-backup="{{ suite.name }}"><span class="i">{{ i.icon('backup') }}</span>Back up now</button>
     {% if suite.shared %}<button class="tb" data-sync="{{ suite.name }}"><span class="i">{{ i.icon('sync') }}</span>Sync shared</button>{% endif %}
@@ -54,7 +54,7 @@
 
 <section class="panel">
   <h2>Schedule &amp; retention</h2>
-  <form method="post" action="/suites/{{ suite.name }}/settings">
+  <form method="post" action="{{ base }}/suites/{{ suite.name }}/settings">
     <div class="form-row"><label class="l" for="f-sched">Schedule</label><div><input id="f-sched" name="schedule" value="{{ suite.settings.schedule }}" placeholder="30 3 * * *">
       <div class="hint">{% if suite.settings.schedule %}{{ suite.settings.schedule|cron_text }} · {% endif %}cron: minute hour day month weekday · blank = never</div></div></div>
     <div class="form-row"><label class="l" for="f-on">Enabled</label><div class="inline"><input id="f-on" type="checkbox" name="enabled" {{ 'checked' if suite.settings.enabled }}> <span class="hint">off = only when you press Back up now</span></div></div>
@@ -87,7 +87,7 @@
         <td class="small">{{ ((SERVICES[d.kind]|default({})).backup_holds or '')|safe }}</td>
         <td class="small">{% if d.payload %}
             {% for it in d.payload['items'] %}<div><b>{{ it.count|thousands }}</b> {{ it.label }}</div>{% endfor %}
-            <div class="muted">{{ d.files }} files, {{ d.bytes|human_bytes }} · <a href="/suites/{{ suite.name }}/versions/{{ d.version }}">{{ d.version|fmt_ts }}</a></div>
+            <div class="muted">{{ d.files }} files, {{ d.bytes|human_bytes }} · <a href="{{ base }}/suites/{{ suite.name }}/versions/{{ d.version }}">{{ d.version|fmt_ts }}</a></div>
           {% elif d.version %}<span class="muted">older backup format; take a new one for counts</span>
           {% else %}<span class="muted">no backup yet</span>{% endif %}</td>
         <td class="small">{% if d.payload %}
@@ -110,7 +110,7 @@
     <tbody>
     {% for m in versions %}
       <tr>
-        <td><a href="/suites/{{ suite.name }}/versions/{{ m.version }}">{{ m.version|fmt_ts }}</a>
+        <td><a href="{{ base }}/suites/{{ suite.name }}/versions/{{ m.version }}">{{ m.version|fmt_ts }}</a>
             <div class="muted small">{{ m.version|human_age }} · {{ m.trigger or 'manual' }}</div></td>
         <td>{{ ui.status_pill(m.status) }}</td>
         <td>{{ ui.changes(m) }}</td>
@@ -126,7 +126,7 @@
 
 {% if runs %}
 <section class="panel">
-  <div class="row between"><h2>Other runs</h2><a class="small" href="/activity">All activity ›</a></div>
+  <div class="row between"><h2>Other runs</h2><a class="small" href="{{ base }}/activity">All activity ›</a></div>
   <p class="muted small">Restores, syncs and anything that failed. Each successful backup is a version above.</p>
   {{ ui.runs_table(runs, show_suite=False) }}
 </section>

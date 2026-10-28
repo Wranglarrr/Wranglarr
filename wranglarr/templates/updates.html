@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "_icons.html" as i %}
-{% import "_macros.html" as ui %}
+{% import "_macros.html" as ui with context %}
 {% block title %}Updates · wranglarr{% endblock %}
 {% block crumbs %}Updates{% endblock %}
 {% set STATUS_TEXT = {"current": "up to date", "available": "update available", "local": "local build", "pinned": "pinned",
@@ -24,12 +24,12 @@
     {% for t in u.targets %}
     <tr>
       <td><div class="u-name">
-                {%- if t.status == 'self' %}<img class="ico-logo" src="/static/brand/favicon-64.png" alt="">
-        {%- elif t.app %}<img class="ico-logo app" src="/api/apps/{{ t.app|urlencode }}/logo" alt="" loading="lazy" data-fallback="{{ KIND_ICON[t.kind]|default('') }}">
-        {%- elif t.role == 'postgres' %}<img class="ico-logo" src="/static/icons/postgres.svg?v={{ asset_v }}" alt="">
-        {%- elif t.role == 'vpn' and 'gluetun' in (t.image or '') %}<img class="ico-logo" src="/static/icons/gluetun.svg?v={{ asset_v }}" alt="">
-        {%- elif t.role == 'vpn' %}<img class="ico-logo" src="/static/icons/wireguard.svg?v={{ asset_v }}" alt="">
-        {%- else %}<img class="ico-logo" src="/static/icons/docker.svg?v={{ asset_v }}" alt="">{% endif %}
+                {%- if t.status == 'self' %}<img class="ico-logo" src="{{ base }}/static/brand/favicon-64.png" alt="">
+        {%- elif t.app %}<img class="ico-logo app" src="{{ base }}/api/apps/{{ t.app|urlencode }}/logo" alt="" loading="lazy" data-fallback="{{ KIND_ICON[t.kind]|default('') }}">
+        {%- elif t.role == 'postgres' %}<img class="ico-logo" src="{{ base }}/static/icons/postgres.svg?v={{ asset_v }}" alt="">
+        {%- elif t.role == 'vpn' and 'gluetun' in (t.image or '') %}<img class="ico-logo" src="{{ base }}/static/icons/gluetun.svg?v={{ asset_v }}" alt="">
+        {%- elif t.role == 'vpn' %}<img class="ico-logo" src="{{ base }}/static/icons/wireguard.svg?v={{ asset_v }}" alt="">
+        {%- else %}<img class="ico-logo" src="{{ base }}/static/icons/docker.svg?v={{ asset_v }}" alt="">{% endif %}
         <div><b>{{ t.container }}</b>
           <div class="muted small">{{ t.role }}{% if t.suite %} · suite {{ t.suite }}{% endif %}{% if t.running is defined and not t.running %} · stopped{% endif %}</div></div></div></td>
       <td class="small"><code>{{ t.image or '–' }}</code>{% if t.image_id %}<div class="muted">{{ t.image_id[7:19] }}{% if t.remote_digest and t.status == 'available' %} → registry {{ t.remote_digest[7:19] }}{% endif %}</div>{% endif %}
@@ -109,7 +109,7 @@
     <tbody>{% for h in u.history %}
       <tr><td class="muted small">{{ h.at|fmt_ts }}</td><td>{{ h.container }}</td>
           <td class="small">{{ h.action }} · {% if h.old_version and h.old_version == h.new_version %}{{ h.new_version }} <span class="muted">({{ h.old_image[7:19] }} → {{ h.new_image[7:19] }})</span>{% else %}{{ h.old_version or (h.old_image[7:19] if h.old_image) or '?' }} → {{ h.new_version or (h.new_image[7:19] if h.new_image) or '?' }}{% endif %}{% if h.note %}<div class="muted">{{ h.note }}</div>{% endif %}</td>
-          <td>{{ ui.status_pill(h.status) }}{% if h.run_id %} <a class="small" href="/runs/{{ h.run_id }}">#{{ h.run_id }}</a>{% endif %}</td></tr>
+          <td>{{ ui.status_pill(h.status) }}{% if h.run_id %} <a class="small" href="{{ base }}/runs/{{ h.run_id }}">#{{ h.run_id }}</a>{% endif %}</td></tr>
     {% endfor %}</tbody>
   </table>
   {% else %}<p class="muted">No updates yet.</p>{% endif %}

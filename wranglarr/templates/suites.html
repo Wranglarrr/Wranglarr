@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "_icons.html" as i %}
-{% import "_macros.html" as ui %}
+{% import "_macros.html" as ui with context %}
 {% block title %}Suites · wranglarr{% endblock %}
 {% block crumbs %}Suites{% endblock %}
 {% block toolbar %}
@@ -18,17 +18,17 @@
 {% for s in suites %}
 <section class="panel scard" data-suite="{{ s.name }}">
   <div class="scard-head">
-    <h2><a href="/suites/{{ s.name }}">{{ s.name }}</a></h2>
+    <h2><a href="{{ base }}/suites/{{ s.name }}">{{ s.name }}</a></h2>
     <span class="logos">{% for a in s.app_list %}{{ ui.app_logo(a.name, a.kind) }}{% endfor %}</span>
     <span class="muted small">{{ s.app_list|map(attribute='name')|join(' · ') }}</span>
     <span class="actions">
       {% if s.active_run %}
-        <a class="btn running" href="/runs/{{ s.active_run.id }}">{{ i.icon('running') }} {{ s.active_run.kind }} running…</a>
+        <a class="btn running" href="{{ base }}/runs/{{ s.active_run.id }}">{{ i.icon('running') }} {{ s.active_run.kind }} running…</a>
       {% else %}
         <button class="btn primary" data-backup="{{ s.name }}">Back up now</button>
         {% if s.shared %}<button class="btn" data-sync="{{ s.name }}" title="push the shared settings to every app in {{ s.name }}">{{ i.icon('sync') }} Sync shared</button>{% endif %}
       {% endif %}
-      <a class="btn ghost" href="/suites/{{ s.name }}">Open ›</a>
+      <a class="btn ghost" href="{{ base }}/suites/{{ s.name }}">Open ›</a>
     </span>
   </div>
   {{ ui.suite_facts(s, s.last) }}
@@ -41,7 +41,7 @@
 
 {% if runs %}
 <section class="panel">
-  <div class="row between"><h2>Recent runs</h2><a class="small" href="/activity">All activity ›</a></div>
+  <div class="row between"><h2>Recent runs</h2><a class="small" href="{{ base }}/activity">All activity ›</a></div>
   {{ ui.runs_table(runs) }}
 </section>
 {% endif %}

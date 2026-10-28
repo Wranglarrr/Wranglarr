@@ -72,9 +72,23 @@ came from, on any port, or, when told, to every name under one domain.
 | `http://192.168.1.10:7878`, the same address as wranglarr (`http://192.168.1.10:8787`) | nothing |
 | also `https://radarr.example.com`, `https://sonarr.example.com`… through your reverse proxy | `AUTH_COOKIE_DOMAIN=example.com` and `AUTH_LOGIN_URL=https://wranglarr.example.com`; proxy wranglarr too |
 
-The wizard asks which. Both settings are names on your proxy, never this
-machine's IP: by IP and port the apps work with them blank, and keep working
-with them set. The gate sends you to `AUTH_LOGIN_URL` only when you came
+For wranglarr at `https://myhouse.com/wranglarr` and apps at sibling paths
+such as `https://myhouse.com/radarr`, use:
+
+```dotenv
+WRANGLARR_URL_BASE=/wranglarr
+AUTH_COOKIE_DOMAIN=myhouse.com
+AUTH_LOGIN_URL=https://myhouse.com/wranglarr
+```
+
+Choose **Path on the domain** for wranglarr in Dashboard → Links, and preserve
+its prefix in the proxy. The cookie keeps `Path=/`, so it reaches `/radarr` too.
+The gate still checks the bare `/api/auth/gate` endpoint internally. See
+[Wranglarr at a path](Reverse-Proxy.md#wranglarr-at-a-path-on-the-domain).
+
+The wizard accepts a path in the login address. The domain and login address
+refer to your proxy, never this machine's IP: by IP and port the apps work with
+them blank, and keep working with them set. The gate sends you to `AUTH_LOGIN_URL` only when you came
 through the proxy (an address under `AUTH_COOKIE_DOMAIN`). An app opened by IP
 sends you to wranglarr on that IP, since a cookie set at the IP doesn't reach
 `*.example.com`, and one set at the domain doesn't reach the IP. The dashboard's

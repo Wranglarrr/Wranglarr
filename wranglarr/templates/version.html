@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% import "_icons.html" as i %}
-{% import "_macros.html" as ui %}
+{% import "_macros.html" as ui with context %}
 {% block title %}{{ m.version }} · {{ suite.name }} · wranglarr{% endblock %}
-{% block crumbs %}<a href="/suites" class="crumb">Suites</a> / <a href="/suites/{{ suite.name }}" class="crumb">{{ suite.name }}</a> / {{ m.version|fmt_ts }}{% endblock %}
+{% block crumbs %}<a href="{{ base }}/suites" class="crumb">Suites</a> / <a href="{{ base }}/suites/{{ suite.name }}" class="crumb">{{ suite.name }}</a> / {{ m.version|fmt_ts }}{% endblock %}
 {% block toolbar %}
   <span class="tb-text">{{ ui.status_pill(m.status) }}</span>
   <span class="tb-text">{{ m.trigger }} · wranglarr {{ m.wranglarr }}{% if m.postgres_version %} · postgres {{ m.postgres_version }}{% endif %}{% if m.vpn and m.vpn.configured %} · VPN {{ 'up' if m.vpn.ok else 'down' }}{% if m.vpn.public_ip %} ({{ m.vpn.public_ip }}){% endif %}{% endif %} · {{ m.total_bytes|human_bytes }}</span>

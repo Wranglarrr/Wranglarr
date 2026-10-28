@@ -206,12 +206,14 @@ fn table(t: &[(&str, &str)]) -> Value {
 }
 
 /// An app's own logo (asked from the app), its kind's shipped one if that fails.
-fn app_logo(name: String, kind: Option<String>, cls: Option<String>, _kw: Kwargs) -> Value {
+fn app_logo(state: &State, name: String, kind: Option<String>, cls: Option<String>, _kw: Kwargs) -> Value {
     let cls = cls.unwrap_or_else(|| "mini-logo".into());
-    let fallback = kind.as_deref().and_then(kind_icon).unwrap_or_default();
+    let base = state.lookup("base").and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
+    let fallback = crate::url_base::prefix(&base, &kind.as_deref().and_then(kind_icon).unwrap_or_default());
     Value::from_safe_string(format!(
-        r#"<img class="{}" src="/api/apps/{}/logo" alt="" title="{}" loading="lazy" data-fallback="{}">"#,
+        r#"<img class="{}" src="{}/api/apps/{}/logo" alt="" title="{}" loading="lazy" data-fallback="{}">"#,
         html_escape(&cls),
+        html_escape(&base),
         quote(&name),
         html_escape(&name),
         html_escape(&fallback)
@@ -254,6 +256,7 @@ pub fn environment() -> Environment<'static> {
     env.add_filter("human_age", |v: Value| human_age(&v));
     env.add_filter("cron_text", |v: Value| cron_filter(&v));
     env.add_global("version", crate::VERSION);
+    env.add_global("base", "");
     env.add_global("RELEASE_NOTES", crate::updates::RELEASE_NOTES);
     env.add_global("asset_v", ASSET_V.as_str());
     env.add_global("COLLECTION_LABELS", table(COLLECTION_LABELS));

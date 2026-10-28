@@ -115,7 +115,7 @@
 
   // ---- drawing ----
   const logo = (name, kind, cls = 'cm-logo') =>
-    `<img class="${cls}" src="/api/apps/${encodeURIComponent(name)}/logo" alt="" data-fallback="${esc(service(kind).icon || '')}">`;
+    `<img class="${cls}" src="${esc(W.url(`/api/apps/${encodeURIComponent(name)}/logo`))}" alt="" data-fallback="${esc(service(kind).icon || '')}">`;
   const arrow = l => l.both ? '⇄' : '→';
   const head = t => `<marker id="cm-${t}" class="cm-head t-${t}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0 0.5L10 5L0 9.5z"/></marker>`;
   let lastW = 0;

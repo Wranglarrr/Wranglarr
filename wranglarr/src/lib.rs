@@ -35,6 +35,7 @@ pub mod serve;
 pub mod setup;
 pub(crate) mod standalone;
 pub mod updates;
+pub mod url_base;
 pub(crate) mod vpn;
 pub mod web;
 

@@ -62,7 +62,7 @@
     if (f.get('password') !== f.get('password2')) return show(msg, 'The passwords don\'t match.');
     try {
       await api('POST', '/api/auth/setup', { code: f.get('code'), username: f.get('username'), password: f.get('password') });
-      location.href = '/account?welcome=1';
+      location.href = W.url('/account?welcome=1');
     } catch (err) { show(msg, err.message); }
   });
 
@@ -71,12 +71,12 @@
   // browser reads it: no control characters or backslashes (the URL parser drops tabs and reads
   // \ as /), a path stays on this origin, and a full URL (AuthTunnel's way back) is http(s).
   const safeNext = n => {
-    if (!n || /[\u0000-\u001f\u007f-\u009f\\]/.test(n)) return '/';
+    if (!n || /[\u0000-\u001f\u007f-\u009f\\]/.test(n)) return W.url('/');
     try {
-      if (n.startsWith('/') && !n.startsWith('//')) return new URL(n, location.origin).origin === location.origin ? n : '/';
+      if (n.startsWith('/') && !n.startsWith('//')) return new URL(n, location.origin).origin === location.origin ? W.url(n) : W.url('/');
       const u = new URL(n);
-      return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : '/';
-    } catch (e) { return '/'; }
+      return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : W.url('/');
+    } catch (e) { return W.url('/'); }
   };
   const login = $('#login-form');
   if (login) {
@@ -216,7 +216,7 @@
       const r = await api('POST', '/api/auth/sessions/end-others'); await load(); toast(`${r.ended} other session(s) signed out`);
     }
   }));
-  $('#sign-out').addEventListener('click', run(async () => { await api('POST', '/api/auth/logout'); location.href = '/login'; }));
+  $('#sign-out').addEventListener('click', run(async () => { await api('POST', '/api/auth/logout'); location.href = W.url('/login'); }));
 
   load().then(() => {
     if (new URLSearchParams(location.search).get('welcome')) toast('Account created. Turn on two-factor or add a passkey below.');

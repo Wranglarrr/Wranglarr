@@ -30,6 +30,17 @@ The first time you open wranglarr it asks you to create the account:
 You're signed in straight away and land on **Account**. Turn on two-factor or
 add a passkey there.
 
+## Serving wranglarr under a path
+
+Set `WRANGLARR_URL_BASE=/wranglarr` to use a browser address such as
+`https://myhouse.com/wranglarr`. Sign-in pages, redirects and the Account page
+use that prefix. With AuthTunnel, `AUTH_LOGIN_URL` must include it too.
+Cookies remain `Path=/` so sibling app paths can share the session.
+
+Changing only the path on the same hostname does not change a passkey's RP ID;
+there is no need to register the passkey again. See the
+[proxy setup instructions](Reverse-Proxy.md#wranglarr-at-a-path-on-the-domain).
+
 ## Signing in
 
 ![Sign in](images/login/02-sign-in.png)

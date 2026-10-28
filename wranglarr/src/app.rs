@@ -72,7 +72,8 @@ pub struct App(Arc<Inner>);
 impl App {
     /// The service on `cfg`, deployed as `deployment`: opens the state database
     /// and the backup store.
-    pub async fn new(cfg: Config, deployment: Deployment) -> Result<App> {
+    pub async fn new(cfg: Config, mut deployment: Deployment) -> Result<App> {
+        deployment.proxy.url_base = crate::url_base::check(&deployment.proxy.url_base)?;
         let (cfg, deployment, state, store, auth) = tokio::task::spawn_blocking(move || -> Result<_> {
             let state = State::open(&cfg.state_db)?;
             let store =

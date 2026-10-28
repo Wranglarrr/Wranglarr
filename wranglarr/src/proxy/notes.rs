@@ -27,9 +27,18 @@ pub(super) fn notes(plan: &[Plan], s: &ProxySettings, env: &ProxyEnv) -> Vec<Not
     // true: a warning; false: for information
     let mut push = |warn: bool, msg: String| n.push(Note { cls: if warn { "warn" } else { "" }, msg });
     if s.domain.is_empty() {
-        push(true, "Fill in your domain: the output uses example.com until you do.".into());
+        push(true, "Fill in your domain under Dashboard → Links: the output uses example.com until you do.".into());
     }
     let w = plan.iter().find(|p| p.kind == "wranglarr");
+    if let Some(w) = w.filter(|w| !w.path.is_empty()) {
+        push(
+            env.url_base != w.path,
+            format!(
+                "wranglarr under {}: set WRANGLARR_URL_BASE={} in .env and recreate wranglarr. The proxy passes this path through unchanged; app paths are siblings on the same domain.",
+                w.path, w.path
+            ),
+        );
+    }
     if mode == "tunnel" && !on.is_empty() {
         if w.is_some_and(|w| w.expose == "off") {
             push(
@@ -38,7 +47,7 @@ pub(super) fn notes(plan: &[Plan], s: &ProxySettings, env: &ProxyEnv) -> Vec<Not
             );
         }
         if !s.domain.is_empty() && cd != s.domain && !(!cd.is_empty() && s.domain.ends_with(&format!(".{cd}"))) {
-            let fqdn = w.map_or_else(|| format!("wranglarr.{}", s.domain), |w| w.fqdn.clone());
+            let fqdn = w.map_or_else(|| format!("wranglarr.{}", s.domain), |w| format!("{}{}", w.fqdn, w.path));
             push(
                 true,
                 format!(
@@ -49,9 +58,19 @@ pub(super) fn notes(plan: &[Plan], s: &ProxySettings, env: &ProxyEnv) -> Vec<Not
                 ),
             );
         } else if let Some(w) = w.filter(|_| !lu.is_empty())
-            && parse_url(lu).as_ref().and_then(url_host).as_deref() != Some(w.fqdn.as_str())
+            && parse_url(lu).is_none_or(|u| {
+                url_host(&u).as_deref() != Some(w.fqdn.as_str())
+                    || u.path().trim_end_matches('/') != if w.path.is_empty() { &env.url_base } else { &w.path }
+            })
         {
-            push(true, format!("wranglarr's address for the login page is {lu}, but here wranglarr is at {}.", w.fqdn));
+            push(
+                true,
+                format!(
+                    "wranglarr's address for the login page is {lu}, but here wranglarr is at https://{}{}.",
+                    w.fqdn,
+                    if w.path.is_empty() { &env.url_base } else { &w.path }
+                ),
+            );
         }
         push(
             false,
@@ -82,18 +101,10 @@ pub(super) fn notes(plan: &[Plan], s: &ProxySettings, env: &ProxyEnv) -> Vec<Not
                 .into(),
         );
     }
-    if s.kind == "cloudflared" && any_lan {
-        push(
-            true,
-            "A Cloudflare Tunnel is public by design: the LAN-only apps are left out. Put Cloudflare Access in \
-             front instead if you want them through it."
-                .into(),
-        );
-    }
-    if s.style == "path" {
+    {
         let ub: Vec<String> = on
             .iter()
-            .filter(|p| !p.path.is_empty() && !p.strip)
+            .filter(|p| p.kind != "wranglarr" && !p.path.is_empty() && !p.strip)
             .map(|p| format!("{} {} ({})", p.name, p.path, url_base_where(&p.kind)))
             .collect();
         if !ub.is_empty() {

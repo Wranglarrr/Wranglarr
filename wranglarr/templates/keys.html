@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% import "_macros.html" as ui %}
+{% import "_macros.html" as ui with context %}
 {% import "_icons.html" as i %}
 {% block title %}API keys · wranglarr{% endblock %}
 {% block crumbs %}API keys{% endblock %}
@@ -16,7 +16,7 @@
     <thead><tr><th>App</th><th>Address in the stack</th><th>API key</th><th></th></tr></thead>
     <tbody>
       <tr data-own>
-        <td><img class="ico-logo app" src="/static/brand/favicon-32.png" alt=""> wranglarr</td>
+        <td><img class="ico-logo app" src="{{ base }}/static/brand/favicon-32.png" alt=""> wranglarr</td>
         <td><code class="copyable">{{ own_url }}</code> <button class="btn ghost small" data-copy-url="{{ own_url }}" title="copy the address">{{ i.icon('copy') }}</button></td>
         <td class="key-cell"><span class="own-keys muted small">{% if auth_on %}loading…{% else %}none needed: sign-in is off{% endif %}</span></td>
         <td class="nowrap">{% if auth_on %}<button class="btn ghost small" data-own-new>{{ i.icon('plus') }} New key</button>{% endif %}</td>
@@ -32,7 +32,7 @@
   </table>
   <p class="muted small" id="keys-source"></p>
   {% else %}<p class="muted">No app with an API key is enabled.</p>{% endif %}
-  {% if auth_on %}<p class="muted small">wranglarr keeps only a hash of its own keys, so a new one is shown once, here. Send it as the <code>X-Api-Key</code> header; revoke keys on <a href="/account">your account</a>.</p>{% endif %}
+  {% if auth_on %}<p class="muted small">wranglarr keeps only a hash of its own keys, so a new one is shown once, here. Send it as the <code>X-Api-Key</code> header; revoke keys on <a href="{{ base }}/account">your account</a>.</p>{% endif %}
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/keys.js?v={{ asset_v }}"></script>{% endblock %}
+{% block scripts %}<script src="{{ base }}/static/keys.js?v={{ asset_v }}"></script>{% endblock %}

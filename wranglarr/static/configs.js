@@ -4,7 +4,7 @@
   const { api, esc, safeUrl, toast, ask, icon } = W;
   const $ = id => document.getElementById(id);
   const when = s => s ? new Date(s).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '';
-  const logo = name => `<img class="mini-logo" src="/api/apps/${encodeURIComponent(name)}/logo" alt="" onerror="this.remove()">`;
+  const logo = name => `<img class="mini-logo" src="${esc(W.url(`/api/apps/${encodeURIComponent(name)}/logo`))}" alt="" onerror="this.remove()">`;
   const ACTION = { create: ['new', 'ok'], update: ['change', 'info'], same: ['same', 'muted'], keep: ['kept', 'muted'], error: ['problem', 'err'] };
   const RES = { customformat: 'custom format', qualityprofile: 'quality profile', qualitydefinition: 'quality sizes', releaseprofile: 'release profile',
                 tag: 'tag', metadataprofile: 'metadata profile', delayprofile: 'delay profile', autotagging: 'auto tagging',

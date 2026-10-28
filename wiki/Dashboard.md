@@ -96,43 +96,69 @@ message when a download gets stuck, see [Notifications](Notifications.md).
 
 ## Where the apps open
 
-By default a poster or card opens **the address you opened wranglarr at, on the port
-Docker publishes the app on**:
-
-- you open wranglarr at `http://192.168.1.10:8787`;
-- Radarr opens at `http://192.168.1.10:7878`, SABnzbd at `http://192.168.1.10:8085`.
-
-Through your reverse proxy it follows the proxy instead. Open wranglarr at the
-**Reverse proxy** page's domain or a name under it (`https://wranglarr.example.com`),
-and each app the proxy serves opens at its name there (`https://radarr.example.com`).
-With AuthTunnel set up for a proxy and nothing on that page, the domain is
-`AUTH_COOKIE_DOMAIN` and every app gets a name under it (`https://radarr.example.com`).
-An app without a name there (**Not proxied**) opens **local only**, at this machine's
-address and its port: the **Address** below, else the Reverse proxy page's "this
-machine's address". With neither, it has no link (it says why) rather than a wrong
-one like `https://wranglarr.example.com:8080`. Open wranglarr by IP and every app
-opens by IP and port, as before.
-
-wranglarr reads each port from the container, so changing `RADARR_PORT` in
-`.env` needs nothing here. In the VPN setups the ports belong to the VPN
-container, and with AuthTunnel to wranglarr-gate; wranglarr reads them from there.
-
-Change it under **Links** in the toolbar:
+A poster or card opens where its app is. **Links** in the toolbar sets that, and
+where each app sits on your reverse proxy, in one place:
 
 ![The Links panel](images/home/02-links.png)
 
-| Setting | Use it when |
+| Setting | |
 | --- | --- |
-| **This machine's address and each app's port**, with **Address** blank | you reach everything by the same IP or name (the default) |
-| the same, with **Address** set, e.g. `192.168.1.10` or `nas.lan` | you reach wranglarr under one name but the apps by another. Through your reverse proxy it's this machine's local address, for the apps without a name on the proxy |
-| **A domain per app**, e.g. `https://{name}.home.example.com` | every app has its own name on your reverse proxy. `{name}` becomes `radarr`, `sonarr`, `qbittorrent`…; `{kind}` the app's type |
-| **Per app** | one app lives somewhere else: `http://192.168.1.20:8080`, `https://sab.example.com`. Blank uses the rule above |
+| **This machine** | its IP address or local name (`192.168.1.10`, `nas.local`), no port: where the **Direct IP** apps open. Blank: the address you opened wranglarr at, or through the proxy `HOST_IP`, which setup found |
+| **Proxy domain** | the domain your DNS points at your reverse proxy, e.g. `example.com`. Blank with AuthTunnel: its `AUTH_COOKIE_DOMAIN` |
+| **Local network** | who gets through to the **local only** apps, e.g. `192.168.1.0/24`. Blank: every private range |
 
-**Reset to defaults** forgets all of it.
+Then a row for wranglarr and each app, with the port Docker publishes it on
+(read from the container, so changing `RADARR_PORT` in `.env` needs nothing
+here; in the VPN setups it's the VPN container's, with AuthTunnel
+wranglarr-gate's):
+
+| At | The app opens at |
+| --- | --- |
+| **Subdomain** | a name of its own, `https://radarr.example.com` |
+| **wranglarr path** | under wranglarr's name, `https://wranglarr.example.com/radarr`: the same certificate and AuthTunnel sign-in cookie as wranglarr. Seerr and the media servers need a name of their own; some apps need their URL Base set ([Reverse proxy](Reverse-Proxy.md#paths-instead-of-names)) |
+| **Direct IP** | not proxied: this machine and the app's port, `http://192.168.1.10:7878` |
+| **Other address** | somewhere else: `http://192.168.1.20:8080`, `https://sab.example.com` |
+
+Wranglarr also offers **Path on the domain**, e.g. `https://myhouse.com/wranglarr`.
+Set `WRANGLARR_URL_BASE=/wranglarr` in `.env`, recreate wranglarr, and let the
+proxy pass the path through unchanged. Apps using **wranglarr path** then open
+as siblings, e.g. `https://myhouse.com/radarr`. With AuthTunnel,
+`AUTH_LOGIN_URL` includes wranglarr's path. See [Reverse proxy](Reverse-Proxy.md#wranglarr-at-a-path-on-the-domain).
+
+**Local only**, for a subdomain or a wranglarr path: through the proxy, but only
+from the local network.
+
+With **AuthTunnel** the apps sit behind wranglarr-gate and ask for your wranglarr
+sign-in (Seerr and the media servers keep their own login); each row says which.
+The panel then checks what the sign-in needs, and says so as you change things:
+wranglarr itself on the proxy (the gate sends you to its page), the proxy domain
+within `AUTH_COOKIE_DOMAIN` (or the cookie doesn't reach the apps' names), and
+wranglarr's address matching `AUTH_LOGIN_URL`. Without a cookie domain, only a
+wranglarr path on the same host shares your sign-in. wranglarr itself is at a subdomain, the domain itself,
+at a path on the domain, or direct IP. Each row shows the address as you change it, and where the card
+opens now.
+
+Open wranglarr at the proxy domain or a name under it
+(`https://wranglarr.example.com`) and the cards open at the proxy; open it by IP
+and they open by IP and port, as before. Through the proxy, the Direct IP apps
+open **local only**, at **This machine** (else the Reverse proxy page's "the
+proxy reaches them" address; setup puts this machine's IP in `.env` as `HOST_IP`,
+so it's known from the start). With none, the card has no link and says why,
+rather than a wrong one like `https://wranglarr.example.com:8080`.
+
+Placement is explicit: choose **Direct IP** for an app you haven't added to the
+proxy, or **Other address** for a different browser URL. wranglarr does not probe
+DNS or compare login pages to decide whether a link exists. An outage, split DNS,
+or a shared login page never silently changes a configured link.
+
+**Save** validates links and proxy placement together and saves both in one
+transaction. A failed save changes neither. The **Reverse proxy** page writes
+your proxy's config from the same settings. **Reset links** forgets This machine and the other addresses. A
+domain pattern saved before (`https://{name}.home.example.com`) keeps working
+until you save the panel.
 
 A poster or card without a link is greyed out and says why. Usually the app isn't
-published on the host (no `ports:` in compose); give it an address under
-**Per app**.
+published on the host (no `ports:` in compose); give it an **Other address**.
 
 ## App logins
 
@@ -148,6 +174,7 @@ The panel shows the two commands that change it (the setup wizard with
 
 ```
 GET    /api/links                 the settings and every app's link
+PUT    /api/links/configuration   {"proxy": {"domain":"example.com","apps":{…}}, "links": {"host":"192.168.1.10","apps":{…}}}
 PUT    /api/links                 {"mode":"port"|"domain","scheme":"http","host":"","pattern":"","apps":{"sabnzbd":"http://…"}}
 DELETE /api/links                 back to the defaults
 GET    /api/apps/{app}/logo       the app's own logo, passed through

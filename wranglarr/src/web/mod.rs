@@ -40,7 +40,7 @@ pub use error::{ApiError, ApiResult, status_of};
 pub type Page = ApiResult<Html<String>>;
 
 pub fn router(app: App) -> Router {
-    Router::new()
+    let routes = Router::new()
         .merge(suites::routes())
         .merge(system::routes())
         .route("/static/{*path}", get(static_file))
@@ -58,7 +58,25 @@ pub fn router(app: App) -> Router {
         .merge(auth::routes())
         .layer(middleware::from_fn_with_state(app.clone(), error_pages))
         .layer(middleware::from_fn_with_state(app.clone(), auth::guard))
-        .with_state(app)
+        .with_state(app.clone());
+    // Router layers run after route matching. An outer fallback dispatches to
+    // the real router only after stripping the optional browser prefix.
+    Router::new().fallback_service(routes).layer(middleware::from_fn_with_state(app, strip_url_base))
+}
+
+async fn strip_url_base(State(app): State<App>, mut req: Request, next: Next) -> Response {
+    if let Some(path) = crate::url_base::strip(&app.deployment().proxy.url_base, req.uri().path()) {
+        let path = match req.uri().query() {
+            Some(query) => format!("{path}?{query}"),
+            None => path.to_string(),
+        };
+        let mut parts = req.uri().clone().into_parts();
+        parts.path_and_query = path.parse().ok();
+        if let Ok(uri) = Uri::from_parts(parts) {
+            *req.uri_mut() = uri;
+        }
+    }
+    next.run(req).await
 }
 
 // ---- who is asking ------------------------------------------------------------
@@ -160,6 +178,7 @@ pub async fn shell(app: &App, ctx: &Ctx, page: &str, extra: Value) -> Result<Val
         })
         .collect();
     let mut out = json!({
+        "base": app.deployment().proxy.url_base,
         "request": {"url": {"hostname": ctx.host, "path": ctx.path}},
         "page": page,
         "user": ctx.who.user,

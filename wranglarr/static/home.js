@@ -95,7 +95,7 @@
   function rowsHtml(el, l, empty, ahead) {
     const base = el.dataset.url.replace(/\/$/, '');
     if (l.error) return `<li class="fi-empty error small">${esc(l.error)}</li>`;
-    if (!l.items.length) return `<li class="fi-empty muted small">${esc(empty)}${l.key === 'indexers' ? ' <a href="/indexers">Add some</a>' : ''}</li>`;
+    if (!l.items.length) return `<li class="fi-empty muted small">${esc(empty)}${l.key === 'indexers' ? ` <a href="${esc(W.url('/indexers'))}">Add some</a>` : ''}</li>`;
     return l.items.map(i => {
       const tag = i.tag === 'downloaded' ? '<span class="fi-tag ok-text" title="downloaded">✓</span>'
         : i.tag ? `<span class="fi-tag">${esc(i.tag)}</span>` : '';
@@ -161,29 +161,115 @@
     if (!document.hidden) feedTimer = setTimeout(loadFeeds, 120000);
   }
 
-  // ---- Links editor ----
+  // ---- Links: where each app is (a name or path on the proxy, or direct) and where its card opens ----
   const panel = document.getElementById('links-panel'), form = document.getElementById('links-form');
-  const showMode = () => { const m = form.elements.mode.value;
-    form.querySelectorAll('[data-mode-only]').forEach(r => r.hidden = r.dataset.modeOnly !== m); };
+  const D = JSON.parse(document.getElementById('links-data').textContent);
+  const rowsEl = document.getElementById('links-rows');
+  const AT = { subdomain: 'Subdomain', path: 'wranglarr path', domain: 'The domain itself', direct: 'Direct IP', other: 'Other address' };
+  const portTag = how => !how || how === 'published port' ? '' : how === 'through wranglarr-gate' ? 'via the gate'
+    : how.startsWith('guessed') ? 'guessed' : how.startsWith('not published') ? 'not published' : how;
+  function rowHtml(a) {
+    const me = a.name === 'wranglarr';
+    const ats = me ? ['subdomain', 'domain', 'path', 'direct'] : ['subdomain', 'path', 'direct', 'other'];
+    const cur = a.custom ? 'other' : a.at;
+    const opts = ats.map(v => `<option value="${v}"${v === cur ? ' selected' : ''}${v === 'path' && a.own_name ? ' disabled title="needs a name of its own"' : ''}>${me && v === 'path' ? 'Path on the domain' : AT[v]}</option>`).join('');
+    const now = a.now ? `<div class="hint">card now: ${a.now.url ? `<a href="${esc(a.now.url)}" target="_blank" rel="noopener">${esc(a.now.url)}</a>` : 'no link'} · ${esc(a.now.note)}</div>` : '';
+    const login = a.gated ? 'behind wranglarr' : D.tunnel && !me ? 'own login' : '';
+    return `<tr data-row="${esc(a.name)}">
+      <td>${esc(a.name)}${login ? `<div class="muted small">${login}</div>` : ''}</td>
+      <td title="${esc(a.port_how || '')}">${a.port ? `<code>${a.port}</code>` : '<span class="muted">—</span>'} <span class="muted small">${esc(portTag(a.port_how))}</span></td>
+      <td><select name="at">${opts}</select></td>
+      <td><label class="inline small links-local"><input type="checkbox" name="local"${a.local ? ' checked' : ''}> local only</label></td>
+      <td><span class="links-addr"><span data-pre></span><input name="sub" value="${esc(a.sub)}" placeholder="${esc(a.name)}" spellcheck="false" size="${Math.max(a.name.length, 4)}"><span data-post></span>
+        <input name="custom" value="${esc(a.custom || '')}" placeholder="http://192.168.1.20:8080 or https://sab.example.com" spellcheck="false"></span>${now}</td></tr>`;
+  }
+  const rows = () => [...rowsEl.querySelectorAll('tr[data-row]')];
+  const app = name => D.apps.find(a => a.name === name);
+  function preview() {
+    const el = form.elements;
+    const domain = el.domain.value.trim().toLowerCase().replace(/\.$/, '') || D.cookie_domain || 'example.com';
+    const host = el.host.value.trim() || D.this_machine, scheme = el.scheme.value;
+    const w = rowsEl.querySelector('tr[data-row="wranglarr"]');
+    const wat = w.querySelector('[name=at]').value, wsub = w.querySelector('[name=sub]').value.trim() || 'wranglarr';
+    const wfqdn = ['domain', 'path'].includes(wat) ? domain : wat === 'direct' ? '' : `${wsub}.${domain}`;
+    for (const r of rows()) {
+      const a = app(r.dataset.row), sel = r.querySelector('[name=at]');
+      let at = sel.value;
+      const [pre, post, sub, custom] = ['[data-pre]', '[data-post]', '[name=sub]', '[name=custom]'].map(q => r.querySelector(q));
+      const local = r.querySelector('[name=local]');
+      local.disabled = at === 'direct' || at === 'other';
+      local.closest('label').style.visibility = local.disabled ? 'hidden' : '';
+      let p = '', q = '', note = '';
+      if (at === 'path' && !wfqdn) { at = 'subdomain'; note = ' (wranglarr is Direct IP: no name to go under)'; }
+      if (at === 'subdomain') { p = 'https://'; q = `.${domain}/${note}`; }
+      else if (at === 'path') { p = `https://${wfqdn}/`; q = '/'; }
+      else if (at === 'domain') { p = `https://${domain}/`; }
+      else if (at === 'direct') {
+        const port = a.port;
+        p = !host ? 'put this machine\'s address above' : port ? `${scheme}://${host.includes(':') ? `[${host}]` : host}:${port}${a.base || ''}/` : 'not published on this machine: use Other address';
+      }
+      pre.textContent = p; post.textContent = q;
+      sub.hidden = !(at === 'subdomain' || at === 'path');
+      custom.hidden = at !== 'other';
+    }
+    const wpath = wat === 'path' ? `/${wsub}` : (D.url_base || '');
+    linkWarnings(domain, wfqdn, wpath);
+  }
+  // AuthTunnel: the gate sends you to wranglarr's page to sign in, and the cookie has to reach each app's address
+  function linkWarnings(domain, wfqdn, wpath) {
+    const under = (h, d) => !!h && !!d && (h === d || h.endsWith('.' + d));
+    const at = r => r.querySelector('[name=at]').value;
+    const proxied = rows().filter(r => app(r.dataset.row).gated && ['subdomain', 'path'].includes(at(r)));
+    const named = proxied.filter(r => at(r) === 'subdomain' || !wfqdn).map(r => r.dataset.row);
+    const list = rs => rs.map(r => typeof r === 'string' ? r : r.dataset.row).join(', ');
+    const cd = D.cookie_domain, warn = [];
+    const wr = rows().find(r => r.dataset.row === 'wranglarr');
+    if (wr && at(wr) === 'path' && (D.url_base || '') !== wpath) warn.push(`Set WRANGLARR_URL_BASE=${wpath} in .env and recreate wranglarr. The proxy must pass the path through unchanged.`);
+    let loginAddress = '';
+    try { loginAddress = D.login_url ? new URL(D.login_url).href.replace(/\/$/, '') : ''; } catch (e) { /* shown as it is */ }
+    if (D.tunnel && proxied.length) {
+      if (!wfqdn) warn.push(`AuthTunnel signs you in on wranglarr's page: put wranglarr on the proxy too, or ${list(proxied)} can't sign you in there.`);
+      if (cd && !under(domain, cd)) warn.push(`The sign-in cookie covers ${cd} and the names under it, not ${domain}: use ${cd} or a name under it here, or change the cookie domain (wranglarr-setup --auth).`);
+      if (!cd && named.length) warn.push(`AuthTunnel has no cookie domain, so an app at a name of its own (${list(named)}) can't share your sign-in: put it at a wranglarr path, or set the cookie domain (wranglarr-setup --auth).`);
+      if (wfqdn && !D.login_url) warn.push(`AuthTunnel doesn't know wranglarr's address on the proxy: set it to https://${wfqdn}${wpath} (wranglarr-setup --auth, then ./scripts/init.sh --auth).`);
+      else if (wfqdn && loginAddress && loginAddress !== `https://${wfqdn}${wpath}`) warn.push(`AuthTunnel sends you to sign in at ${D.login_url}, but wranglarr is at https://${wfqdn}${wpath} here: change one of them (wranglarr-setup --auth).`);
+    }
+    document.getElementById('links-warn').innerHTML = warn.map(w => `<div class="check warn">${esc(w)}</div>`).join('');
+  }
+  function fillRows() { rowsEl.innerHTML = D.apps.map(rowHtml).join(''); preview(); }
+  fillRows();
   const toggle = open => { panel.hidden = !open;
     document.querySelectorAll('[data-links-edit]').forEach(b => b.setAttribute('aria-expanded', String(open)));
-    if (open) { showMode(); panel.scrollIntoView({ block: 'start', behavior: 'smooth' }); } };
-  form.addEventListener('change', e => { if (e.target.name === 'mode') showMode(); });
+    if (open) panel.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
+  if (location.hash === '#links') toggle(true);
+  form.addEventListener('input', preview);
+  form.addEventListener('change', preview);
   form.addEventListener('submit', async e => {
     e.preventDefault();
-    const el = form.elements, apps = {};
-    form.querySelectorAll('input[name^="app:"]').forEach(i => { if (i.value.trim()) apps[i.name.slice(4)] = i.value.trim(); });
+    const el = form.elements, apps = {}, custom = {};
+    for (const r of rows()) {
+      const name = r.dataset.row, at = r.querySelector('[name=at]').value;
+      apps[name] = { at: at === 'other' ? 'direct' : at, local: r.querySelector('[name=local]').checked, sub: r.querySelector('[name=sub]').value.trim() };
+      if (at === 'other') {
+        const u = r.querySelector('[name=custom]').value.trim();
+        if (!u) { toast(`${name}: fill in its address, or pick another place`, true); return; }
+        custom[name] = u;
+      }
+    }
     try {
-      await api('PUT', '/api/links', { mode: el.mode.value, scheme: el.scheme.value, host: el.host.value, pattern: el.pattern.value, apps });
+      await api('PUT', '/api/links/configuration', {
+        proxy: { domain: el.domain.value, lan: el.lan.value, apps },
+        links: { mode: 'port', scheme: el.scheme.value, host: el.host.value, pattern: '', apps: custom }
+      });
       toast('saved'); location.reload();
     } catch (err) { toast(err.message, true); }
   });
   document.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.matches('[data-links-edit]')) toggle(panel.hidden);
-    else if (b.matches('[data-links-cancel]')) { form.reset(); toggle(false); }
+    else if (b.matches('[data-links-cancel]')) { form.reset(); fillRows(); toggle(false); }
     else if (b.matches('[data-links-reset]')) {
-      ask({ title: 'Forget the link settings?', body: 'The apps open at this address and their published ports again.', ok: 'Reset' })
+      ask({ title: 'Forget the links?', body: 'This machine\'s address and the other addresses set here go; where each app is on the proxy stays.', ok: 'Reset' })
         .then(yes => yes && api('DELETE', '/api/links').then(() => location.reload()).catch(err => toast(err.message, true)));
     } else if (b.matches('[data-home-refresh]')) { b.disabled = true; load(true).finally(() => b.disabled = false); }
   });
@@ -240,7 +326,7 @@
 
     function row(d) {
       const pct = Math.floor(d.progress * 1000) / 10;
-      const who = d.arr ? `<img class="dl-arr" src="/api/apps/${encodeURIComponent(d.arr.name)}/logo" alt="" title="sent by ${esc(d.arr.name)}" data-fallback="${esc(service(d.arr.kind).icon || '')}">`
+      const who = d.arr ? `<img class="dl-arr" src="${esc(W.url(`/api/apps/${encodeURIComponent(d.arr.name)}/logo`))}" alt="" title="sent by ${esc(d.arr.name)}" data-fallback="${esc(service(d.arr.kind).icon || '')}">`
         : `<span class="dl-arr dl-none" title="${esc(d.category ? `category "${d.category}": no arr` : 'no category: added by hand')}">?</span>`;
       const meta = [d.arr ? d.arr.name : d.category ? `category ${d.category}` : 'added by hand', STATE[d.state] || d.state,
         d.speed ? fmtSpeed(d.speed) : '', d.eta ? fmtEta(d.eta) + ' left' : '',

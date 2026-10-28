@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::net::{IpAddr, SocketAddr};
 
 use axum::Router;
-use axum::extract::{ConnectInfo, FromRequestParts, Path, Request, State};
+use axum::extract::{ConnectInfo, FromRequestParts, OriginalUri, Path, Request, State};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header, request::Parts};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Redirect, Response};
@@ -337,11 +337,21 @@ pub async fn guard(State(app): State<App>, mut req: Request, next: Next) -> Resp
         return json_error(StatusCode::UNAUTHORIZED, "sign in first (or send an X-Api-Key header)");
     }
     if !id.has_account {
-        return Redirect::to("/setup").into_response();
+        return Redirect::to(&crate::url_base::prefix(&app.deployment().proxy.url_base, "/setup")).into_response();
     }
-    // `next` is the decoded path, quoted again
-    let next_q = if path == "/" { String::new() } else { format!("?next={}", quote_path(&unquote(&path))) };
-    Redirect::to(&format!("/login{next_q}")).into_response()
+    let base = &app.deployment().proxy.url_base;
+    let original = req.extensions().get::<OriginalUri>().map_or(req.uri(), |u| &u.0);
+    let visible = crate::url_base::prefix(base, &unquote(original.path()));
+    let destination = match original.query() {
+        Some(query) => format!("{visible}?{query}"),
+        None => visible,
+    };
+    let next_q = if destination == crate::url_base::prefix(base, "/") {
+        String::new()
+    } else {
+        format!("?next={}", quote_path(&destination))
+    };
+    Redirect::to(&format!("{}{next_q}", crate::url_base::prefix(base, "/login"))).into_response()
 }
 
 // ---- routes --------------------------------------------------------------------------------
@@ -433,26 +443,33 @@ async fn setup_page(State(app): State<App>) -> ApiResult<Response> {
     // "" once an account exists
     let code = blocking(&app, |a| a.auth().ensure_setup_code()).await?;
     if code.is_empty() {
-        return Ok(Redirect::to("/login").into_response());
+        return Ok(Redirect::to(&crate::url_base::prefix(&app.deployment().proxy.url_base, "/login")).into_response());
     }
-    Ok(render("auth.html", &json!({"mode": "setup"}))?.into_response())
+    Ok(render("auth.html", &json!({"mode": "setup", "base": app.deployment().proxy.url_base}))?.into_response())
 }
 
 async fn login_page(State(app): State<App>, r: AuthReq, q: Q) -> ApiResult<Response> {
     let Some(acct) = blocking(&app, |a| a.auth().account()).await? else {
-        return Ok(Redirect::to("/setup").into_response());
+        return Ok(Redirect::to(&crate::url_base::prefix(&app.deployment().proxy.url_base, "/setup")).into_response());
     };
-    let next = safe_next(q.get("next").unwrap_or("/"), app.auth(), &r.rp_id());
+    let next = crate::url_base::prefix(
+        &app.deployment().proxy.url_base,
+        &safe_next(q.get("next").unwrap_or("/"), app.auth(), &r.rp_id()),
+    );
     if r.who.user.is_some() {
         return Ok(Redirect::to(&next).into_response());
     }
     let has_pk = !crate::auth::passkey::rows(&acct).is_empty();
-    Ok(render("auth.html", &json!({"mode": "login", "next": next, "has_passkeys": has_pk}))?.into_response())
+    Ok(render(
+        "auth.html",
+        &json!({"mode": "login", "next": next, "has_passkeys": has_pk, "base": app.deployment().proxy.url_base}),
+    )?
+    .into_response())
 }
 
 async fn account_page(State(app): State<App>, ctx: Ctx) -> ApiResult<Response> {
     if !app.auth().enabled() {
-        return Ok(Redirect::to("/system").into_response());
+        return Ok(Redirect::to(&crate::url_base::prefix(&app.deployment().proxy.url_base, "/system")).into_response());
     }
     let p: Page =
         page(&app, &ctx, "account.html", "account", json!({"rp_id": ctx.host, "https": is_https(&ctx.headers)}))
@@ -514,7 +531,7 @@ async fn api_gate(State(app): State<App>, r: AuthReq) -> ApiResult<Response> {
         o.login_url.clone()
     } else if !name.is_empty() {
         let n = if name.contains(':') { format!("[{name}]") } else { name };
-        format!("{proto}://{n}:{}", o.port)
+        format!("{proto}://{n}:{}{}", o.port, app.deployment().proxy.url_base)
     } else {
         String::new()
     };

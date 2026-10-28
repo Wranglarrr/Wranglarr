@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% import "_macros.html" as ui %}
+{% import "_macros.html" as ui with context %}
 {% block title %}Activity · wranglarr{% endblock %}
 {% block crumbs %}Activity{% endblock %}
 {% block toolbar %}<span class="tb-text">last {{ runs|length }} runs</span>{% endblock %}

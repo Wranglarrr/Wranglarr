@@ -673,12 +673,25 @@ async fn proxy_api() {
     for (kind, _) in wranglarr::proxy::KINDS {
         for style in ["subdomain", "path"] {
             let docker = kind.contains("labels");
+            let mut exposes = exposes.clone();
+            if *kind == "cloudflared" {
+                for name in ["sabnzbd", "qbittorrent"] {
+                    exposes[name]["expose"] = json!("off");
+                }
+            } else if *kind == "npm" && style == "path" {
+                for app in exposes.as_object_mut().expect("apps").values_mut() {
+                    app["expose"] = json!("public");
+                }
+            }
             let body = json!({"kind": kind, "style": style, "domain": "example.com",
                               "upstream": if docker { "docker" } else { "host" }, "upstream_host": "192.168.1.10",
                               "apps": exposes});
             let (code, j) = send_json(reqwest::Method::PUT, &api, &body).await;
             assert_eq!(code, 200, "{j}");
-            assert_eq!(j["settings"]["apps"]["qbittorrent"], json!({"expose": "lan", "sub": "qb"}));
+            assert_eq!(
+                j["settings"]["apps"]["qbittorrent"],
+                json!({"at": if *kind == "cloudflared" { "direct" } else { "" }, "local": exposes["qbittorrent"]["expose"] != "public", "sub": "qb"})
+            );
             let text = j["text"].as_str().unwrap_or("");
             assert!(text.contains("wranglarr.example.com") && text.contains("radarr"), "{kind} {style}");
             if *kind == "cloudflared" {
@@ -688,6 +701,9 @@ async fn proxy_api() {
                     text.contains(if style == "subdomain" { "qb.example.com" } else { "/qb" }),
                     "{kind} {style}: {text}"
                 );
+            }
+            if style == "path" && *kind != "cloudflared" {
+                assert!(!text.contains("\nexample.com {"), "a path each goes under wranglarr's name: {text}");
             }
             if !docker {
                 assert!(text.contains("192.168.1.10"), "{kind}");
@@ -702,9 +718,117 @@ async fn proxy_api() {
         json!({"upstream": "moon"}),
         json!({"lan": "not-a-range"}),
         json!({"apps": {"radarr": {"expose": "everyone"}}}),
+        json!({"apps": {"radarr": {"at": "domain"}}}),
     ] {
         let (code, j) = send_json(reqwest::Method::PUT, &api, &body).await;
         assert_eq!(code, 400, "{body}: {j}");
         assert!(j["error"].as_str().is_some_and(|e| !e.is_empty()));
     }
+    // each app in a place of its own: a name, a path under wranglarr's, or direct
+    let body = json!({"kind": "caddy", "domain": "example.com", "upstream": "host", "upstream_host": "192.168.1.10",
+                      "apps": {"wranglarr": {"at": "subdomain", "local": false},
+                               "radarr": {"at": "subdomain", "local": false},
+                               "sabnzbd": {"at": "path", "local": true}, "qbittorrent": {"at": "direct"}}});
+    let (code, j) = send_json(reqwest::Method::PUT, &api, &body).await;
+    assert_eq!(code, 200, "{j}");
+    let text = j["text"].as_str().unwrap_or("");
+    assert!(text.contains("radarr.example.com {") && text.contains("wranglarr.example.com {"), "{text}");
+    assert!(text.contains("/sabnzbd") && !text.contains("sabnzbd.example.com"), "{text}");
+    assert!(!text.contains("qbittorrent"), "direct: not in the config: {text}");
+    let sab = j["plan"].as_array().and_then(|p| p.iter().find(|p| p["name"] == "sabnzbd")).cloned().unwrap_or_default();
+    assert_eq!(
+        (&sab["fqdn"], &sab["path"], &sab["expose"]),
+        (&json!("wranglarr.example.com"), &json!("/sabnzbd"), &json!("lan"))
+    );
+}
+
+#[tokio::test]
+async fn links_configuration_commits_both_settings_or_neither() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let (app, url) = wranglarr(dir.path(), &app_toml("radarr", "radarr", "http://radarr:7878", ""), "").await;
+    let endpoint = format!("{url}/api/links/configuration");
+    let proxy_api = format!("{url}/api/proxy");
+    let links_api = format!("{url}/api/links");
+    let initial = json!({"proxy": {"domain": "example.com", "apps": {"radarr": {"at": "subdomain"}}},
+        "links": {"host": "192.168.1.10"}});
+    assert_eq!(send_json(reqwest::Method::PUT, &endpoint, &initial).await.0, 200);
+    let old_proxy = get_json(&proxy_api).await.1["settings"].clone();
+    let old_links = get_json(&links_api).await.1["settings"].clone();
+
+    let mut changed = initial.clone();
+    changed["proxy"]["domain"] = json!("changed.example.com");
+    changed["proxy"]["apps"]["radarr"]["at"] = json!("direct");
+    changed["links"]["apps"] = json!({"radarr": "not a URL"});
+    assert_eq!(send_json(reqwest::Method::PUT, &endpoint, &changed).await.0, 400);
+    assert_eq!(get_json(&proxy_api).await.1["settings"], old_proxy);
+    assert_eq!(get_json(&links_api).await.1["settings"], old_links);
+
+    changed["links"] = json!({"host": "192.168.1.20"});
+    changed["proxy"]["apps"]["radarr"] = json!({"at": "path", "sub": "api"});
+    assert_eq!(send_json(reqwest::Method::PUT, &endpoint, &changed).await.0, 400);
+    assert_eq!(get_json(&proxy_api).await.1["settings"], old_proxy);
+    assert_eq!(get_json(&links_api).await.1["settings"], old_links);
+
+    // A database failure on the second write must roll the first write back too.
+    changed["proxy"]["apps"]["radarr"] = json!({"at": "direct"});
+    app.state().call(|db| {
+        db.conn().execute_batch("CREATE TRIGGER reject_links BEFORE INSERT ON kv WHEN NEW.key = 'links:settings' BEGIN SELECT RAISE(ABORT, 'test failure'); END;")?;
+        Ok(())
+    }).await.expect("trigger");
+    assert_eq!(send_json(reqwest::Method::PUT, &endpoint, &changed).await.0, 500);
+    assert_eq!(get_json(&proxy_api).await.1["settings"], old_proxy);
+    assert_eq!(get_json(&links_api).await.1["settings"], old_links);
+    app.state()
+        .call(|db| {
+            db.conn().execute_batch("DROP TRIGGER reject_links")?;
+            Ok(())
+        })
+        .await
+        .expect("drop trigger");
+    assert_eq!(send_json(reqwest::Method::PUT, &endpoint, &changed).await.0, 200);
+    assert_eq!(get_json(&proxy_api).await.1["settings"]["domain"], "changed.example.com");
+    assert_eq!(get_json(&links_api).await.1["settings"]["host"], "192.168.1.20");
+
+    // Independent proxy patches merge inside the transaction, with no lost update.
+    let domain = json!({"domain": "concurrent.example.com"});
+    let lan = json!({"lan": "192.168.1.0/24"});
+    let (a, b) = tokio::join!(
+        send_json(reqwest::Method::PUT, &proxy_api, &domain),
+        send_json(reqwest::Method::PUT, &proxy_api, &lan)
+    );
+    assert_eq!((a.0, b.0), (200, 200));
+    let saved = get_json(&proxy_api).await.1;
+    assert_eq!(saved["settings"]["domain"], "concurrent.example.com");
+    assert_eq!(saved["settings"]["lan"], "192.168.1.0/24");
+}
+
+#[tokio::test]
+async fn invalid_proxy_routes_are_refused_and_old_invalid_scaffolds_are_withheld() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let apps = app_toml("radarr", "radarr", "http://radarr:7878", "")
+        + &app_toml("sonarr", "sonarr", "http://sonarr:8989", "");
+    let (app, url) = wranglarr(dir.path(), &apps, "").await;
+    let endpoint = format!("{url}/api/proxy");
+    let initial = get_json(&endpoint).await.1["settings"].clone();
+    for body in [
+        json!({"apps": {"radarr": {"at": "subdomain", "sub": "wranglarr"}}}),
+        json!({"apps": {"radarr": {"at": "path", "sub": "login"}}}),
+        json!({"apps": {"radarr": {"at": "path", "sub": "films"}, "sonarr": {"at": "path", "sub": "films"}}}),
+        json!({"kind": "npm", "apps": {"wranglarr": {"local": false}, "radarr": {"at": "path", "local": true}}}),
+        json!({"kind": "cloudflared", "apps": {}}),
+    ] {
+        let (status, value) = send_json(reqwest::Method::PUT, &endpoint, &body).await;
+        assert_eq!(status, 400, "{body}: {value}");
+        assert_eq!(get_json(&endpoint).await.1["settings"], initial);
+    }
+    // Inventory changes or older saved settings must never yield an unsafe scaffold.
+    let mut invalid = initial;
+    invalid["kind"] = json!("cloudflared");
+    app.state().put("proxy:settings", &invalid).await.expect("seed invalid settings");
+    let (status, value) = get_json(&endpoint).await;
+    assert_eq!(status, 200, "the editor can still be opened");
+    assert_eq!(value["valid"], false);
+    assert_eq!(value["text"], "");
+    assert!(value["notes"][0]["msg"].as_str().expect("reason").contains("local only"));
+    assert_eq!(send_json(reqwest::Method::PUT, &endpoint, &json!({"kind": "caddy"})).await.0, 200);
 }

@@ -6,7 +6,7 @@
   <button class="tb" data-home-refresh title="re-read stats from the apps"><span class="i">{{ i.icon('refresh') }}</span>Refresh</button>
   <button class="tb" data-links-edit aria-expanded="false" aria-controls="links-panel"><span class="i">{{ i.icon('link') }}</span>Links</button>
   <button class="tb" data-logins-edit aria-expanded="false" aria-controls="logins-panel"><span class="i">{{ i.icon('key') }}</span>Logins</button>
-  <a class="tb" href="/system#home-settings"><span class="i">{{ i.icon('system') }}</span>Customize</a>
+  <a class="tb" href="{{ base }}/system#home-settings"><span class="i">{{ i.icon('system') }}</span>Customize</a>
   <span class="spacer"></span>
   <span class="tb-text">click a card to open the app; hover it for more</span>
 {% endblock %}
@@ -15,57 +15,55 @@
 <div class="banner" data-self-banner>
   <b>A newer wranglarr is out</b>
   <span class="muted small">this one is {{ own.version or '?' }} · <a href="{{ RELEASE_NOTES }}" target="_blank" rel="noopener">Release notes</a>{% if not own.self_update %} · {{ own.update_hint }}{% endif %}</span>
-  <span class="actions">{% if own.self_update %}<button class="btn primary small" data-self-update>Update now</button>{% endif %}<a class="btn ghost small" href="/updates">Updates</a></span>
+  <span class="actions">{% if own.self_update %}<button class="btn primary small" data-self-update>Update now</button>{% endif %}<a class="btn ghost small" href="{{ base }}/updates">Updates</a></span>
 </div>
 {% endif %}
 <section class="panel" id="links-panel" hidden>
   <h2>Where the apps open</h2>
   <form id="links-form" autocomplete="off">
+    {% if panel.tunnel %}<div class="check">AuthTunnel is on: the apps are behind wranglarr-gate and ask for your wranglarr sign-in, by IP and through the proxy alike (Seerr and the media servers keep their own login).
+      Through the proxy the sign-in cookie covers {% if panel.cookie_domain %}<b>{{ panel.cookie_domain }}</b> and the names under it{% else %}wranglarr's own name only: put the apps at a wranglarr path{% endif %}.</div>{% endif %}
+    {% if links.mode == 'domain' %}<div class="check warn">The cards follow your domain pattern <code>{{ links.pattern }}</code> for now. Saving here switches them to the settings below.</div>{% endif %}
     <div class="form-row">
-      <label class="l">Open apps at</label>
-      <div>
-        <label class="check-line"><input type="radio" name="mode" value="port" {{ 'checked' if links.mode == 'port' }}> this machine's address and each app's port <span class="muted small">e.g. http://{{ browser_host or '192.168.1.10' }}:7878</span></label>
-        <label class="check-line"><input type="radio" name="mode" value="domain" {{ 'checked' if links.mode == 'domain' }}> a domain per app <span class="muted small">e.g. https://radarr.home.example.com, through your reverse proxy</span></label>
-      </div>
-    </div>
-    <div class="form-row" data-mode-only="port">
-      <label class="l">Address</label>
+      <label class="l">This machine</label>
       <div>
         <div class="row">
           <select name="scheme" style="width:auto"><option value="http" {{ 'selected' if links.scheme == 'http' }}>http://</option><option value="https" {{ 'selected' if links.scheme == 'https' }}>https://</option></select>
-          <input name="host" value="{{ links.host }}" placeholder="{{ browser_host }}" spellcheck="false" style="max-width:300px">
+          <input name="host" value="{{ links.host }}" placeholder="{{ panel.this_machine or '192.168.1.10' }}" spellcheck="false" style="max-width:300px">
         </div>
-        <div class="hint">This machine's IP address or host name on your network, without a port. Blank: the address you opened wranglarr at (now <code>{{ browser_host }}</code>).
-          The port is the one Docker publishes each app on, read from the container.
-          Opened through your reverse proxy (the Reverse proxy page's domain, or AuthTunnel's cookie domain, or a name under it), the apps it proxies open at their names there, and the rest here, local only.</div>
-      </div>
-    </div>
-    <div class="form-row" data-mode-only="domain">
-      <label class="l">Domain pattern</label>
-      <div>
-        <input name="pattern" value="{{ links.pattern }}" placeholder="https://{name}.home.example.com" spellcheck="false">
-        <div class="hint"><code>{name}</code> becomes the app's name (radarr, sonarr, qbittorrent…), <code>{kind}</code> its type.</div>
+        <div class="hint">Its IP address (<code>192.168.1.10</code>) or local name (<code>nas.local</code>), no port: where the <b>Direct IP</b> apps open. Blank: the address you opened wranglarr at{% if panel.host_ip %}, or through the proxy <code>{{ panel.host_ip }}</code>, found by setup (<code>HOST_IP</code> in <code>.env</code>){% endif %}.</div>
       </div>
     </div>
     <div class="form-row">
-      <label class="l">Per app</label>
+      <label class="l">Proxy domain</label>
       <div>
-        <div class="hint" style="margin:0 0 6px">Blank: use the rule above. Fill in to send one app somewhere else: a local IP (<code>http://192.168.1.20:8080</code>) or a domain (<code>https://sab.example.com</code>).</div>
-        <table class="compact links-table"><tbody>
-        {% for s in suites %}{% for a in s.apps %}
-          <tr><td>{{ a.name }}</td>
-              <td><input name="app:{{ a.name }}" value="{{ links.apps[a.name]|default('') }}" placeholder="{{ a.link.url if a.link.how != 'set' and a.link.url else 'http://…' }}" spellcheck="false"></td></tr>
-        {% endfor %}{% endfor %}
-        </tbody></table>
+        <input name="domain" value="{{ panel.domain }}" placeholder="{{ panel.cookie_domain or 'example.com' }}" spellcheck="false" style="max-width:300px">
+        <div class="hint">The domain your DNS points at your reverse proxy.{% if panel.cookie_domain %} Blank: AuthTunnel's, <code>{{ panel.cookie_domain }}</code>; with AuthTunnel it has to be that or a name under it.{% endif %}
+          Opened at a name under it, the cards open at the proxy; opened by IP, they open by IP and port.</div>
       </div>
     </div>
+    <div class="form-row">
+      <label class="l">Local network</label>
+      <div>
+        <input name="lan" value="{{ panel.lan }}" placeholder="every private range (10.0.0.0/8, 192.168.0.0/16…)" spellcheck="false">
+        <div class="hint">Who gets through to the <b>local only</b> apps, e.g. <code>10.0.0.0/24 192.168.1.0/24</code>.</div>
+      </div>
+    </div>
+    <div id="links-warn"></div>
+    <table class="compact links-table">
+      <thead><tr><th>App</th><th>Port</th><th>At</th><th></th><th>Address</th></tr></thead>
+      <tbody id="links-rows"></tbody>
+    </table>
+    <p class="muted small">Wranglarr can also use a path on the domain (set the matching WRANGLARR_URL_BASE). App paths are siblings on the same host. Subdomain: a name of its own. wranglarr path: under wranglarr's name, sharing its certificate and sign-in. Direct IP: not proxied, this machine and the app's port. Local only: through the proxy, but only from the local network. Choose Direct IP for apps you haven't added to the proxy; DNS and availability never change these choices.</p>
     <div class="row" style="margin-top:12px">
       <button class="btn primary" type="submit">Save</button>
       <button class="btn ghost" type="button" data-links-cancel>Cancel</button>
       <span class="spacer" style="flex:1"></span>
-      <button class="btn ghost" type="button" data-links-reset>Reset to defaults</button>
+      <a class="small" href="{{ base }}/proxy">config for your proxy ›</a>
+      <button class="btn ghost" type="button" data-links-reset>Reset links</button>
     </div>
   </form>
+  <script id="links-data" type="application/json">{{ panel|tojson }}</script>
 </section>
 
 <section class="panel" id="logins-panel" hidden>
@@ -89,7 +87,7 @@
 <div id="home" class="details-{{ home_settings.details }}" data-show-queue="{{ 'on' if home_settings.queue else 'off' }}">
 {% for g in groups %}
 <section class="app-group" data-group="{{ g.key }}">
-  <h3>{{ g.title }}{% if g.suite %} <a class="small" href="/suites/{{ g.suite }}">backups ›</a>{% endif %}</h3>
+  <h3>{{ g.title }}{% if g.suite %} <a class="small" href="{{ base }}/suites/{{ g.suite }}">backups ›</a>{% endif %}</h3>
   <div class="app-cols{{ ' poster-cols' if g.key == 'media' }}">
     {% for a in g.apps %}
     {% set url = a.link.url %}
@@ -104,7 +102,7 @@
         {# the media arrs keep their poster: key stats on it, everything else over it on hover #}
         {% if url %}<a class="poster" href="{{ url }}" target="_blank" rel="noopener" title="Open {{ a.name }}: {{ url }}">{% else %}<div class="poster nolink" title="{{ a.link.note }}">{% endif %}
           <span class="poster-status"><span class="dot pending"></span><span class="poster-ver"></span><span class="card-warn" hidden>{{ i.icon('warning', 'ico-i') }}</span></span>
-          <span class="poster-art"><img src="/api/apps/{{ a.name }}/logo" alt="" loading="lazy" data-fallback="{{ KIND_ICON[a.kind]|default('') }}"></span>
+          <span class="poster-art"><img src="{{ base }}/api/apps/{{ a.name }}/logo" alt="" loading="lazy" data-fallback="{{ KIND_ICON[a.kind]|default('') }}"></span>
           <span class="poster-title">{{ a.name }}</span>
           <span class="note-stats">loading…</span>
           <span class="poster-more">{{ more }}</span>
@@ -112,7 +110,7 @@
         {% if url %}</a>{% else %}</div>{% endif %}
         {% else %}
         {% if url %}<a class="card" href="{{ url }}" target="_blank" rel="noopener" title="Open {{ a.name }}: {{ url }}">{% else %}<div class="card nolink" title="{{ a.link.note }}">{% endif %}
-          <span class="card-art poster-art"><img src="/api/apps/{{ a.name }}/logo" alt="" loading="lazy" data-fallback="{{ KIND_ICON[a.kind]|default('') }}"></span>
+          <span class="card-art poster-art"><img src="{{ base }}/api/apps/{{ a.name }}/logo" alt="" loading="lazy" data-fallback="{{ KIND_ICON[a.kind]|default('') }}"></span>
           <span class="card-body">
             <span class="card-top"><span class="dot pending"></span><b class="card-title">{{ a.name }}</b><span class="poster-ver"></span>
               <span class="card-speed" hidden></span><span class="card-warn" hidden>{{ i.icon('warning', 'ico-i') }}</span></span>
@@ -134,4 +132,4 @@
 {% endfor %}
 </div>
 {% endblock %}
-{% block scripts %}<script src="/static/home.js?v={{ asset_v }}"></script>{% endblock %}
+{% block scripts %}<script src="{{ base }}/static/home.js?v={{ asset_v }}"></script>{% endblock %}

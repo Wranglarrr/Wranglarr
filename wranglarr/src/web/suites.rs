@@ -320,7 +320,7 @@ async fn settings_form(
     let enabled = f.get("enabled").map(String::as_str).unwrap_or("off") == "on";
     let (keep_last, keep_days) = (form_int(&f, "keep_last", 14)?, form_int(&f, "keep_days", 0)?);
     app.save_settings(&suite, &schedule, enabled, keep_last, keep_days).await?;
-    Ok(Redirect::to(&format!("/suites/{suite}")))
+    Ok(Redirect::to(&crate::url_base::prefix(&app.deployment().proxy.url_base, &format!("/suites/{suite}"))))
 }
 
 // ---- JSON API -------------------------------------------------------------------------

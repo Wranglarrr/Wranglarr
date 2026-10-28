@@ -79,7 +79,6 @@ pub const AUTH_KEYS: &[&str] = &[
 
 static HOST_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$").expect("static regex"));
-static URL_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^https?://[^/\s]+/?$").expect("static regex"));
 static ENV_KEY_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^\s*([A-Za-z_][A-Za-z0-9_]*)=").expect("static regex"));
 static HEAD_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*\[").expect("static regex"));
@@ -194,6 +193,9 @@ pub struct Answers {
     pub ports: BTreeMap<String, i64>,
     #[serde(deserialize_with = "input::whole_number")]
     pub wranglarr_port: i64,
+    pub wranglarr_url_base: String,
+    /// This machine's IP address on the network (HOST_IP); blank: init.sh finds it.
+    pub host_ip: String,
     pub gluetun_api_key: String,
     pub nzbget_user: String,
     pub nzbget_pass: String,
@@ -230,6 +232,8 @@ impl Default for Answers {
             postgres_password: String::new(),
             ports: BTreeMap::new(),
             wranglarr_port: 8787,
+            wranglarr_url_base: String::new(),
+            host_ip: String::new(),
             gluetun_api_key: String::new(),
             nzbget_user: default_user(&service::nzbget::DEF).into(),
             nzbget_pass: String::new(),
@@ -251,7 +255,7 @@ impl Default for Answers {
 }
 
 impl Answers {
-    fn strings(&self) -> [(&'static str, &str); 19] {
+    fn strings(&self) -> [(&'static str, &str); 20] {
         [
             ("tz", &self.tz),
             ("umask", &self.umask),
@@ -272,6 +276,7 @@ impl Answers {
             ("auth_cookie_domain", &self.auth_cookie_domain),
             ("auth_login_url", &self.auth_login_url),
             ("backup_cron", &self.backup_cron),
+            ("wranglarr_url_base", &self.wranglarr_url_base),
         ]
     }
 
@@ -416,9 +421,18 @@ pub fn check_auth(a: &Answers) -> Result<()> {
             return Err(Error::invalid(format!("cookie domain {d:?}: a domain like example.com, no scheme or port")));
         }
         let u = a.auth_login_url.trim();
-        if !u.is_empty() && !URL_RE.is_match(u) {
+        if !u.is_empty()
+            && (crate::links::check_url(u, "wranglarr's address").is_err()
+                || crate::links::parse_url(u).is_none_or(|p| {
+                    !p.username().is_empty()
+                        || p.password().is_some()
+                        || p.query().is_some()
+                        || p.fragment().is_some()
+                        || crate::url_base::check(p.path()).is_err()
+                }))
+        {
             return Err(Error::invalid(
-                "wranglarr's address: like https://wranglarr.example.com, nothing after the host",
+                "wranglarr's address: like https://wranglarr.example.com or https://example.com/wranglarr, without credentials, query or fragment",
             ));
         }
         let host = crate::links::parse_url(u).as_ref().and_then(crate::links::url_host).unwrap_or_default();
@@ -635,6 +649,18 @@ pub fn render_env(a: &Answers, image: &str) -> Result<String> {
     }
     l.extend([format!("WRANGLARR_PORT={}", a.wranglarr_port), String::new()]);
     l.extend([
+        "# Browser URL base; the reverse proxy passes this path through unchanged.".into(),
+        line("WRANGLARR_URL_BASE", &crate::url_base::check(&a.wranglarr_url_base)?)?,
+        String::new(),
+    ]);
+    l.extend([
+        "# This machine's IP address on your network (not a domain name), for wranglarr's links".into(),
+        "# and the reverse proxy config. Found by setup or ./scripts/init.sh: change it only if".into(),
+        "# this .env goes to another machine (blank: init.sh finds it again).".into(),
+        line("HOST_IP", &host_ip(&a.host_ip)?)?,
+        String::new(),
+    ]);
+    l.extend([
         "# wranglarr -> gluetun control server".into(),
         line("GLUETUN_API_KEY", &a.gluetun_api_key)?,
         String::new(),
@@ -785,7 +811,8 @@ pub fn next_steps(a: &Answers, env: &Env, target: &Path, scan: &Value, restore_c
     } else {
         steps.push("In the stack directory run: ./scripts/init.sh  (POSIX shell / WSL; it generates and patches the arr configs, creates the databases and starts everything).".into());
     }
-    steps.push(format!("Open wranglarr at http://<this host>:{} and create its admin account. It asks for a one-time setup code from its log: docker compose logs wranglarr. Then, under Account, turn on two-factor or add a passkey.", a.wranglarr_port));
+    let host = if a.host_ip.trim().is_empty() { "<this host>" } else { a.host_ip.trim() };
+    steps.push(format!("Open wranglarr at http://{}:{}{} and create its admin account. It asks for a one-time setup code from its log: docker compose logs wranglarr. Then, under Account, turn on two-factor or add a passkey.", crate::links::host_part(host), a.wranglarr_port, a.wranglarr_url_base.trim().trim_end_matches('/')));
     if restore_count > 0 {
         steps.push(format!(
             "wranglarr will show a pending restore plan ({restore_count} item(s)); run it from the banner once the apps are up."
@@ -836,6 +863,17 @@ fn default_user(d: &ServiceDef) -> &'static str {
         service::Credentials::UserPassword { default_user, .. } => default_user,
         service::Credentials::ApiKey { .. } => "",
     }
+}
+
+/// HOST_IP as written: an IP address (brackets dropped), or "" for init.sh to find.
+fn host_ip(v: &str) -> Result<String> {
+    let v = v.trim().trim_matches(|c| c == '[' || c == ']');
+    if v.is_empty() || v.parse::<std::net::IpAddr>().is_ok() {
+        return Ok(v.to_string());
+    }
+    Err(Error::invalid(format!(
+        "this machine's IP {v:?}: an IP address like 192.168.1.10, not a name or a port (blank: init.sh finds it)"
+    )))
 }
 
 #[cfg(test)]
@@ -953,5 +991,38 @@ mod tests {
             mask_secrets("POSTGRES_PASSWORD=x\nPOSTGRES_USER=arr\nNZBGET_PASS=\n"),
             "POSTGRES_PASSWORD=••••••\nPOSTGRES_USER=arr\nNZBGET_PASS=\n"
         );
+    }
+
+    #[test]
+    fn host_ip_is_an_ip_address_or_blank() {
+        assert_eq!(host_ip(" 192.168.1.10 ").expect("ip"), "192.168.1.10");
+        assert_eq!(host_ip("[fd00::5]").expect("ipv6"), "fd00::5");
+        assert_eq!(host_ip("").expect("blank: init.sh finds it"), "");
+        for bad in ["nas.local", "wranglarr.example.com", "192.168.1.10:8787", "http://192.168.1.10"] {
+            assert!(host_ip(bad).is_err(), "{bad}");
+        }
+        let a = Answers { host_ip: "192.168.1.10".into(), postgres_password: "x".into(), ..Default::default() };
+        assert!(render_env(&a, "img").expect("env").contains("\nHOST_IP=192.168.1.10\n"));
+    }
+
+    #[test]
+    fn login_addresses_may_include_the_url_base() {
+        let tunnel = |url: &str| Answers {
+            apps_auth: "tunnel".into(),
+            auth_cookie_domain: "example.com".into(),
+            auth_login_url: url.into(),
+            ..Default::default()
+        };
+        check_auth(&tunnel("https://example.com/wranglarr")).expect("login at a path");
+        for bad in [
+            "https://example.com/w?x=1",
+            "https://example.com/w#x",
+            "https://u:p@example.com/w",
+            "https://example.com/api",
+        ] {
+            assert!(check_auth(&tunnel(bad)).is_err(), "{bad}");
+        }
+        let a = Answers { wranglarr_url_base: "/w/".into(), postgres_password: "x".into(), ..Default::default() };
+        assert!(render_env(&a, "img").expect("env").contains("WRANGLARR_URL_BASE=/w\n"));
     }
 }

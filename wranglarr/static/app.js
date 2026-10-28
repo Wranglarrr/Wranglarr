@@ -1,4 +1,9 @@
 const W = (() => {
+  const base = document.querySelector('meta[name="wranglarr-base"]')?.content || '';
+  const appUrl = path => {
+    const p = String(path), bare = p.split(/[?#]/, 1)[0];
+    return !base || !p.startsWith('/') || p.startsWith('//') || bare === base || bare.startsWith(base + '/') ? p : base + p;
+  };
   const fmtBytes = n => { if (!n && n !== 0) return '?'; const u = ['B','KB','MB','GB','TB','PB']; let i = 0; n = +n;
     while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; } return (i ? n.toFixed(1) : n) + ' ' + u[i]; };
   const fmtN = n => (+n).toLocaleString();
@@ -63,10 +68,10 @@ const W = (() => {
   }
 
   async function api(method, url, body) {
-    const r = await fetch(url, { method, headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined });
+    const r = await fetch(appUrl(url), { method, headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined });
     let j = {}; try { j = await r.json(); } catch (e) {}
     if (r.status === 401 && !url.startsWith('/api/auth/')) {        // signed out (expired, or ended elsewhere)
-      location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search);
+      location.href = appUrl('/login?next=') + encodeURIComponent(appUrl(location.pathname + location.search));
       throw new Error('signed out');
     }
     if (!r.ok) throw new Error(j.error || j.detail || r.statusText);
@@ -114,7 +119,7 @@ const W = (() => {
 
   async function runAction(btn, method, url, body, label) {
     btn.disabled = true;
-    try { const r = await api(method, url, body); toast(`${label} started (run #${r.run})`); location.href = `/runs/${r.run}`; }
+    try { const r = await api(method, url, body); toast(`${label} started (run #${r.run})`); location.href = appUrl(`/runs/${r.run}`); }
     catch (e) { toast(`${label} failed: ${e.message}`, true); btn.disabled = false; }
   }
 
@@ -192,7 +197,7 @@ const W = (() => {
     else if (d.ixEdit) ixForm(JSON.parse(document.getElementById('ix-sources').textContent)[d.ixEdit]);
     else if (d.ixCancel !== undefined) document.getElementById('ix-form-panel').hidden = true;
     else if (d.ixDelete) ask({ title: `Remove ${d.name}?`, body: d.type === 'prowlarr' ? 'wranglarr stops managing it. The arrs stay registered in that Prowlarr: remove them there if you want them gone.' : 'The indexers wranglarr added for it are removed from the arrs.', ok: 'Remove', danger: true })
-      .then(yes => yes && api('DELETE', `/api/indexers/sources/${d.ixDelete}`).then(r => r.run ? location.href = `/runs/${r.run}` : location.reload()).catch(err => toast(err.message, true)));
+      .then(yes => yes && api('DELETE', `/api/indexers/sources/${d.ixDelete}`).then(r => r.run ? location.href = appUrl(`/runs/${r.run}`) : location.reload()).catch(err => toast(err.message, true)));
     else if (d.ixSync !== undefined) runAction(b, 'POST', '/api/indexers/sync', null, 'indexer sync');
     else if (d.theme !== undefined) toggleTheme();
     else if (d.vpnRefresh !== undefined) { api('GET', '/api/vpn?refresh=1').then(() => location.reload()); }
@@ -238,7 +243,7 @@ const W = (() => {
       api('POST', '/api/indexers/sources', { id: el.id.value, type: el.type.value, name: el.name.value, url: el.url.value,
         api_key: el.api_key.value, apply_to: on.length === picked.length ? [] : on, enabled: el.enabled.checked,
         priority: +el.priority.value, min_seeders: +el.min_seeders.value, torrents: el.torrents.checked })
-        .then(r => { toast('saved'); location.href = r.run ? `/runs/${r.run}` : '/indexers'; }).catch(err => toast(err.message, true));
+        .then(r => { toast('saved'); location.href = appUrl(r.run ? `/runs/${r.run}` : '/indexers'); }).catch(err => toast(err.message, true));
       return;
     }
     const f = e.target.closest('form[data-update-settings]'); if (!f) return;
@@ -259,7 +264,7 @@ const W = (() => {
     const wants = document.querySelector('[id^="overview-"], .app-col[data-suite], [data-live]');
     if (!wants || !window.EventSource) return;
     let seen = false;
-    const es = new EventSource('/api/events/stream');
+    const es = new EventSource(appUrl('/api/events/stream'));
     es.onmessage = m => {
       let d; try { d = JSON.parse(m.data); } catch (e) { return; }
       // the first hello is this page opening; a later one, a reconnect that may have missed something
@@ -304,10 +309,10 @@ const W = (() => {
   // a small logo an app doesn't serve: show its emoji instead
   // a logo that doesn't load: the kind's shipped one (data-fallback), then nothing
   const logoFallback = img => { const f = img.dataset.fallback; img.removeAttribute('data-fallback');
-    if (f) img.src = f; else img.style.visibility = 'hidden'; };
+    if (f) img.src = appUrl(f); else img.style.visibility = 'hidden'; };
   document.querySelectorAll('img[data-fallback]').forEach(img => { if (img.complete && !img.naturalWidth) logoFallback(img); });
   document.addEventListener('error', e => { if (e.target.matches?.('img[data-fallback]')) logoFallback(e.target);
     else if (e.target.matches?.('img.ico-logo, img.mini-logo, img.dl-arr')) e.target.style.visibility = 'hidden'; }, true);
 
-  return { loadOverview, followRun, toast, api, esc, safeUrl, fmtBytes, fmtN, ask, icon, service, LABELS };
+  return { loadOverview, followRun, toast, api, esc, safeUrl, fmtBytes, fmtN, ask, icon, service, LABELS, base, url: appUrl };
 })();

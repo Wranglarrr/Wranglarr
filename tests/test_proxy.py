@@ -1,5 +1,7 @@
 """Reverse proxy config: every proxy kind x style renders, with and without AuthTunnel
 (APPS_AUTH=tunnel sends the gated apps through wranglarr-gate), plus a few spot checks."""
+import copy
+
 import pytest
 
 from harness import Server, base_toml, suite_toml
@@ -26,18 +28,26 @@ def srv(request, tmp_path_factory):
 @pytest.mark.parametrize("kind", KINDS)
 def test_render(srv, kind, style):
     docker = "labels" in kind
+    apps = copy.deepcopy(APPS)
+    if kind == "cloudflared":
+        for name in ("sabnzbd", "qbittorrent"):
+            apps[name]["expose"] = "off"
+    elif kind == "npm" and style == "path":
+        for app in apps.values():
+            app["expose"] = "public"
     with srv.client() as c:
         r = c.put("/api/proxy", json={"kind": kind, "style": style, "domain": "example.com",
                                       "upstream": "docker" if docker else "host", "upstream_host": "192.168.1.10",
-                                      "apps": APPS})
+                                      "apps": apps})
         assert r.status_code == 200, r.text
         j = r.json()
-        assert j["settings"]["kind"] == kind and j["settings"]["apps"]["qbittorrent"] == {"expose": "lan", "sub": "qb"}
+        assert j["settings"]["kind"] == kind
+        assert j["settings"]["apps"]["qbittorrent"] == {"at": "direct" if kind == "cloudflared" else "", "local": apps["qbittorrent"]["expose"] != "public", "sub": "qb"}, "the older form still reads"
         text = j["text"]
         assert text.strip() and isinstance(j["notes"], list)
         assert "wranglarr.example.com" in text, "wranglarr always gets a name of its own"
         assert "radarr" in text
-        if kind == "cloudflared":               # a tunnel is public: the LAN-only apps stay out of it
+        if kind == "cloudflared":               # local apps explicitly use Direct IP
             assert "qb.example.com" not in text and "sabnzbd" not in text
         else:
             assert ("qb.example.com" if style == "subdomain" else "/qb") in text, "the custom name for qbittorrent"
@@ -67,12 +77,12 @@ def test_links_follow_the_proxy_when_wranglarr_is_opened_through_it(srv):
         proxied = c.get("/api/links", headers={"Host": "wranglarr.example.com"}).json()["links"]
         assert proxied["radarr"]["url"] == "https://movies.example.com/" and proxied["radarr"]["how"] == "proxy"
         assert proxied["qbittorrent"]["url"] == "https://qbittorrent.example.com/", "not set: proxied, LAN only"
-        assert proxied["sabnzbd"]["how"] == "none" and proxied["sabnzbd"]["note"].startswith("local only"), \
+        assert proxied["sabnzbd"]["how"] == "none" and "local only" in proxied["sabnzbd"]["note"], \
             "not proxied, and no local address known: no link, rather than wranglarr's name and a port"
         # the Reverse proxy page's "this machine's address" is the local one
         assert c.put("/api/proxy", json={"upstream_host": "192.168.1.20"}).status_code == 200
         sab = c.get("/api/links", headers={"Host": "wranglarr.example.com"}).json()["links"]["sabnzbd"]
-        assert sab["url"] == "http://192.168.1.20:8080/" and sab["note"].startswith("local only"), sab
+        assert sab["url"] == "http://192.168.1.20:8080/" and "local only" in sab["note"], sab
         # opened by IP: the apps open by IP and port, as before
         direct = c.get("/api/links", headers={"Host": "192.168.1.10:8787"}).json()["links"]
         assert direct["radarr"]["how"] != "proxy" and "192.168.1.10" in (direct["radarr"]["url"] or "192.168.1.10")
@@ -82,5 +92,19 @@ def test_links_follow_the_proxy_when_wranglarr_is_opened_through_it(srv):
         fixed = c.get("/api/links", headers={"Host": "wranglarr.example.com"}).json()["links"]
         assert fixed["radarr"]["url"] == "https://movies.example.com/", "the proxy's names still come first"
         sab = fixed["sabnzbd"]
-        assert sab["url"] == "http://10.0.0.5:8080/" and sab["note"].startswith("local only"), sab
+        assert sab["url"] == "http://10.0.0.5:8080/" and "local only" in sab["note"], sab
+        # the Links panel: wranglarr first, then each app with its place, port and addresses
+        panel = c.get("/api/links", headers={"Host": "wranglarr.example.com"}).json()["panel"]
+        names = [a["name"] for a in panel["apps"]]
+        assert names[0] == "wranglarr" and "sabnzbd" in names, names
+        sab = next(a for a in panel["apps"] if a["name"] == "sabnzbd")
+        assert (sab["at"], sab["port"], sab["direct"]) == ("direct", 8080, "http://10.0.0.5:8080/"), sab
+        assert panel["domain"] == "example.com" and panel["this_machine"] == "10.0.0.5", panel
+        # an app under wranglarr's name, local only
+        r = c.put("/api/proxy", json={"apps": {"wranglarr": {"at": "subdomain", "local": False},
+                                               "radarr": {"at": "subdomain", "local": False, "sub": "movies"},
+                                               "sabnzbd": {"at": "path", "local": True}}})
+        assert r.status_code == 200, r.text
+        sab = c.get("/api/links", headers={"Host": "wranglarr.example.com"}).json()["links"]["sabnzbd"]
+        assert sab["url"] == "https://wranglarr.example.com/sabnzbd/" and sab["how"] == "proxy", sab
         c.delete("/api/links")
