@@ -98,6 +98,7 @@ Set by the setup wizard (`wranglarr-setup --auth` to change them) and applied by
 | `VPN_USER` / `VPN_PASSWORD` | | `OPENVPN_USER` / `OPENVPN_PASSWORD` | provider account; OpenVPN always, PIA/ProtonVPN WireGuard port forwarding too |
 | `VPN_PORT_FORWARDING` | `off` | same | ask the provider for an inbound port (PIA, ProtonVPN, Perfect Privacy, PrivateVPN) |
 | `VPN_PORT_FORWARDING_PROVIDER` | | same | only when using `custom` with one of those providers' configs |
+| `VPN_PORT_FORWARD_ONLY` | | `PORT_FORWARD_ONLY` | `on`: only servers that can forward a port (PIA, ProtonVPN's P2P servers) |
 | `OPENVPN_PROTOCOL` | `udp` | same | `udp` / `tcp` |
 | `OPENVPN_CUSTOM_CONFIG` | | same | `/gluetun/custom.conf` for your own `.ovpn` at `appdata/vpn/custom.conf` |
 | `OPENVPN_CIPHERS` | | same | override if the provider needs it |

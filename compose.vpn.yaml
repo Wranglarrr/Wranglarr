@@ -23,17 +23,10 @@
 #   - if the vpn CONTAINER is recreated (not just the tunnel, which gluetun
 #     heals itself), the apps in it must be restarted (docker compose restart ...).
 # Only apps enabled in COMPOSE_PROFILES exist, so unused entries are harmless.
-# Needs Docker Compose >= 2.24 for the !reset tags.
+# Needs Docker Compose >= 2.24 for the !reset tags. They're written out per
+# service rather than through a YAML anchor, which some versions mishandle.
 #
 # Docs: https://github.com/qdm12/gluetun-wiki  (providers/, options/)
-
-x-via-vpn-nodb: &via-vpn-nodb
-  network_mode: "service:vpn"
-  networks: !reset []
-  ports: !reset []
-  depends_on:
-    vpn:
-      condition: service_healthy
 
 services:
   vpn:
@@ -74,6 +67,8 @@ services:
       OPENVPN_CIPHERS: ${OPENVPN_CIPHERS:-}
       VPN_PORT_FORWARDING: ${VPN_PORT_FORWARDING:-off}
       VPN_PORT_FORWARDING_PROVIDER: ${VPN_PORT_FORWARDING_PROVIDER:-}
+      # on = only servers that can forward a port (PIA, ProtonVPN P2P servers)
+      PORT_FORWARD_ONLY: ${VPN_PORT_FORWARD_ONLY:-}
       # LAN subnets the apps in the tunnel may talk to directly (NAS, your download client on
       # another host, ...).  The Docker network itself is always allowed.
       FIREWALL_OUTBOUND_SUBNETS: ${VPN_LAN_NETWORK:-}
@@ -85,9 +80,11 @@ services:
       # Control server (port 8000, docker network only): wranglarr reads VPN
       # status / public IP / forwarded port with this key.
       HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE: '{"auth":"apikey","apikey":"${GLUETUN_API_KEY:?set GLUETUN_API_KEY in .env}"}'
-      # With VPN_PORT_FORWARDING=on and qBittorrent enabled, push the forwarded
-      # port into qBittorrent (needs "bypass auth for localhost" in its UI):
-      # VPN_PORT_FORWARDING_UP_COMMAND: /bin/sh -c 'wget -O- -nv --retry-connrefused --post-data "json={\"listen_port\":{{PORT}},\"current_network_interface\":\"{{VPN_INTERFACE}}\",\"random_port\":false,\"upnp\":false}" http://127.0.0.1:8090/api/v2/app/setPreferences'
+      # With VPN_PORT_FORWARDING=on, push the forwarded port into qBittorrent and
+      # bind it to the tunnel's interface. It needs "Bypass authentication for
+      # clients on localhost" ticked in qBittorrent's Web UI options; without
+      # qBittorrent (or with the box unticked) it fails and nothing else changes.
+      VPN_PORT_FORWARDING_UP_COMMAND: /bin/sh -c 'wget -O- -nv --retry-connrefused --post-data "json={\"listen_port\":{{PORT}},\"current_network_interface\":\"{{VPN_INTERFACE}}\",\"random_port\":false,\"upnp\":false}" http://127.0.0.1:8090/api/v2/app/setPreferences'
     # gluetun's own check, spelled out: Podman ignores the one in the image
     healthcheck:
       test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
@@ -108,11 +105,28 @@ services:
         aliases: [qbittorrent, sabnzbd, nzbget]
 
   qbittorrent:
-    <<: *via-vpn-nodb
+    network_mode: "service:vpn"
+    # !reset is written out per service: some Compose versions (2.35, for
+    # one) drop it when it arrives through a YAML merge (<<), and refuse the file.
+    networks: !reset []
+    ports: !reset []
+    depends_on:
+      vpn:
+        condition: service_healthy
   sabnzbd:
-    <<: *via-vpn-nodb
+    network_mode: "service:vpn"
+    networks: !reset []
+    ports: !reset []
+    depends_on:
+      vpn:
+        condition: service_healthy
   nzbget:
-    <<: *via-vpn-nodb
+    network_mode: "service:vpn"
+    networks: !reset []
+    ports: !reset []
+    depends_on:
+      vpn:
+        condition: service_healthy
 
   # tell wranglarr the VPN exists (enables its [vpn] section) and what is in it
   wranglarr:
