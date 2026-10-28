@@ -127,7 +127,7 @@ arr and in Prowlarr too.
 | `APPS_LOGIN_USER`, `APPS_LOGIN_PASSWORD` | | `apps`: the login |
 | `APPS_AUTH_REQUIRED` | `enabled` | `apps`: `enabled` (everywhere) or `disabledForLocalAddresses` |
 | `AUTH_COOKIE_DOMAIN` | empty | `tunnel`: e.g. `example.com` |
-| `AUTH_LOGIN_URL` | empty | `tunnel`: wranglarr's name on your reverse proxy, e.g. `https://wranglarr.example.com`, used for apps opened under `AUTH_COOKIE_DOMAIN`; otherwise (and when empty) the address you opened the app at, port `WRANGLARR_PORT` |
+| `AUTH_LOGIN_URL` | empty | `tunnel`: wranglarr's name on your reverse proxy, e.g. `https://wranglarr.example.com`, or `https://example.com/wranglarr` with `WRANGLARR_URL_BASE=/wranglarr`, used for apps opened under `AUTH_COOKIE_DOMAIN`; otherwise (and when empty) the address you opened the app at, port `WRANGLARR_PORT` |
 | `GATE_IMAGE` | `docker.io/nginxinc/nginx-unprivileged:1.27-alpine` | `tunnel`: the gate's image |
 
 init writes `/config/apps-auth.json` (no passwords) with what it did per app;
