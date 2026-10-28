@@ -36,10 +36,14 @@ concurrency:
 
 env:
   # on each platform's image (labels) and on the multi-platform index (annotations,
-  # which is what the registry page shows)
+  # which is what the registry page shows); metadata-action adds the source repo,
+  # revision and created time. wranglarr/Dockerfile's LABEL has the same for local builds.
   OCI_META: |
     org.opencontainers.image.title=wranglarr
     org.opencontainers.image.description=Backup, version, restore and update a *arr stack on Postgres
+    org.opencontainers.image.source=https://github.com/Wranglarrr/Wranglarr
+    org.opencontainers.image.url=https://wranglarrr.github.io/Wranglarr/
+    org.opencontainers.image.documentation=https://wranglarrr.github.io/Wranglarr/
     org.opencontainers.image.licenses=GPL-3.0-or-later
 
 jobs:
