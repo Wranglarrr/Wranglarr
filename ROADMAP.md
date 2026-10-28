@@ -2,7 +2,7 @@
 
 What's planned for wranglarr, in the order it's meant to happen. It's a plan,
 not a promise: things move as they're built and tried. What has shipped is in the
-[release notes](wiki/Release-Notes.md).
+[release notes](https://github.com/Wranglarrr/Wranglarr/wiki/Release-Notes).
 
 ## Next
 

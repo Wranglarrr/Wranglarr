@@ -22,7 +22,7 @@ on:
   push:
     branches: [main]
     tags: ["v*.*.*"]
-    paths-ignore: ["wiki/**", "**.md", "site/**", "assets/**", ".github/workflows/pages.yml"]
+    paths-ignore: ["wiki/**", "**.md", "site/**", "assets/**", ".github/workflows/pages.yml", ".github/workflows/wiki.yml", "scripts/build-wiki.py"]
   pull_request:
     paths: ["wranglarr/**", "scripts/smoke-image.sh", ".github/workflows/image.yml", ".github/workflows/rust.yml"]
   workflow_dispatch:

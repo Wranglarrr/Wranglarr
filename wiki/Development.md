@@ -12,7 +12,7 @@ For running the stack, start at the [Quickstart](Quickstart.md).
 | `wranglarr/` | the app: a Rust workspace, built into the image `ghcr.io/wranglarrr/wranglarr` |
 | `tests/` | the black-box suite: Python, talks to a running wranglarr over HTTP only |
 | `wiki/`, `README.md`, `site/` | the docs, and the site that renders them |
-| `.github/workflows/` | `rust.yml` (checks and tests), `image.yml` (the image), `pages.yml` (the docs site) |
+| `.github/workflows/` | `rust.yml` (checks and tests), `image.yml` (the image), `pages.yml` (the docs site), `wiki.yml` (copies `wiki/` to the GitHub wiki) |
 
 ## The app
 

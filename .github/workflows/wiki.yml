@@ -1,0 +1,50 @@
+# Copies wiki/ to the GitHub wiki (the repo's Wiki tab), with the links
+# rewritten for it by scripts/build-wiki.py. wiki/ is the source: edits made in
+# the Wiki tab are replaced on the next run.
+#
+# Once, before the first run: open the Wiki tab and save any page, which
+# creates the wiki's git repo. This workflow then replaces that page.
+name: wiki
+
+on:
+  push:
+    branches: [main]
+    paths: ["wiki/**", "site/index.html", "scripts/build-wiki.py", ".github/workflows/wiki.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wiki
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the wiki
+        run: python3 scripts/build-wiki.py "$RUNNER_TEMP/built"
+
+      - name: Push it to the wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+          if ! git clone --depth 1 "$url" "$RUNNER_TEMP/wiki"; then
+            echo "::error::no wiki repo yet: open the Wiki tab, save any page, then re-run this workflow"
+            exit 1
+          fi
+          cd "$RUNNER_TEMP/wiki"
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -r "$RUNNER_TEMP/built/." .
+          git add -A
+          if git diff --cached --quiet; then
+            echo "wiki already up to date"; exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "wiki from ${GITHUB_SHA::7}"
+          git push -q origin HEAD

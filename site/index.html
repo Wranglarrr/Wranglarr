@@ -302,6 +302,7 @@ article td:first-child code { white-space: nowrap; }
     ['Using wranglarr', [
       ['Dashboard', 'wiki/Dashboard.md', 'Dashboard, links and logins'],
       ['Notifications', 'wiki/Notifications.md', 'Notifications'],
+      ['Live-Status', 'wiki/Live-Status.md', 'Live status'],
       ['Connections', 'wiki/Connections.md', 'Connections: media servers, Seerr'],
       ['Backups-and-Restore', 'wiki/Backups-and-Restore.md', 'Backups and restore'],
       ['Updates', 'wiki/Updates.md', 'Container updates'],
@@ -448,6 +449,9 @@ article td:first-child code { white-space: nowrap; }
       if (a.classList.contains('anchor')) return;
       const raw = a.getAttribute('href');
       if (raw.startsWith('#')) { a.setAttribute('href', href(current, decodeURIComponent(raw.slice(1)))); return; }
+      // a page's GitHub wiki URL (the README links there) opens the page here
+      const w = REPO && raw.match(new RegExp('^' + REPO.replace(/[.]/g, '\\.') + '/wiki(?:/([^/#?]+))?(?:#(.*))?$'));
+      if (w) { a.setAttribute('href', href(w[1] || 'Home', decodeURIComponent(w[2] || ''))); return; }
       const t = resolve(raw, path);
       if (!t) { a.target = '_blank'; a.rel = 'noopener'; return; }
       if (t.path.endsWith('.md')) { a.setAttribute('href', href(pathToRoute(t.path), t.frag)); return; }

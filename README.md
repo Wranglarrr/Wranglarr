@@ -6,12 +6,12 @@ plus the app that sets it up, wires it together, backs it up and keeps it update
 
 <p align="center">
   <a href="https://wranglarrr.github.io/Wranglarr/"><b>Docs site</b></a> ·
-  <a href="wiki/Quickstart.md"><b>Quickstart</b></a> ·
-  <a href="wiki/Home.md"><b>Wiki</b></a> ·
+  <a href="https://github.com/Wranglarrr/Wranglarr/wiki/Quickstart"><b>Quickstart</b></a> ·
+  <a href="https://github.com/Wranglarrr/Wranglarr/wiki"><b>Wiki</b></a> ·
   <a href="#features"><b>Features</b></a> ·
-  <a href="wiki/API.md"><b>API</b></a> ·
-  <a href="wiki/Troubleshooting.md"><b>Troubleshooting</b></a> ·
-  <a href="wiki/Release-Notes.md"><b>Release notes</b></a> ·
+  <a href="https://github.com/Wranglarrr/Wranglarr/wiki/API"><b>API</b></a> ·
+  <a href="https://github.com/Wranglarrr/Wranglarr/wiki/Troubleshooting"><b>Troubleshooting</b></a> ·
+  <a href="https://github.com/Wranglarrr/Wranglarr/wiki/Release-Notes"><b>Release notes</b></a> ·
   <a href="ROADMAP.md"><b>Roadmap</b></a>
 </p>
 
@@ -42,13 +42,13 @@ plus the app that sets it up, wires it together, backs it up and keeps it update
 <picture><source media="(prefers-color-scheme: dark)" srcset="wiki/images/readme/suite-media-dark.png"><img src="wiki/images/readme/suite-media-light.png" alt="A backup suite with its schedule, retention and versions"></picture>
 <h3>Scheduled, versioned backups</h3>
 Databases (<code>pg_dump</code>), each app's own config backup and a plain copy of <code>/config</code>, grouped into suites. Cron schedule, keep-last / keep-days retention, size history, and what changed since the last version (an app upgraded, +12 movies).
-<br><a href="wiki/Backups-and-Restore.md">Backups and restore →</a>
+<br><a href="https://github.com/Wranglarrr/Wranglarr/wiki/Backups-and-Restore">Backups and restore →</a>
 </td>
 <td width="50%" valign="top">
 <picture><source media="(prefers-color-scheme: dark)" srcset="wiki/images/readme/version-dark.png"><img src="wiki/images/readme/version-light.png" alt="One backup version with per-app restore buttons"></picture>
 <h3>Restore per app, or without wranglarr</h3>
 Restore an app's databases, its config or both, with checksums verified first. Every version also carries a pinned <code>compose.yaml</code> that restores Postgres on first start, so it runs on its own.
-<br><a href="wiki/Backups-and-Restore.md#without-wranglarr">Running a version on its own →</a>
+<br><a href="https://github.com/Wranglarrr/Wranglarr/wiki/Backups-and-Restore#without-wranglarr">Running a version on its own →</a>
 </td>
 </tr>
 <tr>
@@ -56,13 +56,13 @@ Restore an app's databases, its config or both, with checksums verified first. E
 <picture><source media="(prefers-color-scheme: dark)" srcset="wiki/images/readme/updates-dark.png"><img src="wiki/images/readme/updates-light.png" alt="The Updates page listing every container and its image status"></picture>
 <h3>Container updates with a safety net</h3>
 Checks the registries without pulling. Choose an update track per container, including wranglarr's development builds. An update backs up first, recreates the container with the same settings, waits for it to be healthy and puts the old one back if it isn't. Rollback, holds, scheduled auto-update, and no surprise Postgres major upgrades.
-<br><a href="wiki/Updates.md">Container updates →</a>
+<br><a href="https://github.com/Wranglarrr/Wranglarr/wiki/Updates">Container updates →</a>
 </td>
 <td width="50%" valign="top">
 <picture><source media="(prefers-color-scheme: dark)" srcset="wiki/images/readme/wizard-dark.png"><img src="wiki/images/readme/wizard-light.png" alt="The setup wizard's service picker"></picture>
 <h3>A setup wizard, not a wall of YAML</h3>
 One <code>docker run</code> opens a web wizard: pick services, users, storage (checked for ownership, free space and hardlinks), VPN and logins. It writes your <code>.env</code>, then <code>init.sh</code> builds the rest.
-<br><a href="wiki/Quickstart.md">Quickstart →</a>
+<br><a href="https://github.com/Wranglarrr/Wranglarr/wiki/Quickstart">Quickstart →</a>
 </td>
 </tr>
 <tr>
@@ -70,13 +70,13 @@ One <code>docker run</code> opens a web wizard: pick services, users, storage (c
 <picture><source media="(prefers-color-scheme: dark)" srcset="wiki/images/readme/configs-dark.png"><img src="wiki/images/readme/configs-light.png" alt="Importing a community config with a preview of the changes"></picture>
 <h3>Community configs</h3>
 Custom formats, quality profiles, sizes and release profiles for one job ("x265 first, smallest size", "anime, English dub only"), shared as JSON. See what changes in each arr before applying, remove it again later, test a release name, or export your own.
-<br><a href="wiki/Community-Configs.md">Community configs →</a>
+<br><a href="https://github.com/Wranglarrr/Wranglarr/wiki/Community-Configs">Community configs →</a>
 </td>
 <td width="50%" valign="top">
 <picture><source media="(prefers-color-scheme: dark)" srcset="wiki/images/readme/notifications-dark.png"><img src="wiki/images/readme/notifications-light.png" alt="Notification channels and what wranglarr watches"></picture>
 <h3>Notifications that matter</h3>
 Telegram, Discord, Slack, ntfy, Gotify, Pushover, Apprise, email or a webhook. Failed backups, apps offline, VPN down, low disk, stuck downloads, imports that need you. Each problem once, and again when it clears.
-<br><a href="wiki/Notifications.md">Notifications →</a>
+<br><a href="https://github.com/Wranglarrr/Wranglarr/wiki/Notifications">Notifications →</a>
 </td>
 </tr>
 <tr>
@@ -84,13 +84,13 @@ Telegram, Discord, Slack, ntfy, Gotify, Pushover, Apprise, email or a webhook. F
 <picture><source media="(prefers-color-scheme: dark)" srcset="wiki/images/readme/connections-dark.png"><img src="wiki/images/readme/connections-light.png" alt="Media server and Seerr connections"></picture>
 <h3>Media servers and Seerr</h3>
 Plex (sign in with Plex), Jellyfin, Emby and Kodi are added to the arrs so the library rescans after each import, with path mapping. Seerr gets every Radarr and Sonarr once its own setup is done.
-<br><a href="wiki/Connections.md">Connections →</a>
+<br><a href="https://github.com/Wranglarrr/Wranglarr/wiki/Connections">Connections →</a>
 </td>
 <td width="50%" valign="top">
 <picture><source media="(prefers-color-scheme: dark)" srcset="wiki/images/readme/indexers-dark.png"><img src="wiki/images/readme/indexers-light.png" alt="The Indexers page with Prowlarr's registrations"></picture>
 <h3>Indexers in one place</h3>
 Prowlarr is registered in every arr for you. Trackers, usenet indexers, Jackett, NZBHydra2 or a Prowlarr outside the stack go to the arrs you pick, and come out again when you remove them.
-<br><a href="wiki/Indexers.md">Indexers →</a>
+<br><a href="https://github.com/Wranglarrr/Wranglarr/wiki/Indexers">Indexers →</a>
 </td>
 </tr>
 <tr>
@@ -98,13 +98,13 @@ Prowlarr is registered in every arr for you. Trackers, usenet indexers, Jackett,
 <picture><source media="(prefers-color-scheme: dark)" srcset="wiki/images/readme/proxy-dark.png"><img src="wiki/images/readme/proxy-light.png" alt="The reverse-proxy config generator"></picture>
 <h3>Reverse-proxy config, written for you</h3>
 Caddy, nginx, Traefik, caddy-docker-proxy, Cloudflare Tunnel or Nginx Proxy Manager, generated from the stack as it is. Each app public, LAN only or not proxied, at a name or a path.
-<br><a href="wiki/Reverse-Proxy.md">Reverse proxy →</a> · <a href="wiki/Remote-Access.md">Tailscale and Cloudflare →</a>
+<br><a href="https://github.com/Wranglarrr/Wranglarr/wiki/Reverse-Proxy">Reverse proxy →</a> · <a href="https://github.com/Wranglarrr/Wranglarr/wiki/Remote-Access">Tailscale and Cloudflare →</a>
 </td>
 <td width="50%" valign="top">
 <picture><source media="(prefers-color-scheme: dark)" srcset="wiki/images/readme/account-dark.png"><img src="wiki/images/readme/account-light.png" alt="Account page with password, two-factor, passkeys and API keys"></picture>
 <h3>A real login, built in</h3>
 Password, two-factor (any authenticator app) with recovery codes, and passkeys, with no identity provider to run. API keys for scripts. Optional <b>AuthTunnel</b> puts every app behind the same sign-in.
-<br><a href="wiki/Login.md">Login →</a> · <a href="wiki/App-Logins.md">App logins →</a>
+<br><a href="https://github.com/Wranglarrr/Wranglarr/wiki/Login">Login →</a> · <a href="https://github.com/Wranglarrr/Wranglarr/wiki/App-Logins">App logins →</a>
 </td>
 </tr>
 </table>
@@ -127,14 +127,14 @@ The UI looks like the arrs you already know: dark header, sidebar, page toolbar.
 
 | | |
 | --- | --- |
-| **VPN** | One gluetun tunnel (WireGuard or OpenVPN, any provider) for the download clients, Prowlarr or every app, with a kill switch. Tunnel state, public IP and forwarded port in the header. Or a tunnel per app with hotio images. [Shared tunnel](wiki/VPN-Shared-Tunnel.md) · [Per app](wiki/VPN-Per-App.md) |
-| **App connections** | Every download client in every arr and in Prowlarr (category = the app's name, folders created first), Sonarr and Radarr in Bazarr, every arr in Prowlarr. [App connections](wiki/App-Connections.md) |
-| **Live status** | The arrs and Prowlarr tell wranglarr when something changes, and open pages update on their own. Every app's API key is on one page, and a key changed by hand is picked up: the apps using it are reconnected. [Live status](wiki/Live-Status.md) |
-| **App logins** | The same login set in every app, or AuthTunnel: sign in once to wranglarr and the apps let you through. API keys still pass, so the arrs' mobile apps keep working. [App logins](wiki/App-Logins.md) |
-| **Shared settings** | Define a download client, indexer or notification once and push it to every arr by name. [Shared settings](wiki/Shared-Settings.md) |
-| **Bring your apps** | Move the Radarr, Sonarr, Prowlarr, Bazarr or Seerr you already run into the stack and keep the library and history. [Bringing in existing apps](wiki/Importing-Existing-Apps.md) |
-| **HTTP API** | Everything the UI does is a JSON call, with API keys for scripts and cron jobs. [API reference](wiki/API.md) |
-| **Locked down** | wranglarr runs as your user with no capabilities on a read-only image. [Security](wiki/Security.md) |
+| **VPN** | One gluetun tunnel (WireGuard or OpenVPN, any provider) for the download clients, Prowlarr or every app, with a kill switch. Tunnel state, public IP and forwarded port in the header. Or a tunnel per app with hotio images. [Shared tunnel](https://github.com/Wranglarrr/Wranglarr/wiki/VPN-Shared-Tunnel) · [Per app](https://github.com/Wranglarrr/Wranglarr/wiki/VPN-Per-App) |
+| **App connections** | Every download client in every arr and in Prowlarr (category = the app's name, folders created first), Sonarr and Radarr in Bazarr, every arr in Prowlarr. [App connections](https://github.com/Wranglarrr/Wranglarr/wiki/App-Connections) |
+| **Live status** | The arrs and Prowlarr tell wranglarr when something changes, and open pages update on their own. Every app's API key is on one page, and a key changed by hand is picked up: the apps using it are reconnected. [Live status](https://github.com/Wranglarrr/Wranglarr/wiki/Live-Status) |
+| **App logins** | The same login set in every app, or AuthTunnel: sign in once to wranglarr and the apps let you through. API keys still pass, so the arrs' mobile apps keep working. [App logins](https://github.com/Wranglarrr/Wranglarr/wiki/App-Logins) |
+| **Shared settings** | Define a download client, indexer or notification once and push it to every arr by name. [Shared settings](https://github.com/Wranglarrr/Wranglarr/wiki/Shared-Settings) |
+| **Bring your apps** | Move the Radarr, Sonarr, Prowlarr, Bazarr or Seerr you already run into the stack and keep the library and history. [Bringing in existing apps](https://github.com/Wranglarrr/Wranglarr/wiki/Importing-Existing-Apps) |
+| **HTTP API** | Everything the UI does is a JSON call, with API keys for scripts and cron jobs. [API reference](https://github.com/Wranglarrr/Wranglarr/wiki/API) |
+| **Locked down** | wranglarr runs as your user with no capabilities on a read-only image. [Security](https://github.com/Wranglarrr/Wranglarr/wiki/Security) |
 
 ## Quick start
 
@@ -165,7 +165,7 @@ Mount the drive your media lives on as `/data` so the wizard can check it. Power
 
 Then open wranglarr at http://your-host:8787. After that it's plain `docker compose up -d` / `down`.
 
-> **New here?** The [Quickstart](wiki/Quickstart.md) walks through every step with screenshots. On TrueNAS SCALE, read [TrueNAS SCALE](wiki/TrueNAS.md) first. Prefer no wizard? Copy `.env.example` to `.env`, fill in `DATA_ROOT`, `POSTGRES_PASSWORD`, `TZ`, `PUID`/`PGID` and `COMPOSE_PROFILES`, then run `./scripts/init.sh`.
+> **New here?** The [Quickstart](https://github.com/Wranglarrr/Wranglarr/wiki/Quickstart) walks through every step with screenshots. On TrueNAS SCALE, read [TrueNAS SCALE](https://github.com/Wranglarrr/Wranglarr/wiki/TrueNAS) first. Prefer no wizard? Copy `.env.example` to `.env`, fill in `DATA_ROOT`, `POSTGRES_PASSWORD`, `TZ`, `PUID`/`PGID` and `COMPOSE_PROFILES`, then run `./scripts/init.sh`.
 
 ## What's in the stack
 
@@ -192,25 +192,25 @@ Every service except Postgres and wranglarr is opt-in (`COMPOSE_PROFILES`). One 
           └── optional: one gluetun WireGuard/OpenVPN tunnel for every app, or just the download clients (+ Prowlarr)
 ```
 
-More in [Architecture](wiki/Architecture.md).
+More in [Architecture](https://github.com/Wranglarrr/Wranglarr/wiki/Architecture).
 
 ## Documentation
 
-**Read it as a website:** [wranglarrr.github.io/Wranglarr](https://wranglarrr.github.io/Wranglarr/), with navigation, search and dark mode. It renders this README and the [wiki](wiki/Home.md).
+**Read it as a website:** [wranglarrr.github.io/Wranglarr](https://wranglarrr.github.io/Wranglarr/), with navigation, search and dark mode. It renders this README and the [wiki](https://github.com/Wranglarrr/Wranglarr/wiki).
 
 | Getting started | Using it | Reference |
 | --- | --- | --- |
-| [Quickstart](wiki/Quickstart.md) | [Dashboard](wiki/Dashboard.md) | [Architecture](wiki/Architecture.md) |
-| [Setup](wiki/Setup.md) | [Backups and restore](wiki/Backups-and-Restore.md) | [Environment variables](wiki/Environment-Variables.md) |
-| [TrueNAS SCALE](wiki/TrueNAS.md) | [Container updates](wiki/Updates.md) | [HTTP API](wiki/API.md) |
-| [Bringing in existing apps](wiki/Importing-Existing-Apps.md) | [App connections](wiki/App-Connections.md) | [Security](wiki/Security.md) |
-| [Login](wiki/Login.md) | [Indexers](wiki/Indexers.md) | [Troubleshooting](wiki/Troubleshooting.md) |
-| [App logins](wiki/App-Logins.md) | [Community configs](wiki/Community-Configs.md) | [Postgres](wiki/Service-Postgres.md) |
-| [VPN: shared tunnel](wiki/VPN-Shared-Tunnel.md) | [Notifications](wiki/Notifications.md) | [Radarr, Sonarr, Lidarr](wiki/Service-Radarr-Sonarr-Lidarr.md) |
-| [VPN: per app](wiki/VPN-Per-App.md) | [Connections](wiki/Connections.md) | [Prowlarr](wiki/Service-Prowlarr.md) · [Bazarr](wiki/Service-Bazarr.md) |
-| [Remote access](wiki/Remote-Access.md) | [Reverse proxy](wiki/Reverse-Proxy.md) | [qBittorrent](wiki/Service-qBittorrent.md) · [SABnzbd](wiki/Service-SABnzbd.md) · [NZBGet](wiki/Service-NZBGet.md) |
-| | [Shared settings](wiki/Shared-Settings.md) | [Seerr](wiki/Service-Seerr.md) · [wranglarr](wiki/Service-wranglarr.md) |
-| | | [Development](wiki/Development.md) |
+| [Quickstart](https://github.com/Wranglarrr/Wranglarr/wiki/Quickstart) | [Dashboard](https://github.com/Wranglarrr/Wranglarr/wiki/Dashboard) | [Architecture](https://github.com/Wranglarrr/Wranglarr/wiki/Architecture) |
+| [Setup](https://github.com/Wranglarrr/Wranglarr/wiki/Setup) | [Backups and restore](https://github.com/Wranglarrr/Wranglarr/wiki/Backups-and-Restore) | [Environment variables](https://github.com/Wranglarrr/Wranglarr/wiki/Environment-Variables) |
+| [TrueNAS SCALE](https://github.com/Wranglarrr/Wranglarr/wiki/TrueNAS) | [Container updates](https://github.com/Wranglarrr/Wranglarr/wiki/Updates) | [HTTP API](https://github.com/Wranglarrr/Wranglarr/wiki/API) |
+| [Bringing in existing apps](https://github.com/Wranglarrr/Wranglarr/wiki/Importing-Existing-Apps) | [App connections](https://github.com/Wranglarrr/Wranglarr/wiki/App-Connections) | [Security](https://github.com/Wranglarrr/Wranglarr/wiki/Security) |
+| [Login](https://github.com/Wranglarrr/Wranglarr/wiki/Login) | [Indexers](https://github.com/Wranglarrr/Wranglarr/wiki/Indexers) | [Troubleshooting](https://github.com/Wranglarrr/Wranglarr/wiki/Troubleshooting) |
+| [App logins](https://github.com/Wranglarrr/Wranglarr/wiki/App-Logins) | [Community configs](https://github.com/Wranglarrr/Wranglarr/wiki/Community-Configs) | [Postgres](https://github.com/Wranglarrr/Wranglarr/wiki/Service-Postgres) |
+| [VPN: shared tunnel](https://github.com/Wranglarrr/Wranglarr/wiki/VPN-Shared-Tunnel) | [Notifications](https://github.com/Wranglarrr/Wranglarr/wiki/Notifications) | [Radarr, Sonarr, Lidarr](https://github.com/Wranglarrr/Wranglarr/wiki/Service-Radarr-Sonarr-Lidarr) |
+| [VPN: per app](https://github.com/Wranglarrr/Wranglarr/wiki/VPN-Per-App) | [Connections](https://github.com/Wranglarrr/Wranglarr/wiki/Connections) | [Prowlarr](https://github.com/Wranglarrr/Wranglarr/wiki/Service-Prowlarr) · [Bazarr](https://github.com/Wranglarrr/Wranglarr/wiki/Service-Bazarr) |
+| [Remote access](https://github.com/Wranglarrr/Wranglarr/wiki/Remote-Access) | [Reverse proxy](https://github.com/Wranglarrr/Wranglarr/wiki/Reverse-Proxy) | [qBittorrent](https://github.com/Wranglarrr/Wranglarr/wiki/Service-qBittorrent) · [SABnzbd](https://github.com/Wranglarrr/Wranglarr/wiki/Service-SABnzbd) · [NZBGet](https://github.com/Wranglarrr/Wranglarr/wiki/Service-NZBGet) |
+| | [Shared settings](https://github.com/Wranglarrr/Wranglarr/wiki/Shared-Settings) | [Seerr](https://github.com/Wranglarrr/Wranglarr/wiki/Service-Seerr) · [wranglarr](https://github.com/Wranglarrr/Wranglarr/wiki/Service-wranglarr) |
+| | | [Development](https://github.com/Wranglarrr/Wranglarr/wiki/Development) |
 
 <details>
 <summary><b>Repository layout</b></summary>
@@ -235,20 +235,22 @@ tests/                       the black-box suite, run against the built binary
 .github/workflows/rust.yml   checks and tests
 .github/workflows/image.yml  builds, smoke-tests (amd64 + arm64) and publishes the image
 scripts/smoke-image.sh       the image smoke test CI runs on each platform
-wiki/                        documentation
+wiki/                        documentation; .github/workflows/wiki.yml copies it to the GitHub wiki (scripts/build-wiki.py)
 site/                        docs website (renders README + wiki); .github/workflows/pages.yml publishes it
 assets/brand/                logo and wordmark originals; build.py makes the sized copies
 ```
 
-How the code is organized, and how to build, test and add a service: [Development](wiki/Development.md).
+How the code is organized, and how to build, test and add a service: [Development](https://github.com/Wranglarrr/Wranglarr/wiki/Development).
 
 The docs site is published by the `pages` workflow whenever the docs change (on GitHub: Settings → Pages → Source: *GitHub Actions*). To preview it locally, run `python3 site/serve.py` and open http://127.0.0.1:8000.
+
+The [GitHub wiki](https://github.com/Wranglarrr/Wranglarr/wiki) is a copy of `wiki/`, rebuilt by the `wiki` workflow on each change, so edit the pages in `wiki/`: edits made in the Wiki tab are replaced.
 </details>
 
 <details>
 <summary><b>Project status and testing</b></summary>
 
-1.0.0 is the first release. What it brings is in the [release notes](wiki/Release-Notes.md).
+1.0.0 is the first release. What it brings is in the [release notes](https://github.com/Wranglarrr/Wranglarr/wiki/Release-Notes).
 
 **Tested against mocks.** Everything has been run end to end against mock Radarr, Bazarr, qBittorrent, SABnzbd, NZBGet and gluetun servers with fake Postgres tools. That covers backups, restores, retention, shared sync, the restore plan, every page and the wizard. Container updates were run against a mock Docker Engine API that enforces the daemon's create-time conflict rules.
 

@@ -58,7 +58,7 @@ cargo deny check                                   # licences, advisories, sourc
 
 The black-box suite in the repo's `tests/` runs against the built binary
 ([tests/README.md](../tests/README.md)). The layout, adding a service and the
-conventions are in the wiki's [Development](../wiki/Development.md) page.
+conventions are in the wiki's [Development](https://github.com/Wranglarrr/Wranglarr/wiki/Development) page.
 
 ## Releases
 
@@ -74,7 +74,7 @@ workflow stops if the two disagree.
 Everything the UI does is a JSON call, so scripts, Home Assistant and cron
 jobs can do it too: send an API key (Account → API keys) in the `X-Api-Key`
 header. Every endpoint, its body and its answer, the long-running jobs and
-the error codes are in the wiki's [HTTP API](../wiki/API.md) page.
+the error codes are in the wiki's [HTTP API](https://github.com/Wranglarrr/Wranglarr/wiki/API) page.
 
 ## Setup wizard
 
