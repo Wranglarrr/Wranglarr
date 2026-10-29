@@ -123,9 +123,22 @@ tower.workspace = true
 workspace = true
 
 [profile.release]
-lto = "thin"
+# built for size: about a quarter smaller than opt-level 3. Panics still unwind,
+# which background.rs and the state database rely on: no panic = "abort".
+opt-level = "z"
+lto = "fat"
 strip = true
 codegen-units = 1
+
+# the CPU-heavy parts stay fast: backup checksums, compression, logins,
+# wranglarr's state database (each about twice as slow at "z")
+[profile.release.package]
+sha2.opt-level = 3
+scrypt.opt-level = 3
+salsa20.opt-level = 3
+pbkdf2.opt-level = 3
+zlib-rs.opt-level = 3
+libsqlite3-sys.opt-level = 3
 
 # scrypt is far too slow unoptimised (tests hash passwords)
 [profile.dev.package.scrypt]

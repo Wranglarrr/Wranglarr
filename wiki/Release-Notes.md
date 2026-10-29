@@ -22,6 +22,14 @@ How to write an entry:
   do, not how the code changed.
 -->
 
+## 1.1.1 — not released yet
+
+### Changed
+
+- **A smaller image.** wranglarr is now built for size: its program is about a
+  quarter smaller, so the image downloads faster. Backups, logins and
+  compression run as fast as before.
+
 ## 1.1.0 — 2026-10-28
 
 Fixes from the first days of 1.0.0, mostly around reverse proxies and the VPN,
