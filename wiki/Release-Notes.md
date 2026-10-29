@@ -22,7 +22,7 @@ How to write an entry:
   do, not how the code changed.
 -->
 
-## 1.1.0 — not released yet
+## 1.1.0 — 2026-10-28
 
 Fixes from the first days of 1.0.0, mostly around reverse proxies and the VPN,
 plus one place to set where each app opens.
