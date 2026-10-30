@@ -382,7 +382,33 @@ pub struct ServiceDef {
     pub build: fn(&AppConfig) -> Result<AnyClient>,
 }
 
+/// wranglarr's own repository: where problems with the built-in apps go.
+pub const WRANGLARR_REPO: &str = "Wranglarrr/Wranglarr";
+
+/// Where problems with a kind of app are reported: a GitHub repository's issues.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ReportTo {
+    /// `owner/repo`.
+    pub repo: String,
+    /// Looked after by wranglarr (the built-ins, and later the curated lariats);
+    /// otherwise its own publisher answers for it.
+    pub curated: bool,
+}
+
+impl ReportTo {
+    /// wranglarr's own issues.
+    pub fn wranglarr() -> ReportTo {
+        ReportTo { repo: WRANGLARR_REPO.into(), curated: true }
+    }
+}
+
 impl ServiceDef {
+    /// Where its problems are reported: the built-ins all go to wranglarr. A lariat
+    /// will name its own source here.
+    pub fn report_to(&self) -> ReportTo {
+        ReportTo::wranglarr()
+    }
+
     /// How a copy of its config folder is made.
     pub fn copy_spec(&self) -> CopySpec {
         CopySpec { rules: self.copy, payload: self.downloads.map(|d| d.payload) }

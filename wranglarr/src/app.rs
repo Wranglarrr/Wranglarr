@@ -488,7 +488,9 @@ impl App {
     pub async fn prune_suite(&self, suite: &str) -> Result<Vec<String>> {
         let st = self.settings(suite).await?;
         let suite = suite.to_owned();
-        self.blocking(move |app| app.store().prune(&suite, st.keep_last, st.keep_days)).await
+        let u = &self.cfg().updates;
+        let pre = crate::store::PreUpdateKeep { keep: u.pre_update_keep, settle_days: u.pre_update_settle_days };
+        self.blocking(move |app| app.store().prune(&suite, st.keep_last, st.keep_days, pre)).await
     }
 }
 

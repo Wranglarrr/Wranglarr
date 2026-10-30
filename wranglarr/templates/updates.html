@@ -56,13 +56,16 @@
       <td class="small">{{ t.version or '–' }}{% if t.image_created %}<div class="muted">built {{ t.image_created|fmt_ts }}</div>{% endif %}</td>
       <td><span class="pill pill-u-{{ t.status }}">{{ STATUS_TEXT[t.status]|default(t.status) }}</span>
           {% if t.held %}<span class="pill pill-u-held" title="{{ t.hold_reason }}">held</span>{% endif %}
-          {% if t.interrupted %}<div class="small warn-text">An update was interrupted. <code>{{ t.interrupted }}</code> is the container from before it.
+          {% if t.interrupted and t.recovery %}<div class="small warn-text">{{ t.recovery }}
+            Updates and rollbacks of this container wait until <code>{{ t.interrupted }}</code> is gone.</div>
+          {% elif t.interrupted %}<div class="small warn-text">An update was interrupted. <code>{{ t.interrupted }}</code> is the container from before it.
             If {{ t.container }} works, remove <code>{{ t.interrupted }}</code>; if not, remove {{ t.container }} and rename <code>{{ t.interrupted }}</code> back to {{ t.container }}.
             Updates and rollbacks of this container wait until then.</div>{% endif %}
           {% if t.error and t.status not in ('current', 'available') %}<div class="small {{ 'warn-text' if t.newer else 'muted' }}">{{ t.error }}</div>{% endif %}
           {% if t.status == 'self' %}<div class="small"><a href="{{ RELEASE_NOTES }}" target="_blank" rel="noopener">Release notes</a></div>{% endif %}
           {% if t.checked %}<div class="muted small">checked {{ t.checked|fmt_ts }}</div>{% endif %}</td>
-      <td class="small">{% if t.last_update %}{{ t.last_update.action }} {{ ui.status_pill(t.last_update.status) }}<div class="muted">{{ t.last_update.at|fmt_ts }}{% if t.last_update.new_version %} · {{ t.last_update.old_version or '?' }} → {{ t.last_update.new_version }}{% endif %}</div>{% else %}<span class="muted">–</span>{% endif %}</td>
+      <td class="small">{% if t.last_update %}{{ t.last_update.action }} {{ ui.status_pill(t.last_update.status) }}<div class="muted">{{ t.last_update.at|fmt_ts }}{% if t.last_update.new_version %} · {{ t.last_update.old_version or '?' }} → {{ t.last_update.new_version }}{% endif %}</div>
+          {% if t.report %}<div><a href="{{ base }}/updates/report/{{ t.report.key }}">Failure report</a>{% if t.report.search %}: check whether it's been reported{% endif %} <span class="muted">{{ t.report.id }}</span></div>{% endif %}{% else %}<span class="muted">–</span>{% endif %}</td>
       <td><div class="actions">
         {% if t.status == 'self' and t.self_update %}
           {%- set rejected = t.blocked and t.remote_digest in (t.blocked.digests or []) %}
@@ -70,7 +73,7 @@
                   {% if rejected %}title="this image didn't come up last time ({{ t.blocked.reason }}); try it again"{% endif %}>{{ 'Try again' if rejected else 'Update now' }}</button>
         {% elif t.status == 'available' and not t.interrupted %}<button class="btn primary small" data-update-one="{{ t.container }}">Update</button>
         {% elif t.status == 'blocked' %}<button class="btn small" data-update-one="{{ t.container }}" title="this image was rejected before; try it again">Try again</button>{% endif %}
-        {% if t.can_rollback and not t.interrupted %}<button class="btn small" data-rollback="{{ t.container }}" data-to="{{ t.rollback_to }}">Roll back</button>{% endif %}
+        {% if t.can_rollback and not t.interrupted %}<button class="btn small" data-rollback="{{ t.container }}" data-to="{{ t.rollback_to }}"{% if t.rollback_backup %} data-pre-backup="{{ t.rollback_backup.version }}" data-pre-backup-at="{{ t.rollback_backup.created | fmt_ts }}"{% endif %}>Roll back</button>{% endif %}
         {% if t.held %}<button class="btn ghost small" data-hold="{{ t.container }}" data-on="0">Release hold</button>
         {% elif t.status not in ('self', 'missing') %}<button class="btn ghost small" data-hold="{{ t.container }}" data-on="1" title="skip this container in automatic and 'update all' runs">Hold</button>{% endif %}
       </div></td>

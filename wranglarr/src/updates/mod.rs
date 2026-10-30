@@ -19,11 +19,14 @@
 //! - `check`: whether each container's tag moved in its registry;
 //! - `recreate`: replacing one container on a new image, then the containers
 //!   sharing its network;
-//! - `runs`: the update and rollback runs on the job worker;
+//! - `runs`: update coordination on the job worker, with child modules for
+//!   image pulls, pre-update backups and manual rollback;
 //! - `selfupdate`: wranglarr replacing its own container, through a helper.
 
 mod check;
+mod recovery;
 mod recreate;
+mod report;
 mod runs;
 mod selfupdate;
 mod settings;
@@ -224,6 +227,8 @@ impl Updater {
         let blocked = self.blocked().await;
         let holds = self.holds().await;
         let parked = self.parked().await;
+        let reports = self.reports().await;
+        let notes = self.recovery_notes().await;
         let mut rows = vec![];
         for t in self.targets() {
             let mut row = checks.get(&t.container).cloned().unwrap_or_else(|| {
@@ -234,11 +239,26 @@ impl Updater {
             let cand = self.rollback_candidate(&t.container).await?;
             row["blocked"] = blocked.get(&t.container).cloned().unwrap_or(Value::Null);
             let left = format!("{}{OLD_SUFFIX}", t.container);
-            row["interrupted"] = json!(parked.contains(&left).then_some(left));
+            let is_parked = parked.contains(&left);
+            row["interrupted"] = json!(is_parked.then_some(left));
+            // why the parked one mustn't simply be started again, while it's there
+            row["recovery"] = notes.get(&t.container).filter(|_| is_parked).cloned().unwrap_or(Value::Null);
             row["held"] = json!(holds.contains_key(&t.container));
             row["hold_reason"] = json!(holds.get(&t.container));
             row["last_update"] = json!(hist.first());
+            // the failure report of the last update, while it's the last thing that happened
+            let failed = hist.first().is_some_and(|u| u.action == "update" && u.status == "failed");
+            row["report"] = match reports.iter().find(|r| r.target == t.container).filter(|_| failed) {
+                Some(r) => r.brief(),
+                None => Value::Null,
+            };
             row["can_rollback"] = json!(cand.is_some());
+            // the backup its data would go back to with the rollback
+            let pre = match &cand {
+                Some(c) => self.pre_update_backup(&t, c).await?,
+                None => None,
+            };
+            row["rollback_backup"] = json!(pre.map(|m| json!({"version": m.version, "created": m.created})));
             row["rollback_to"] = json!(cand.map(|c| match c.old_version.filter(|v| !v.is_empty()) {
                 Some(v) => v,
                 None => short(c.old_image.as_deref().unwrap_or("")),

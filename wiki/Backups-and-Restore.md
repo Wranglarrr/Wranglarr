@@ -207,6 +207,33 @@ with any Postgres client, `unzip` for the apps' own zips.
 ## Pre-update versions
 
 [Container updates](Updates.md) back up the affected suite before replacing a
-container. Those versions carry trigger `pre-update`. Restore one if an app
-migrated its database on a new version and you roll the app back. They count
-towards retention like any other version.
+container. Those versions carry trigger `pre-update`. A failed update puts the
+app's data back from it by itself, and **Roll back** offers to.
+
+They're kept apart from the suite's `keep_last` and `keep_days`, so scheduled
+backups never push out what a rollback needs:
+
+- **The newest one stays**, and pushes the older ones out
+  (`[updates] pre_update_keep`, default 1). Once a version has run until the
+  next update, the backup from before it has done its job.
+- **Except in a run of quick updates.** Updates less than
+  `pre_update_settle_days` apart (default 7) make a run, like catching up
+  through several versions in a day. Each version in between ran only
+  briefly and never proved it left the data sound, so the run also keeps its
+  oldest backup: the one from before the run began, with the data of the last
+  version that had settled. The ones in between go.
+- **The run ends** when its newest update has had its `pre_update_settle_days`
+  without another update; then only the newest stays again. Its time is the
+  time of its backup. A failed update doesn't change this: the version from
+  before it is the one still running, and it has run at least that long.
+
+A run of updates that never settles, like a development track that updates
+every day, keeps `pre_update_keep` + 1 backups for as long as it goes on: the
+newest ones, and the one from before the run began. `pre_update_settle_days =
+0` turns the exception off.
+
+Pre-update manifests record `pre_update_run`, the original backup's ID, before
+intermediate backups are pruned. That keeps the same recovery point protected
+across repeated pruning and restarts. Deleting one by hand works like any other
+version; if you delete that original backup, retention protects the oldest
+remaining backup from the run instead.

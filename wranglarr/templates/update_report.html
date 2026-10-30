@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "_icons.html" as i %}
+{% block title %}{{ r.id }} · Updates · wranglarr{% endblock %}
+{% block crumbs %}<a href="{{ base }}/updates" class="crumb">Updates</a> / failure report {{ r.id }}{% endblock %}
+{% block content %}
+<section class="panel">
+  <h2>The update of {{ r.label }} to {{ r.new_version or r.new_image }} failed</h2>
+  <p class="{{ 'warn-text' if r.state not in ('running', 'stopped') or not r.blocked else '' }}">{{ r.outcome }}</p>
+  <p class="muted small">{{ r.at|fmt_ts }} · fingerprint <code>{{ r.id }}</code>{% if r.seen > 1 %} · the same failure is in {{ r.seen }} of the kept reports, the first {{ r.first_seen|fmt_ts }}{% endif %}</p>
+  {% if r.links.search %}
+    <p><button class="btn primary" data-report-check data-key="{{ r.key }}"
+               data-new-issue="{{ r.links.new_issue }}" data-search="{{ r.links.search }}">Check whether it's been reported</button></p>
+    <p class="muted small">After you've read the report below, this searches the issues of <code>{{ r.repo }}</code>, open and closed, for <code>{{ r.id }}</code>, and copies the report.
+      If someone has reported it, their issue opens: paste the report in a comment there. If not, a new issue opens
+      {%- if r.links.body_in_link %} with the report filled in{% else %}: the report is too long to fill in, so paste it{% endif %}.
+      wranglarr asks GitHub itself, so the search carries only the fingerprint, not this page's address.</p>
+    <p class="small" data-report-found hidden></p>
+    <p class="muted small">Or by hand: <a href="{{ r.links.search }}" target="_blank" rel="noopener noreferrer">search</a> ·
+      <a href="{{ r.links.new_issue }}" target="_blank" rel="noopener noreferrer">open an issue</a> titled <code>{{ r.title }}</code>
+      <button class="btn ghost small" data-copy="{{ r.title }}">Copy title</button></p>
+    {% if not r.curated %}<p class="small warn-text">{{ i.icon('warning', 'ico-i') }} {{ r.label }} isn't one of wranglarr's apps, so this goes to its own repo, <code>{{ r.repo }}</code>, which wranglarr has nothing to do with.</p>{% endif %}
+  {% else %}
+    <p class="muted">{{ r.label }}'s image doesn't say where its source is, so there's nowhere to send this. The report is here if you want to raise it with whoever publishes the image.</p>
+  {% endif %}
+</section>
+<section class="panel">
+  <div class="row between">
+    <h2>Report</h2>
+    <div class="actions">
+      <button class="btn small" data-copy-from="report-md">Copy report</button>
+      <button class="btn ghost small" data-forget-report="{{ r.key }}">Forget it</button>
+    </div>
+  </div>
+  <p class="muted small">wranglarr takes out the keys and passwords it knows, your domain, and what looks like a token, a password, a cookie, an email or public IP address, a domain or a home folder name.
+    That's best effort: a secret in a shape it doesn't know can get through, and log lines can name films, series or files in your library. Read it before you send it.</p>
+  <pre class="report" id="report-md">{{ r.markdown }}</pre>
+</section>
+{% endblock %}

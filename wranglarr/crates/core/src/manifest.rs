@@ -86,6 +86,10 @@ pub struct Manifest {
     /// What started it: `manual`, `schedule`, `pre-update`, ….
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trigger: Option<String>,
+    /// The first backup in a continuous pre-update run. Retention records this
+    /// before pruning intermediate versions, so their removal cannot split it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pre_update_run: Option<String>,
     /// The wranglarr version that made it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wranglarr: Option<String>,
@@ -114,6 +118,10 @@ pub struct Manifest {
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
+
+/// The `trigger` of the backup an update makes first. Kept under its own
+/// retention ([`BackupStore::prune`](crate::store::BackupStore::prune)).
+pub const PRE_UPDATE: &str = "pre-update";
 
 impl Manifest {
     /// A backup starting now.

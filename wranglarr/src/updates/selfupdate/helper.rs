@@ -483,9 +483,10 @@ pub(crate) async fn run(args: &Args, env: &UpdatesEnv) -> Report {
                 r.updates.push(UpdateRecord::from_row(f.row("update", "ok", String::new())));
             });
         }
-        Err(SwapFailed { error: e, attempted }) => {
+        Err(SwapFailed { error: e, attempted, .. }) => {
             h.note(format!("{}: update FAILED: {e}", args.container));
-            if let Some(f) = attempted {
+            if let Some(attempt) = attempted {
+                let f = attempt.facts;
                 retag(&d, &h, &f.reference, &f.old_image).await;
                 let digests = match d.image(&f.new_image).await {
                     Ok(img) => repo_digests(&img).into_iter().collect(),

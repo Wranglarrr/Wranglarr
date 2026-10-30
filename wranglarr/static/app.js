@@ -38,7 +38,8 @@ const W = (() => {
   // A modal instead of the browser's confirm()/prompt(): resolves true/false, or with `input` the text (null if cancelled).
   //   ask({ title, body, ok: 'Delete', danger: true })   body: text, paragraphs split on blank lines
   //   ask({ title, input: { value, placeholder, type, autocomplete } })
-  function ask({ title, body = '', ok = 'OK', cancel = 'Cancel', danger = false, input = null }) {
+  // With `check` ({label, checked}), a ticked-or-not box: resolves {checked} on OK, null otherwise.
+  function ask({ title, body = '', ok = 'OK', cancel = 'Cancel', danger = false, input = null, check = null }) {
     return new Promise(resolve => {
       const d = document.createElement('dialog');
       d.className = 'dlg modal';
@@ -47,9 +48,11 @@ const W = (() => {
       d.innerHTML = `<form method="dialog"><h3 id="modal-title">${esc(title)}</h3>${paras ? `<div class="modal-body">${paras}</div>` : ''}
         ${input ? `<input name="v" type="${esc(input.type || 'text')}" autocomplete="${esc(input.autocomplete || 'off')}"
           placeholder="${esc(input.placeholder || '')}" ${input.required ? 'required' : ''}>` : ''}
+        ${check ? `<label class="check-line"><input type="checkbox" name="c" ${check.checked ? 'checked' : ''}> ${esc(check.label)}</label>` : ''}
         <div class="modal-actions"><button class="btn ghost" type="button" data-cancel>${esc(cancel)}</button>
           <button class="btn ${danger ? 'danger-fill' : 'primary'}" value="ok">${esc(ok)}</button></div></form>`;
       const field = d.querySelector('input[name=v]');
+      const box = d.querySelector('input[name=c]');
       if (field) field.value = input.value || '';
       d.querySelector('[data-cancel]').addEventListener('click', () => d.close('cancel'));
       d.addEventListener('click', e => { if (e.target === d) d.close('cancel'); });     // a click on the backdrop
@@ -57,7 +60,7 @@ const W = (() => {
         const yes = d.returnValue === 'ok';
         d.remove();
         const v = field && (field.type === 'password' ? field.value : field.value.trim());   // a password is taken as typed
-        resolve(field ? (yes ? v : null) : yes);
+        resolve(field ? (yes ? v : null) : box ? (yes ? {checked: box.checked} : null) : yes);
       });
       document.body.append(d);
       d.showModal();
@@ -182,9 +185,16 @@ const W = (() => {
     else if (d.selfUpdate !== undefined) ask({ title: 'Update wranglarr now?', ok: 'Update now',
         body: "wranglarr backs up its own state, then a helper replaces its container with the new image. Its pages go away for a minute and the run's page picks up again when it is back.\n\nIf the new one doesn't come up, the old one is put back." })
       .then(yes => yes && runAction(b, 'POST', '/api/updates/self', null, 'wranglarr update'));
-    else if (d.rollback) ask({ title: `Roll ${d.rollback} back to ${d.to}?`, ok: 'Roll back', danger: true,
-        body: 'The container is recreated on the previous image and held, so automatic updates leave it alone.\n\nIts data is not rolled back: restore a pre-update backup for that.' })
-      .then(yes => yes && runAction(b, 'POST', '/api/updates/rollback', {container: d.rollback}, 'rollback'));
+    else if (d.rollback) {
+      const intro = 'The container is recreated on the previous image and held, so automatic updates leave it alone.';
+      if (d.preBackup) ask({ title: `Roll ${d.rollback} back to ${d.to}?`, ok: 'Roll back', danger: true,
+          body: `${intro}\n\nThe newer version may have migrated its database or config files, which the previous version can't read. The backup from just before that update (${d.preBackupAt}) puts them back.`,
+          check: { label: `Also restore its data from ${d.preBackupAt}: changes since then are lost`, checked: true } })
+        .then(r => r && runAction(b, 'POST', '/api/updates/rollback', {container: d.rollback, restore_data: r.checked}, 'rollback'));
+      else ask({ title: `Roll ${d.rollback} back to ${d.to}?`, ok: 'Roll back', danger: true,
+          body: `${intro}\n\nThe backup from just before that update isn't kept any more, so its data stays as the newer version left it.` })
+        .then(yes => yes && runAction(b, 'POST', '/api/updates/rollback', {container: d.rollback}, 'rollback'));
+    }
     else if (d.hold) api('POST', '/api/updates/hold', {container: d.hold, hold: d.on === '1'}).then(() => location.reload()).catch(err => toast(err.message, true));
     else if (d.updatesReset !== undefined) api('DELETE', '/api/updates/settings').then(() => location.reload()).catch(err => toast(err.message, true));
     else if (d.trackReset) api('DELETE', `/api/updates/tracks/${encodeURIComponent(d.trackReset)}`).then(() => location.reload()).catch(err => toast(err.message, true));
@@ -299,6 +309,59 @@ const W = (() => {
     document.querySelectorAll('.nav-scrim').forEach(x => x.hidden = !open);
     document.querySelectorAll('.nav-toggle').forEach(x => x.setAttribute('aria-expanded', String(open)));
   };
+  // failure reports: copy the title or the report, forget one
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch (e) {   // no clipboard API off https: the old way
+      const t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e2) {}
+      t.remove(); return ok;
+    }
+  }
+  // "Check whether it's been reported": the report goes on the clipboard, then the
+  // oldest issue with its fingerprint opens (open or closed), else a new issue
+  async function reportCheck(b) {
+    const d = b.dataset;
+    // a person reads it first: taking secrets out is best effort
+    const yes = await ask({ title: 'Have you read the report?', ok: "I've read it",
+      body: "wranglarr takes out the secrets and addresses it can find, but it can miss one. Check the report below for anything you don't want public before it goes to GitHub." });
+    if (!yes) return;
+    b.disabled = true;
+    const out = document.querySelector('[data-report-found]');
+    const say = (...parts) => { if (!out) return; out.replaceChildren(...parts); out.hidden = false; };
+    const copied = await copyText((document.getElementById('report-md') || {}).textContent || '');
+    // opened now, while the click still counts, so a popup blocker lets it through
+    const w = window.open('', '_blank'); if (w) w.opener = null;
+    const go = url => { if (w) w.location = url; else location.href = url; };
+    const pasted = copied ? 'The report is on your clipboard: ' : 'Copying the report failed: copy it from below, then ';
+    try {
+      // wranglarr asks GitHub: from here, the browser would send it this page's address
+      const hit = (await api('GET', `/api/updates/reports/${encodeURIComponent(d.key)}/reported`)).issue;
+      if (hit) {
+        go(hit.url);
+        const a = document.createElement('a'); a.href = hit.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.textContent = `#${hit.number} ${hit.title}`;   // text, never HTML: anyone can write an issue title
+        say('Already reported as ', a, ` (${hit.state}). ${pasted}paste it in a comment there.`);
+      } else {
+        go(d.newIssue);
+        say(`Not reported yet: a new issue opened. ${copied ? 'The report is on your clipboard too.' : ''}`);
+      }
+    } catch (err) {
+      go(d.search);
+      say(`Couldn't ask GitHub (${err.message}), so its search opened instead. ${pasted}paste it into the issue you find or open.`);
+    } finally { b.disabled = false; }
+  }
+  document.addEventListener('click', e => {
+    const check = e.target.closest('[data-report-check]'); if (check) { reportCheck(check); return; }
+    const b = e.target.closest('[data-copy], [data-copy-from], [data-forget-report]'); if (!b) return;
+    const d = b.dataset;
+    if (d.forgetReport) { ask({ title: `Forget report ${d.forgetReport}?`, body: 'Do this once it has been reported, or when it no longer matters.', ok: 'Forget it' })
+      .then(yes => yes && api('DELETE', `/api/updates/reports/${d.forgetReport}`).then(() => { location.href = appUrl('/updates'); }).catch(err => toast(err.message, true)));
+      return; }
+    const text = d.copy !== undefined ? d.copy : (document.getElementById(d.copyFrom) || {}).textContent || '';
+    copyText(text).then(ok => toast(ok ? 'copied' : 'could not copy: select it and copy it by hand', !ok));
+  });
+
   document.addEventListener('click', e => {
     if (e.target.closest('[data-nav-toggle]')) setNav(!document.body.classList.contains('nav-open'));
     else if (e.target.closest('.sidebar a')) setNav(false);

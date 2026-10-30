@@ -51,7 +51,7 @@ pub(super) fn run_message(
                 Some((
                     "update_failed",
                     format!("Container {kind} {status}"),
-                    format!("{detail}. See Activity, run {run_id}."),
+                    format!("{detail}. See Activity, run {run_id}.{}", reports(result)),
                     "error",
                 ))
             } else {
@@ -92,6 +92,20 @@ pub(super) fn run_message(
         }
         _ => None,
     }
+}
+
+/// Where to check whether a failed update was reported, per container that
+/// has a failure report: "" when none has.
+fn reports(result: &Value) -> String {
+    let Some(Value::Object(r)) = result.get("reports") else { return String::new() };
+    r.iter()
+        .map(|(name, rep)| match rep.get("search").and_then(Value::as_str) {
+            Some(search) => format!(
+                " {name}: check whether it's been reported: {search} If it hasn't, its report is on the Updates page."
+            ),
+            None => format!(" {name}: its failure report is on the Updates page."),
+        })
+        .collect()
 }
 
 /// A size in bytes for people: `512 B`, `1.5 GB`.

@@ -4,7 +4,7 @@
 //! shared-settings sync ([`shared`]).
 
 mod backup;
-mod restore;
+pub(crate) mod restore;
 mod runner;
 mod shared;
 

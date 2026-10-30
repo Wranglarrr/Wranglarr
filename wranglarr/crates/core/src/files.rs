@@ -690,6 +690,98 @@ pub fn restore_config(name: &str, source: &Path, config_dir: &Path) -> Result<()
     Ok(())
 }
 
+/// The SQLite databases in a config snapshot: its top-level `*.db` files.
+pub fn sqlite_in(snapshot: &Path) -> Vec<String> {
+    let Ok(rd) = fs::read_dir(snapshot) else { return vec![] };
+    let mut dbs: Vec<String> = rd
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|n| n.ends_with(".db"))
+        .collect();
+    dbs.sort();
+    dbs
+}
+
+/// Why the SQLite databases in `snapshot` can't go back into `config_dir`
+/// offline, or None when they can.
+pub fn sqlite_restore_blocker(snapshot: &Path, config_dir: &Path) -> Option<String> {
+    if sqlite_in(snapshot).is_empty() {
+        return Some("its backup has no SQLite database".into());
+    }
+    if !config_dir.is_dir() {
+        return Some(format!("its config folder {} isn't mounted into wranglarr", config_dir.display()));
+    }
+    if !writable(config_dir) {
+        return Some(format!("its config folder {} is mounted read-only", config_dir.display()));
+    }
+    None
+}
+
+/// Put the SQLite databases of a config snapshot back into `config_dir` while
+/// the app is stopped: each `*.db` replaces the live one, and the live one's
+/// `-wal`, `-shm` and `-journal` go, since SQLite would apply them to the
+/// restored file. Nothing else in the folder changes. The files replaced are
+/// copied to a recovery folder first. Returns the databases restored; on an
+/// error, `done` has the ones already back.
+pub fn restore_sqlite(name: &str, snapshot: &Path, config_dir: &Path, done: &mut Vec<String>) -> Result<PathBuf> {
+    validate_restore_source(snapshot).map_err(|e| e.map_msg(|m| format!("{name}: {m}")))?;
+    if let Some(why) = sqlite_restore_blocker(snapshot, config_dir) {
+        return Err(Error::invalid(format!("{name}: can't restore its database offline: {why}")));
+    }
+    let dbs = sqlite_in(snapshot);
+    for db in &dbs {
+        let mut magic = [0u8; 16];
+        let ok = fs::File::open(snapshot.join(db)).and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic));
+        if ok.is_err() || &magic != b"SQLite format 3\0" {
+            return Err(Error::invalid(format!("{name}: {db} in the backup isn't an SQLite database")));
+        }
+    }
+    let sidecars = |db: &str| ["-wal", "-shm", "-journal"].map(|x| format!("{db}{x}"));
+    // everything about to change, kept first
+    let keep = recovery_dir(config_dir)?;
+    for db in &dbs {
+        for f in std::iter::once(db.clone()).chain(sidecars(db)) {
+            let live = config_dir.join(&f);
+            if live.is_file() {
+                copy_file(&live, &keep.join(&f))?;
+            }
+        }
+    }
+    owner::like(&keep, config_dir);
+    fs::File::open(&keep)?.sync_all()?;
+    for db in &dbs {
+        let live = config_dir.join(db);
+        for f in sidecars(db) {
+            match fs::remove_file(config_dir.join(&f)) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                    return Err(Error::caused(
+                        &format!("{name}: can't remove {f} (the replaced files are in {})", keep.display()),
+                        e,
+                    ));
+                }
+                _ => {}
+            }
+        }
+        let reference = if live.is_file() { live.clone() } else { config_dir.to_path_buf() };
+        let staged = config_dir.join(format!(".{db}.wranglarr-restore"));
+        copy_file(&snapshot.join(db), &staged)?;
+        owner::like(&staged, &reference);
+        fs::rename(&staged, &live).map_err(|e| {
+            Error::caused(&format!("{name}: can't put {db} back (the replaced files are in {})", keep.display()), e)
+        })?;
+        done.push(db.clone());
+    }
+    fs::File::open(config_dir)?.sync_all()?;
+    tracing::info!(
+        "{name}: restored {} into {} (replaced files in {})",
+        dbs.join(", "),
+        config_dir.display(),
+        keep.display()
+    );
+    Ok(keep)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -863,6 +955,49 @@ mod tests {
         assert!(verify_snapshot(&app).is_err(), "missing listed file must fail");
         fs::write(app.join("config.sha256"), "").expect("sums");
         verify_snapshot(&app).expect("an actually empty snapshot is covered");
+    }
+
+    #[test]
+    fn an_sqlite_restore_replaces_only_the_database_and_drops_its_wal() {
+        let t = tempfile::tempdir().expect("tmp");
+        let app = t.path().join("backup/radarr");
+        fs::create_dir_all(app.join("config")).expect("mkdir");
+        let old_db = [b"SQLite format 3\0".as_slice(), b"the data from before"].concat();
+        fs::write(app.join("config/radarr.db"), &old_db).expect("db");
+        fs::write(app.join("config/config.xml"), "<Config>backup</Config>").expect("xml");
+        let sums: String = ["radarr.db", "config.xml"]
+            .iter()
+            .map(|f| format!("{}  config/{f}\n", sha256(&app.join("config").join(f)).expect("hash")))
+            .collect();
+        fs::write(app.join("config.sha256"), sums).expect("sums");
+        let live = t.path().join("live/config");
+        fs::create_dir_all(live.join("MediaCover")).expect("mkdir");
+        fs::write(live.join("MediaCover/1.jpg"), "cover").expect("cover");
+        fs::write(live.join("config.xml"), "<Config>live</Config>").expect("xml");
+        fs::write(live.join("radarr.db"), "SQLite format 3\0migrated").expect("db");
+        fs::write(live.join("radarr.db-wal"), "wal of the migrated db").expect("wal");
+        fs::write(live.join("radarr.db-shm"), "shm").expect("shm");
+
+        assert_eq!(sqlite_restore_blocker(&app.join("config"), &live), None);
+        let mut done = vec![];
+        let keep = restore_sqlite("radarr", &app.join("config"), &live, &mut done).expect("restore");
+        assert_eq!(done, ["radarr.db"]);
+        assert_eq!(fs::read(live.join("radarr.db")).expect("db"), old_db);
+        assert!(!live.join("radarr.db-wal").exists() && !live.join("radarr.db-shm").exists());
+        assert_eq!(fs::read_to_string(live.join("config.xml")).expect("xml"), "<Config>live</Config>");
+        assert!(live.join("MediaCover/1.jpg").is_file(), "the rest of the folder stays");
+        assert_eq!(fs::read_to_string(keep.join("radarr.db-wal")).expect("kept wal"), "wal of the migrated db");
+        assert!(!keep.starts_with(&live));
+
+        fs::write(app.join("config/radarr.db"), "not a database").expect("db");
+        let sums = format!(
+            "{}  config/radarr.db\n{}  config/config.xml\n",
+            sha256(&app.join("config/radarr.db")).expect("hash"),
+            sha256(&app.join("config/config.xml")).expect("hash")
+        );
+        fs::write(app.join("config.sha256"), sums).expect("sums");
+        assert!(restore_sqlite("radarr", &app.join("config"), &live, &mut vec![]).is_err());
+        assert!(sqlite_restore_blocker(&app.join("config"), &t.path().join("nowhere")).is_some());
     }
 
     #[test]

@@ -16,7 +16,8 @@ Test controls (no API key needed):
     GET    /_mock/state     what happened: backups, restores, restarts, requests, the store
     POST   /_mock/seed      {"resource": [rows], ...} replaces those resources;
                             {"static": {"/api/v3/x": value}} serves fixed GET answers
-    POST   /_mock/fault     {"method": "PUT", "prefix": "/api/v3/customformat", "status": 500,
+    POST   /_mock/fault     {"method": "PUT", "prefix": "/api/v3/customformat", "status": 500, "while_file"?: [path, text],
+                             "after_restores"?: n, "after_restarts"?: n,
                              "body": {...}, "delay": 0}: matching requests sleep `delay` s,
                             then (if status is set) answer status/body instead
     DELETE /_mock/fault     clears the faults
@@ -55,11 +56,29 @@ STATIC = {
 FAULTS: list[dict] = []
 
 
+def holds(fault):
+    """A fault with "while_file": [path, text] only applies while that file contains text
+    (an app that won't start on a database a newer version migrated). One with
+    "after_restores": n applies once n backups have been restored (an app that
+    doesn't come back from the restart a restore makes)."""
+    if len(state["restored"]) < int(fault.get("after_restores") or 0):
+        return False
+    if state["restarts"] < int(fault.get("after_restarts") or 0):
+        return False
+    cond = fault.get("while_file")
+    if not cond:
+        return True
+    try:
+        return cond[1].encode() in open(cond[0], "rb").read()
+    except OSError:
+        return False
+
+
 def zipbytes():
     b = io.BytesIO()
     with zipfile.ZipFile(b, "w") as z:
         z.writestr("config.xml", f"<Config><ApiKey>{KEY}</ApiKey></Config>")
-        z.writestr("radarr.db", "CONSISTENT")
+        z.writestr("radarr.db", b"SQLite format 3\x00CONSISTENT")
     return b.getvalue()
 
 
@@ -97,7 +116,8 @@ class H(BaseHTTPRequestHandler):
                 return self.control(method, p, data)
         with LOCK:
             state["requests"].append(f"{method} {p}")
-            fault = next((f for f in FAULTS if f.get("method", method) == method and p.startswith(f.get("prefix", ""))), None)
+            fault = next((f for f in FAULTS if f.get("method", method) == method and p.startswith(f.get("prefix", ""))
+                          and holds(f)), None)
         if fault:
             time.sleep(float(fault.get("delay") or 0))
             if fault.get("status"):

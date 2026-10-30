@@ -3,9 +3,54 @@ Postgres major-bump refusal, the VPN namespace dependents, automatic rollback of
 crashing image, manual rollback + hold, settings, pages, and Docker being off.
 
 The steps in this file run in order against one server and one mock Docker."""
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
+
 import pytest
 
 from harness import ARR_KEY, MockArr, MockDocker, MockDownloads, Server, base_toml, suite_toml, wait_run
+
+
+# what the broken radarr prints: secrets, a public address and a domain mixed in
+CRASH_LOG = (
+    "[Info] Bootstrap: starting up as /home/johnny/.config\n"
+    f"[Info] Api: key {ARR_KEY} loaded, qbittorrent password=qbpass\n"
+    "[Info] Http: https://radarr.mymedia.example.org/api from 203.0.113.9\n"
+    f"[Fatal] ConsoleApp: Migration 231 failed (pid 4242), apikey={ARR_KEY}\n"
+    "   at NzbDrone.Core.Datastore.Migration.Framework.MigrationController.Migrate(String connectionString)\n"
+    "   at Radarr.Host.Bootstrap.Start()\n"
+    "[Info] Bootstrap: exiting, vpn key gluekey\n"
+)
+
+
+class MockGitHub:
+    """GitHub's issue search: `issues` maps a fingerprint to the issue that has it."""
+
+    def __init__(self):
+        self.issues, self.asked = {}, []
+        gh = self
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a): pass
+
+            def do_GET(self):
+                u = urlparse(self.path)
+                q = parse_qs(u.query).get("q", [""])[0]
+                gh.asked.append({"path": u.path, "q": q, "origin": self.headers.get("Origin"),
+                                 "agent": self.headers.get("User-Agent")})
+                items = [i for fid, i in gh.issues.items() if f'"{fid}"' in q]
+                body = json.dumps({"total_count": len(items), "items": items}).encode()
+                self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
+                self.wfile.write(body)
+
+        self.srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        self.url = f"http://127.0.0.1:{self.srv.server_port}"
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+
+    def stop(self):
+        self.srv.shutdown()
 
 
 def build(tmp):
@@ -24,9 +69,10 @@ def build(tmp):
       + suite_toml("downloads", [dict(name="qbittorrent", kind="qbittorrent", url=f"http://127.0.0.1:{dl.qbit}",
                                       username="admin", password="qbpass", config_dir=f"{tmp}/arrconfig/qbittorrent",
                                       container="qbittorrent")])
-    srv = Server(tmp, toml).start()
-    return type("Env", (), dict(tmp=tmp, dock=dock, arr=arr, dl=dl, srv=srv, c=srv.client(),
-                                procs=(srv, dl, arr, dock)))
+    gh = MockGitHub()
+    srv = Server(tmp, toml, env={"WRANGLARR_GITHUB_API": gh.url}).start()
+    return type("Env", (), dict(tmp=tmp, dock=dock, arr=arr, dl=dl, srv=srv, gh=gh, c=srv.client(),
+                                procs=(srv, dl, arr, dock, gh)))
 
 
 @pytest.fixture(scope="module")
@@ -120,27 +166,98 @@ def test_vpn_update_moves_dependents(env):
 
 def test_crashing_image_rolls_back(env):
     c, dock = env.c, env.dock
-    dock.registry(ref="lscr.io/linuxserver/radarr:latest", digest="sha256:" + "b3" * 32, version="5.16.0-broken", crash=True)
+    dock.registry(ref="lscr.io/linuxserver/radarr:latest", digest="sha256:" + "b3" * 32, version="5.16.0-broken", crash=True,
+                  log=CRASH_LOG)
     c.post("/api/updates/check")
     good = dock.containers()["radarr"]
+    restored = len(env.arr.state()["restored"])
     rid = c.post("/api/updates/apply", json={"containers": ["radarr"]}).json()["run"]
     r = wait_run(c, rid)
     s = dock.state()
     a = s["containers"]
     assert r["status"] == "failed" and a["radarr"]["Id"] == good["Id"] and a["radarr"]["State"]["Running"], r["log"]
+    # the new version ran, so it may have migrated the data: it goes back from the
+    # pre-update backup before the old one starts, and its config zip after
+    log = r["log"]
+    assert "may have migrated radarr's data: putting it back from" in log, log
+    assert log.index("restored database radarr-main") < log.index("radarr: old container restored"), log
+    assert len(env.arr.state()["restored"]) == restored + 1, "the config zip went back through the old radarr"
     assert not [n for n in a if n.endswith("-wranglarr-old")]
     assert s["tags"]["lscr.io/linuxserver/radarr:latest"] == good["Image"], "radarr tag still on the broken image"
     assert statuses(c)["radarr"] == "blocked"
+
+    # a report to check for and file the failure with, with the secrets taken out
+    rep = r["result"]["reports"]["radarr"]
+    fid, key = rep["id"], rep["key"]
+    assert fid.startswith("wf-") and len(fid) == 13, rep
+    assert rep["search"].startswith("https://github.com/Wranglarrr/Wranglarr/issues?q=") and fid in rep["search"], rep
+    assert key == f'{r["id"]}-radarr' and rep["state"] == "running", rep
+    assert f"radarr: a report ({fid}) is at /updates/report/{key}: check there whether it's been reported" in log, log
+    assert "or search for it by hand: https://github.com/Wranglarrr/Wranglarr/issues" in log, log
+    full = c.get(f"/api/updates/reports/{key}").json()
+    md = full["markdown"]
+    for secret in (ARR_KEY, "qbpass", "gluekey", "radarr.mymedia.example.org", "203.0.113.9", "johnny"):
+        assert secret not in md, (secret, md)
+    assert "Migration 231 failed" in md and "at NzbDrone.Core.Datastore.Migration" in md, md
+    assert "starting up" not in md, "only the error lines and their stack are kept"
+    assert full["title"] == f"Update failed: Radarr 5.15.1.9463-ls251 → 5.16.0-broken [{fid}]", full["title"]
+    assert full["links"]["new_issue"].startswith(
+        "https://github.com/Wranglarrr/Wranglarr/issues/new?template=update-failure.yml"), full["links"]
+    assert full["data"] == "The data was put back from the pre-update backup.", full
+    assert full["data_recovery"] == {
+        "state": "verified", "api": "verified",
+        "completed": ["database radarr-main", "database radarr-log", "API config"],
+    }, full
+    assert full["recovery_phase"] is None, full
+    assert full["state"] == "running" and full["blocked"] is True, full
+    assert full["outcome"].startswith("radarr is back on 5.15.1.9463-ls251. 5.16.0-broken is skipped from now on."), full
+    assert full["exit_code"] == 1 and full["seen"] == 1, full
+    assert target(c, "radarr")["report"]["key"] == key
+    page = c.get(f"/updates/report/{key}")
+    assert page.status_code == 200 and fid in page.text, page.text[:500]
+    assert f'data-report-check data-key="{key}"' in page.text, page.text
+    assert page.headers["referrer-policy"] == "same-origin", "links out don't carry wranglarr's address"
+
+    # has it been reported? wranglarr asks, so GitHub doesn't see this page's address
+    assert c.get(f"/api/updates/reports/{key}/reported").json() == {"issue": None}
+    asked = env.gh.asked[-1]
+    assert asked["path"] == "/search/issues" and asked["origin"] is None, asked
+    assert asked["q"] == f'repo:Wranglarrr/Wranglarr is:issue "{fid}"' and asked["agent"].startswith("wranglarr/"), asked
+    env.gh.issues[fid] = {"number": 42, "title": full["title"], "state": "closed",
+                          "html_url": "https://github.com/Wranglarrr/Wranglarr/issues/42"}
+    assert c.get(f"/api/updates/reports/{key}/reported").json()["issue"] == {
+        "number": 42, "title": full["title"], "state": "closed", "url": "https://github.com/Wranglarrr/Wranglarr/issues/42"}
+    assert c.get("/api/updates/reports/wf-0000000000/reported").status_code == 404
+
+    # the same failure again (on another day it would be another time and pid):
+    # the same fingerprint, seen twice, and each occurrence keeps its own report
+    r = wait_run(c, c.post("/api/updates/apply", json={"containers": ["radarr"]}).json()["run"])
+    rep2 = r["result"]["reports"]["radarr"]
+    assert r["status"] == "failed" and rep2["id"] == fid and rep2["key"] != key, r["result"]
+    again = c.get(f'/api/updates/reports/{rep2["key"]}').json()
+    assert again["seen"] == 2 and again["first_seen"] == full["at"], again
+    reports = c.get("/api/updates/reports").json()["reports"]
+    assert [(x["key"], x["id"]) for x in reports] == [(rep2["key"], fid), (key, fid)], reports
+    assert c.get(f"/api/updates/reports/{key}").json()["run_id"] == full["run_id"]
+    assert c.get("/api/updates/reports/wf-0000000000").status_code == 404
 
 
 def test_manual_rollback_and_hold(env):
     c, dock = env.c, env.dock
     t = target(c, "radarr")
     assert t["can_rollback"] and t["rollback_to"] == "5.14.0.9383-ls250", t
-    rid = c.post("/api/updates/rollback", json={"container": "radarr"}).json()["run"]
+    # the backup from just before that update, offered to put the data back with it
+    assert t["rollback_backup"] and t["rollback_backup"]["version"], t
+    restored = len(env.arr.state()["restored"])
+    rid = c.post("/api/updates/rollback", json={"container": "radarr", "restore_data": True}).json()["run"]
     r = wait_run(c, rid)
     a = dock.containers()
     assert r["status"] == "ok", r["log"]
+    assert r["result"]["data_from"] == t["rollback_backup"]["version"], r["result"]
+    log = r["log"]
+    assert log.index("putting radarr's data back from the pre-update backup") < log.index("radarr: rollback done"), log
+    assert "restored database radarr-main" in log, log
+    assert len(env.arr.state()["restored"]) == restored + 1, "its config zip went back through the old radarr"
     assert a["radarr"]["Config"]["Labels"]["org.opencontainers.image.version"] == "5.14.0.9383-ls250"
     assert a["radarr"]["Config"]["Image"] == "lscr.io/linuxserver/radarr:latest"
     t = target(c, "radarr")
@@ -173,8 +290,9 @@ def test_settings_and_pages(env):
     for path in ("/updates", "/activity", "/", "/system", f"/runs/{rid}"):
         assert c.get(path).status_code == 200, path
     hist = c.get("/api/updates").json()["history"]
-    assert [(h["container"], h["action"], h["status"]) for h in hist][:3] == [
-        ("radarr", "rollback", "ok"), ("radarr", "update", "failed"), ("qbittorrent", "recreate", "ok")], hist[:3]
+    assert [(h["container"], h["action"], h["status"]) for h in hist][:4] == [
+        ("radarr", "rollback", "ok"), ("radarr", "update", "failed"), ("radarr", "update", "failed"),
+        ("qbittorrent", "recreate", "ok")], hist[:4]
 
 
 def test_failed_vpn_dependent_is_reported(env):

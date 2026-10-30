@@ -34,6 +34,13 @@ check_schedule = "0 */6 * * *"   # "" = only when you press Check now
 auto_update = false              # true = apply available updates on auto_schedule
 auto_schedule = "0 5 * * *"
 backup_first = true
+# Pre-update backups are kept apart from each suite's keep_last / keep_days, so
+# scheduled backups never push out what a rollback needs. The newest one stays and
+# pushes older ones out. Updates closer together than pre_update_settle_days make
+# a run, which also keeps the backup from before it began until its newest update
+# has had that long (0 = no runs).
+pre_update_keep = 1
+pre_update_settle_days = 7
 health_timeout = 300             # seconds for the new container to become healthy
 # wranglarr itself is never part of auto_update.  self_update = true lets it
 # replace its own container (through a helper) on self_schedule; the UI's

@@ -1,8 +1,13 @@
 #!/bin/sh
 # Fake Postgres tool for the black-box tests (tests/README.md): logs the call to
-# $FAKE_PG_LOG and, for `-f <file>`, writes a small fake dump there.
-out=""; db=""
-while [ $# -gt 0 ]; do case "$1" in -f) out=$2; shift;; -d) db=$2; shift;; -*) ;; *) db=$1;; esac; shift; done
+# $FAKE_PG_LOG and, for `-f <file>`, writes a small fake dump there. Fails for the
+# databases listed in the file $FAKE_PG_FAIL.
+out=""; db=""; target=""
+while [ $# -gt 0 ]; do case "$1" in -f) out=$2; shift;; -d) db=$2; target=$2; shift;; -*) ;; *) db=$1;; esac; shift; done
 echo "$(date) $0 $db ${out:-}" >> "${FAKE_PG_LOG:-/dev/null}"
+# a database named on a line of the file $FAKE_PG_FAIL fails to restore
+if [ -n "${FAKE_PG_FAIL:-}" ] && [ -f "$FAKE_PG_FAIL" ] && grep -qx "$target" "$FAKE_PG_FAIL"; then
+  echo "pg_restore: error: mock failure restoring $target" >&2; exit 1
+fi
 [ -n "$out" ] && echo "fake dump of $db" > "$out"
 exit 0

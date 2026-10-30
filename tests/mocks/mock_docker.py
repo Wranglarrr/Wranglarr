@@ -5,10 +5,17 @@ restores (stop/start) and the standalone restore stack (container inspect).
 
 Test controls (same socket, no Docker equivalent):
     GET  /_mock/state          containers (incl. the create body each was made from), tags, events
-    POST /_mock/registry       {"ref", "digest", "version", "env"?, "health"?, "crash"?}: what a pull of ref gets
+    POST /_mock/registry       {"ref", "digest", "version", "env"?, "health"?, "crash"?, "log"?}: what a pull of ref gets
+                               ("log": what its containers print, served framed like a non-TTY container's;
+                                "on_start": [{"container", "glob", "write"}]: files a container of that name
+                                writes when it starts, like a migration)
+    POST /_mock/drop_start     {"name": "x"}: the next start of x starts it and drops the answer
     POST /_mock/fail_create    {"name": "x"}: creating a container called x answers 500 ({"name": null} clears)
+    POST /_mock/fail           {"op": "remove"|"rename"|"start"|"stop", "name": "x", "skip"?: n}: after n such
+                               calls on the container then called x, the next one answers 500 and does nothing
+                               (each call adds one; {} clears them)
 """
-import hashlib, json, os, socketserver, sys, threading, time, uuid
+import glob, hashlib, json, os, socketserver, struct, sys, threading, time, uuid
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, unquote
 
@@ -18,6 +25,8 @@ def cid(): return uuid.uuid4().hex + uuid.uuid4().hex
 IMAGES, TAGS, REGISTRY, CONTAINERS, EVENTS = {}, {}, {}, {}, []
 FAIL_CREATE: set = set()
 FAIL_STOP: set = set()
+DROP_START: set = set()
+FAULTS: list = []                 # {"op", "name", "skip"}: see /_mock/fail
 LOCK = threading.RLock()          # one request at a time: handlers mutate the dicts above
 
 
@@ -28,11 +37,13 @@ def locked(fn):
     return run
 NETS = {"arrs": {}}
 
-def add_image(ref, digest, version, env=(), health=None, crash=False, exposed=None):
+def add_image(ref, digest, version, env=(), health=None, crash=False, exposed=None, log=None, on_start=None):
     iid = hid(ref + digest)
     repo = ref.rsplit(":", 1)[0]
     labels = {"org.opencontainers.image.version": version, "maintainer": "x"}
     if crash: labels["mock.crash"] = "1"
+    if log: labels["mock.log"] = log
+    if on_start: labels["mock.on_start"] = json.dumps(on_start)
     IMAGES[iid] = {"Id": iid, "RepoTags": [ref], "RepoDigests": [f"{repo}@{digest}"], "Created": "2026-10-01T00:00:00Z",
                    "Config": {"Env": ["PATH=/usr/bin", "HOME=/root", *env], "Labels": labels, "Cmd": ["/init"],
                               "ExposedPorts": exposed or {}, "Volumes": {"/config": {}}, "Healthcheck": health}}
@@ -87,6 +98,11 @@ def make_container(name, body, iid):
 
 def start(c):
     img = IMAGES[c["Image"]]["Config"]
+    # what the new version does to its data when it starts, before it can crash
+    for w in json.loads(img["Labels"].get("mock.on_start") or "[]"):
+        if w.get("container") in (None, c["Name"].lstrip("/")):
+            for f in (glob.glob(w["glob"]) or ([w["glob"]] if not glob.has_magic(w["glob"]) else [])):
+                with open(f, "w") as out: out.write(w["write"])
     if img["Labels"].get("mock.crash"):
         c["State"] = {"Running": False, "Restarting": False, "ExitCode": 1}; return
     mode = c["HostConfig"].get("NetworkMode", "")
@@ -102,6 +118,15 @@ def tick():
     for c in CONTAINERS.values():
         h = c["State"].get("Health")
         if h and h["Status"] == "starting" and time.time() - c["State"]["_started"] > 0.3: h["Status"] = "healthy"
+
+def faulted(op, k):
+    """Whether this call fails: the first matching fault's skips are counted down first."""
+    for f in FAULTS:
+        if f["op"] == op and f["name"] == k:
+            if f.get("skip", 0) > 0:
+                f["skip"] -= 1; return False
+            FAULTS.remove(f); return True
+    return False
 
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
@@ -119,6 +144,15 @@ class H(BaseHTTPRequestHandler):
         if p == "/_mock/state": return self.send(200, snapshot())
         if p == "/containers/json":
             return self.send(200, [{"Id": c["Id"], "Names": [c["Name"]], "Image": c["Config"]["Image"], "HostConfig": {"NetworkMode": c["HostConfig"].get("NetworkMode", "default")}} for c in CONTAINERS.values()])
+        if p.startswith("/containers/") and p.endswith("/logs"):
+            k = find(p[len("/containers/"):-5])
+            if not k: return self.send(404, {"message": "No such container"})
+            text = IMAGES.get(CONTAINERS[k]["Image"], {}).get("Config", {}).get("Labels", {}).get("mock.log", "")
+            out = b""
+            for line in text.splitlines(keepends=True):   # stdout (1), stderr (2) for lines that say error
+                data = line.encode(); out += struct.pack(">BxxxI", 2 if "rror" in line else 1, len(data)) + data
+            self.send_response(200); self.send_header("Content-Type", "application/vnd.docker.raw-stream"); self.end_headers()
+            return self.wfile.write(out)
         if p.startswith("/containers/") and p.endswith("/json"):
             k = find(p[len("/containers/"):-5])
             if not k: return self.send(404, {"message": "No such container"})
@@ -142,6 +176,13 @@ class H(BaseHTTPRequestHandler):
             FAIL_STOP.clear()
             if n: FAIL_STOP.add(n)
             return self.send(200, {})
+        if p == "/_mock/fail":
+            b = self.body()
+            if b: FAULTS.append(b)
+            else: FAULTS.clear()
+            return self.send(200, {})
+        if p == "/_mock/drop_start":
+            DROP_START.add(self.body()["name"]); return self.send(200, {})
         if p == "/_mock/fail_create":
             n = self.body().get("name")
             FAIL_CREATE.clear()
@@ -153,7 +194,8 @@ class H(BaseHTTPRequestHandler):
             if not r: return self.send(200, raw=b'{"status":"Pulling"}\n{"error":"manifest unknown"}\n')
             cur = TAGS.get(ref)
             if not cur or r["digest"] not in IMAGES[cur]["RepoDigests"][0]:
-                add_image(ref, r["digest"], r["version"], r.get("env", ()), r.get("health"), r.get("crash", False))
+                add_image(ref, r["digest"], r["version"], r.get("env", ()), r.get("health"), r.get("crash", False), log=r.get("log"),
+                          on_start=r.get("on_start"))
             return self.send(200, raw=b'{"status":"Pulling"}\n{"status":"Digest: x"}\n')
         if p.startswith("/images/") and p.endswith("/tag"):
             i = resolve_image(p[len("/images/"):-4]); ref = f"{q['repo']}:{q['tag']}"
@@ -178,6 +220,7 @@ class H(BaseHTTPRequestHandler):
             parts = p.split("/"); k = find(parts[2]); action = parts[3]
             if not k: return self.send(404, {"message": "No such container"})
             c = CONTAINERS[k]
+            if faulted(action, k): return self.send(500, {"message": f"mock: {action} {k} fails"})
             if action == "stop":
                 if k in FAIL_STOP: return self.send(500, {"message": "mock stop failed"})
                 if not c["State"]["Running"]: return self.send(304)
@@ -186,6 +229,8 @@ class H(BaseHTTPRequestHandler):
                 if c["State"]["Running"]: return self.send(304)
                 try: start(c)
                 except ValueError as e: return self.send(500, {"message": str(e)})
+                if k in DROP_START:   # started, but the answer never arrives
+                    DROP_START.discard(k); self.close_connection = True; return
                 return self.send(204)
             if action == "rename":
                 new = q["name"]
@@ -197,6 +242,7 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path); p = unquote(u.path); EVENTS.append(f"DELETE {p} {u.query}")
         k = find(p.split("/")[2])
         if not k: return self.send(404, {"message": "No such container"})
+        if faulted("remove", k): return self.send(500, {"message": f"mock: removing {k} fails"})
         del CONTAINERS[k]; return self.send(204)
 
 class S(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
