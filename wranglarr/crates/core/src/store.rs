@@ -22,7 +22,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::error::{Error, Result};
-use crate::manifest::{Manifest, PRE_UPDATE, VersionStatus};
+use crate::manifest::{Manifest, VersionStatus};
 use crate::owner::StackOwner;
 
 pub const MANIFEST: &str = "manifest.json";
@@ -245,9 +245,11 @@ impl BackupStore {
     /// than `keep_days`, and always the newest good one. A failed, partial or
     /// unfinished version goes once a newer good version exists.
     ///
-    /// Pre-update backups ([`PRE_UPDATE`]) are counted apart, by `pre`, so
+    /// Pre-update backups ([`PRE_UPDATE`](crate::manifest::PRE_UPDATE)) are counted apart, by `pre`, so
     /// scheduled backups never push out what a rollback needs. Retained
     /// manifests preserve run identity before intermediate backups are pruned.
+    /// Ones made before that rule existed ([`Manifest::pre_update_kept_apart`])
+    /// stay counted with the scheduled backups, as they always were.
     pub fn prune(&self, suite: &str, keep_last: i64, keep_days: i64, pre: PreUpdateKeep) -> Result<Vec<String>> {
         self.prune_at(suite, keep_last, keep_days, pre, Utc::now())
     }
@@ -269,7 +271,7 @@ impl BackupStore {
         for m in self.list_versions(suite) {
             let v = m.version.clone();
             let Some(created) = parse_version(v.split('-').next().unwrap_or("")) else { continue };
-            let is_pre = m.trigger.as_deref() == Some(PRE_UPDATE);
+            let is_pre = m.pre_update_kept_apart();
             if m.status != VersionStatus::Ok {
                 if (is_pre && !pre_good.is_empty()) || (!is_pre && good > 0) {
                     doomed.push(v); // superseded by a newer good version of its kind
@@ -368,6 +370,7 @@ fn pre_update_plan(pre: &[PreUpdateVersion], keep: PreUpdateKeep, now: DateTime<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manifest::PRE_UPDATE;
 
     fn store() -> (tempfile::TempDir, BackupStore) {
         let t = tempfile::tempdir().expect("tmp");
@@ -380,9 +383,14 @@ mod tests {
     }
 
     fn put_by(s: &BackupStore, suite: &str, v: &str, status: &str, trigger: &str) {
+        put_made_by(s, suite, v, status, trigger, Some(env!("CARGO_PKG_VERSION")));
+    }
+
+    fn put_made_by(s: &BackupStore, suite: &str, v: &str, status: &str, trigger: &str, wranglarr: Option<&str>) {
         std::fs::create_dir_all(s.version_dir(suite, v).expect("id")).expect("mkdir");
         let mut m: Manifest =
-            serde_json::from_value(json!({"version": v, "status": status, "trigger": trigger})).expect("manifest");
+            serde_json::from_value(json!({"version": v, "status": status, "trigger": trigger, "wranglarr": wranglarr}))
+                .expect("manifest");
         s.write_manifest(suite, v, &mut m).expect("write");
     }
 
@@ -418,6 +426,37 @@ mod tests {
         let gone = s.prune("s", 1, 0, PreUpdateKeep::DEFAULT).expect("prune");
         assert_eq!(gone.len(), 3, "two scheduled ones, and the failed pre-update one: {gone:?}");
         assert_eq!(left(&s, "s"), ["20260103T000000Z", "20200101T000000Z"]);
+    }
+
+    #[test]
+    fn pre_update_backups_from_before_the_rule_keep_following_the_suite_retention() {
+        // An update to 1.1.1 must not prune what 1.1.0's rule kept: its
+        // pre-update backups counted with the scheduled ones, under keep_last.
+        let (_t, s) = store();
+        put_made_by(&s, "s", "20260101T000000Z", "ok", PRE_UPDATE, Some("1.0.0"));
+        put_made_by(&s, "s", "20260201T000000Z", "ok", PRE_UPDATE, Some("1.1.0"));
+        put_made_by(&s, "s", "20260301T000000Z", "ok", PRE_UPDATE, None);
+        put_by(&s, "s", "20260401T000000Z", "ok", PRE_UPDATE);
+        put(&s, "s", "20260501T000000Z", "ok");
+        put(&s, "s", "20260502T000000Z", "ok");
+        let gone = s.prune_at("s", 3, 0, PreUpdateKeep::DEFAULT, at("20260503T000000Z")).expect("prune");
+        assert_eq!(gone, ["20260201T000000Z", "20260101T000000Z"], "the old ones beyond keep_last = 3");
+        assert_eq!(left(&s, "s"), ["20260502T000000Z", "20260501T000000Z", "20260401T000000Z", "20260301T000000Z"]);
+        let gone = s.prune_at("s", 1, 0, PreUpdateKeep::DEFAULT, at("20260503T000000Z")).expect("prune");
+        assert_eq!(gone, ["20260501T000000Z", "20260301T000000Z"]);
+        assert_eq!(left(&s, "s"), ["20260502T000000Z", "20260401T000000Z"], "the new one is kept apart");
+        let made_by = |v: Option<&str>| Manifest {
+            trigger: Some(PRE_UPDATE.into()),
+            wranglarr: v.map(Into::into),
+            ..Manifest::default()
+        };
+        for v in ["1.1.1", "1.1.1-dev", "1.2.0", "2.0.0+build"] {
+            assert!(made_by(Some(v)).pre_update_kept_apart(), "{v}");
+        }
+        for v in [Some("1.1.0"), Some("1.0.0"), Some("1.1"), Some("next"), None] {
+            assert!(!made_by(v).pre_update_kept_apart(), "{v:?}");
+        }
+        assert!(!Manifest { trigger: Some("schedule".into()), ..made_by(Some("1.1.1")) }.pre_update_kept_apart());
     }
 
     #[test]

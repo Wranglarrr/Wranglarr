@@ -232,6 +232,11 @@ every day, keeps `pre_update_keep` + 1 backups for as long as it goes on: the
 newest ones, and the one from before the run began. `pre_update_settle_days =
 0` turns the exception off.
 
+Pre-update backups made by wranglarr before 1.1.1 were counted with the
+scheduled ones, and still are: they follow the suite's `keep_last` and
+`keep_days` until they age out, so updating never prunes what the earlier rule
+would have kept. Only backups made by 1.1.1 or later are kept apart.
+
 Pre-update manifests record `pre_update_run`, the original backup's ID, before
 intermediate backups are pruned. That keeps the same recovery point protected
 across repeated pruning and restarts. Deleting one by hand works like any other

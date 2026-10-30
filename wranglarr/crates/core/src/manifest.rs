@@ -123,6 +123,34 @@ pub struct Manifest {
 /// retention ([`BackupStore::prune`](crate::store::BackupStore::prune)).
 pub const PRE_UPDATE: &str = "pre-update";
 
+/// The first wranglarr whose pre-update backups are retained apart from the
+/// suite's `keep_last`/`keep_days`. Backups older versions made were counted
+/// with the scheduled ones, and still are, so an update to this version never
+/// prunes what the previous rule would have kept.
+pub const PRE_UPDATE_RETENTION_SINCE: (u64, u64, u64) = (1, 1, 1);
+
+impl Manifest {
+    /// Counted by the pre-update retention rather than the suite's: a
+    /// pre-update backup that a wranglarr with that rule made. One without a
+    /// readable version stays under the suite's retention, the older rule,
+    /// which keeps more rather than less.
+    pub fn pre_update_kept_apart(&self) -> bool {
+        self.trigger.as_deref() == Some(PRE_UPDATE)
+            && self.wranglarr.as_deref().and_then(release_version).is_some_and(|v| v >= PRE_UPDATE_RETENTION_SINCE)
+    }
+}
+
+/// `major.minor.patch` from a release version, ignoring a pre-release or
+/// build suffix; None for anything else.
+fn release_version(v: &str) -> Option<(u64, u64, u64)> {
+    let core = v.trim().split(['-', '+']).next()?;
+    let mut parts = core.split('.').map(|p| p.parse::<u64>().ok());
+    match (parts.next(), parts.next(), parts.next(), parts.next()) {
+        (Some(Some(a)), Some(Some(b)), Some(Some(c)), None) => Some((a, b, c)),
+        _ => None,
+    }
+}
+
 impl Manifest {
     /// A backup starting now.
     pub fn started(suite: &str, version: &str, created: String, trigger: &str, wranglarr: &str) -> Manifest {
