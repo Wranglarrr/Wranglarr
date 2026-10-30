@@ -95,7 +95,7 @@ def test_sqlite_mode_overlay(env):
     app = m["apps"]["radarr"]
     assert app["config_zip"] and app["config_zip"]["format"] == "zip", app
     cfg = env.store / "media" / m["version"] / "radarr/config"
-    assert (cfg / "radarr.db").read_text() == "CONSISTENT"
+    assert (cfg / "radarr.db").read_bytes() == b"SQLite format 3\x00CONSISTENT"
     assert not (cfg / "MediaCover").exists() and not (cfg / "logs").exists() and (cfg / "config.xml").exists()
 
 

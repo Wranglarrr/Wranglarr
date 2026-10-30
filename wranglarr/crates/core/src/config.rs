@@ -267,6 +267,11 @@ pub struct UpdatesConfig {
     pub auto_update: bool,
     pub auto_schedule: String,
     pub backup_first: bool,
+    /// Pre-update backups each suite keeps, apart from its own retention: the
+    /// newest `pre_update_keep`, and older ones in a run of updates closer than
+    /// `pre_update_settle_days` apart (see `store::PreUpdateKeep`).
+    pub pre_update_keep: i64,
+    pub pre_update_settle_days: i64,
     pub health_timeout: i64,
     /// Update wranglarr itself on `self_schedule` (off: only when someone presses Update now).
     pub self_update: bool,
@@ -287,6 +292,8 @@ impl Default for UpdatesConfig {
             auto_update: false,
             auto_schedule: "0 5 * * *".into(),
             backup_first: true,
+            pre_update_keep: crate::store::PreUpdateKeep::DEFAULT.keep,
+            pre_update_settle_days: crate::store::PreUpdateKeep::DEFAULT.settle_days,
             health_timeout: 300,
             self_update: false,
             self_schedule: "30 5 * * *".into(),
@@ -536,6 +543,8 @@ fn updates(u: &Map<String, Value>) -> Result<UpdatesConfig> {
         auto_update: flag(u.get("auto_update"), d.auto_update),
         auto_schedule: s(u, "auto_schedule", &d.auto_schedule),
         backup_first: flag(u.get("backup_first"), d.backup_first),
+        pre_update_keep: int(u, "pre_update_keep", d.pre_update_keep)?,
+        pre_update_settle_days: int(u, "pre_update_settle_days", d.pre_update_settle_days)?,
         health_timeout: int(u, "health_timeout", d.health_timeout)?,
         self_update: flag(u.get("self_update"), d.self_update),
         self_schedule: s(u, "self_schedule", &d.self_schedule),

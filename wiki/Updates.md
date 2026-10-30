@@ -151,8 +151,16 @@ rate-limiting DNS for it.
 3. **Back up first** (on by default). Each suite with an app being replaced is
    backed up, with trigger `pre-update`. A Postgres update backs up every
    suite that has databases. An app whose part of that backup failed is not
-   updated unless the request sets `force`. Pre-update versions count towards
-   the suite's retention like any other version.
+   updated unless the request sets `force`. Pre-update versions are kept apart
+   from the suite's own retention ([Pre-update versions](Backups-and-Restore.md#pre-update-versions)).
+
+   wranglarr then checks that this backup could put the app's data back with
+   the app stopped (step 6). If it couldn't, a failed update couldn't be
+   undone, so the app is skipped unless the request sets `force`. That's the
+   case when the backup can't be read, or for an arr on SQLite whose config
+   folder isn't mounted into wranglarr, or is mounted read-only. The stock
+   `compose.yaml` mounts the arrs' folders read-only, which is all the arrs on
+   Postgres need; for one on SQLite, drop the `:ro` from its line.
 4. **Recreate.** wranglarr inspects the old container and creates a new one
    with the same settings:
    - Kept: mounts, environment, labels (including the compose labels, so
@@ -170,10 +178,46 @@ rate-limiting DNS for it.
    - A container without one must stay running.
    - Then the app's own API must answer. For Postgres, it must accept
      connections.
-6. **On failure**, the new container is removed and the old one is renamed back
-   and started. The tag is pointed back at the old image so a later
-   `docker compose up` doesn't switch to the rejected one, and the new digest is
-   blocked.
+6. **On failure**, the new container is removed. If wranglarr had asked
+   Docker to start it, the new version may already have migrated the app's
+   database or config files, which the old version can't read. That counts
+   even when Docker's answer never came back. So the app's data goes back
+   from the pre-update backup first, with the app stopped:
+   - Postgres databases, through `pg_restore`;
+   - for an arr on SQLite, its database file (`radarr.db` and the like) from
+     the backup zip. Its `-wal`, `-shm` and `-journal` files go, since they
+     belong to the newer database, and the replaced files are kept in
+     wranglarr's state folder in case you need them. The rest of the config
+     folder (posters, logs, the app's own backups) stays as it is;
+   - for the download clients and the other apps without a backup API, their
+     config folder.
+
+   Then the old container is renamed back and started, and wranglarr waits
+   for it to come up healthy. An arr on Postgres gets its own backup zip back
+   through its API once it's up. The tag is pointed back at the old image so a
+   later `docker compose up` doesn't switch to the rejected one, and the new
+   digest is blocked. Other containers on the same tag aren't tried on that
+   image in the same run.
+
+   **When the data can't go back, nothing is started on it.** If the backup
+   can't be read any more, or a restore fails halfway, the old container
+   stays stopped and parked as `<name>-wranglarr-old`. Starting either
+   version could make things worse: the old one on data the new one migrated,
+   or either on half-restored data. The run log says what had been put back
+   before it stopped, and the container's row on the Updates page says what
+   to do. If Docker won't remove the new container, wranglarr stops it, and
+   the row says whether it might still be running. Restore the backup by hand
+   ([Backups and Restore](Backups-and-Restore.md)), then rename the parked
+   container back and start it.
+
+   Recovery distinguishes the container coming back from its data being restored.
+   If the API disappears before config upload, the report says the upload was not
+   attempted. If an upload's response is lost, its outcome stays unknown even if
+   the app answers again; inspect its configuration before retrying. A refused
+   upload from an app that still answers is reported separately from an app that
+   fails to return after restarting.
+
+   A failed update also leaves a **failure report**: see below.
 7. **Shared network.** Apps on `network_mode: service:vpn` live in the VPN
    container's network namespace, which is tied to its container id. When
    `arrs-vpn` is replaced, every container in its namespace is recreated onto
@@ -192,6 +236,70 @@ rate-limiting DNS for it.
 Order within one run: VPN, then Postgres, then extras, then apps. If the VPN or
 Postgres fails, the run stops there.
 
+## Failure reports
+
+When an update fails, the new container's last log lines and exit state are
+kept before it's removed. wranglarr turns them into a report you can file
+the problem with: the app, the image, the versions, the error, the exit code,
+whether it ran out of memory, its health check output, what happened
+afterwards, and the log lines that matter (the errors and their stack traces,
+or the last lines when nothing looks like an error). "Afterwards" says how
+Docker shows the container once wranglarr is done: the old version back and
+healthy, back but unhealthy or not started, or left stopped for you to
+recover. When the new container couldn't be removed, it says so, and whether
+it may still be running, which is the first thing to sort out. It also says
+whether the data went back, and whether the new version is now skipped.
+
+Before anything is kept, wranglarr takes these out of every part of it,
+including the image name and versions:
+
+- every API key, password and username wranglarr knows, and the Postgres and
+  VPN keys;
+- anything shaped like a secret: `apikey=`, `token=`, `password=`, `passkey=`
+  and the like (quoted values whole), `Authorization` and other login headers,
+  cookies, logins in URLs, JWTs, and long runs of key characters (the arrs'
+  32-character keys, tracker passkeys);
+- email addresses, public IP addresses (your LAN's stay), your domain (from
+  the reverse proxy settings and the apps' URLs) with every name under it,
+  other domain names in any case, a private registry's name, and the user
+  name in home folders.
+
+This is a best effort, not a promise. A secret in a shape wranglarr doesn't
+know can get through, and log lines can still name films, series or files in
+your library. So the button below asks you to read the report first.
+
+Each report has a **fingerprint**, `wf-` and ten characters. It comes from
+the app, the image, the new version, the error and the first error line, with
+times, numbers and ids left out, so the same failure gets the same
+fingerprint on every machine. The issue title carries it, so one search finds
+an earlier report of the same thing. Each failure keeps its own report, so
+two containers failing the same way in one run each have theirs, and a report
+says how often its fingerprint has been seen here.
+
+The run log and the `update_failed` notification point to the report's page,
+`/updates/report/<run>-<container>`, also linked from the container's row on
+the Updates page. Its **Check whether it's been reported** button asks you to
+confirm you've read the report, copies it to your clipboard and asks GitHub
+for issues in the app's repo, open or closed, with that fingerprint:
+
+- **Reported already:** the oldest such issue opens. Paste the report in a
+  comment there, or add a thumbs-up.
+- **Not yet:** a new issue opens with the title, fingerprint, app, versions
+  and the report filled in. A report too long for a link is pasted by hand.
+
+wranglarr asks GitHub itself, so the search carries the fingerprint and
+nothing about your setup. A browser asking would send GitHub your wranglarr's
+address. For the same reason, links from wranglarr to other sites don't send
+them the page they came from (`Referrer-Policy: same-origin`). The page also
+has the plain search and new-issue links, and the run log has the search
+link, for doing it by hand.
+
+Problems with wranglarr's apps, Postgres and the VPN go to wranglarr's repo.
+An extra container's go to the repo its image names in its
+`org.opencontainers.image.source` label, with a note that it isn't
+wranglarr's; one whose image names none gets a report and no links. The last
+25 reports are kept; **Forget it** on a report's page removes one.
+
 ## Rollback
 
 **Roll back** is offered while the host still has the image from before the
@@ -200,9 +308,25 @@ last successful update. It tags that image back onto the container's tag
 container on it, and **holds** the container, so the next auto-update doesn't
 undo the rollback. Release the hold when a fixed image is out.
 
-A rollback swaps the program, not the data. An app that migrated its database
-on the new version may refuse to start on the old one. In that case, restore
-the `pre-update` backup version for that app as well
+An app may migrate its database on the new version, and the old one can then
+refuse to start. So the Roll back dialog offers to **restore its data** from
+the backup taken just before that update, ticked by default and showing that
+backup's date. Everything the app changed since then is lost: new imports,
+added items, settings. The data goes back while the container is stopped,
+before the old version starts, and an arr's own backup zip after it's up.
+
+For an arr on SQLite, its database file goes back with the app stopped, as
+after a failed update (step 6 above). That needs its config folder mounted
+into wranglarr read-write; without it, a rollback with the data is refused
+and says so. Roll back without the data, or mount the folder.
+
+If the rollback fails once it has begun putting data back, neither version is
+started on that data: the container stays stopped and parked as
+`<name>-wranglarr-old`, and the run log says what had been put back. Recover
+it as below.
+
+When that backup isn't kept any more, the dialog says so and the rollback only
+swaps the program. Restore another version by hand if the app doesn't start
 ([Backups and Restore](Backups-and-Restore.md)).
 
 `docker image prune` removes untagged old images, and with them the ability
@@ -217,10 +341,12 @@ keeps the rolled-back program. The next pull of `develop` replaces that tag.
 While it swaps containers, wranglarr parks the old one as
 `<name>-wranglarr-old`. If wranglarr is stopped in the middle (host restart,
 `docker kill`), the run is marked failed when it starts again, and the parked
-container stays. The Updates page says so on the container's row, and an update or
-rollback that would swap it again is refused until it's sorted out by hand: if the
-container works, remove `<name>-wranglarr-old`; if not, remove the container and
-rename `<name>-wranglarr-old` back to its name, then start it.
+container stays. The same goes for an update or rollback that stopped because
+the data couldn't go back. The Updates page says so on the container's row, and an
+update or rollback that would swap it again is refused until it's sorted out by
+hand: if the container works, remove `<name>-wranglarr-old`; if not, remove the
+container, put its data back if the row says to, and rename `<name>-wranglarr-old`
+back to its name, then start it.
 
 ## Keeping wranglarr itself up to date
 
@@ -334,6 +460,8 @@ check_schedule = "0 */6 * * *"
 auto_update = false
 auto_schedule = "0 5 * * *"
 backup_first = true
+pre_update_keep = 1         # pre-update backups kept per suite, apart from its retention
+pre_update_settle_days = 7  # updates closer than this are a run, which keeps its first backup too
 self_update = false         # update wranglarr itself on self_schedule
 self_schedule = "30 5 * * *"
 health_timeout = 300        # seconds
@@ -352,13 +480,17 @@ exclude = []                # never touch these
 GET    /api/updates                    containers + status, settings, next runs, history
 POST   /api/updates/check              check now (synchronous) -> same shape
 POST   /api/updates/apply              {"containers": ["radarr"], "force": false} | {} = all available -> {"run": id}
-POST   /api/updates/rollback           {"container": "radarr"} -> {"run": id}
+POST   /api/updates/rollback           {"container": "radarr", "restore_data": true} -> {"run": id}
 POST   /api/updates/hold               {"container": "radarr", "hold": true}
 POST   /api/updates/self               update wranglarr itself (a signed-in browser only) -> {"run": id}
 PUT    /api/updates/settings           {"enabled":true,"check_schedule":"…","auto_update":false,"auto_schedule":"…","backup_first":true,"self_update":false,"self_schedule":"…"}
 DELETE /api/updates/settings           back to the config file
 PUT    /api/updates/tracks/{container} {"tag":"develop"} | {"tag":null} = follow deployed image
 DELETE /api/updates/tracks/{container} back to that container's file default
+GET    /api/updates/reports            the kept failure reports, newest first
+GET    /api/updates/reports/{key}      one, with its Markdown, title and links
+GET    /api/updates/reports/{key}/reported  the issue it was already reported in, or {"issue": null}
+DELETE /api/updates/reports/{key}      forget it
 ```
 
 Update and rollback runs appear under Activity with suite `system`.

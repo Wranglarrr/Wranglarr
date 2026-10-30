@@ -105,6 +105,24 @@ impl Response {
     }
 }
 
+/// A container's log as text. Without a TTY, Docker sends it in frames: an
+/// 8-byte header (the stream, three zero bytes, the length as a big-endian u32)
+/// and that many bytes. With one it's the plain text.
+pub fn demux_logs(b: &[u8]) -> String {
+    let framed = |b: &[u8]| b.len() >= 8 && b[0] <= 2 && b[1..4] == [0, 0, 0];
+    if !framed(b) {
+        return String::from_utf8_lossy(b).into_owned();
+    }
+    let (mut out, mut rest) = (Vec::with_capacity(b.len()), b);
+    while framed(rest) {
+        let len = u32::from_be_bytes([rest[4], rest[5], rest[6], rest[7]]) as usize;
+        let end = (8 + len).min(rest.len());
+        out.extend_from_slice(&rest[8..end]);
+        rest = &rest[end..];
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 /// A request owns its connection driver, including on timeout or cancellation.
 struct ConnectionTask(tokio::task::JoinHandle<()>);
 
@@ -282,6 +300,12 @@ impl Docker {
         Err(DockerError::Other(format!("docker exec in {container}: timed out")))
     }
 
+    /// The last `tail` lines a container wrote, stdout and stderr together.
+    pub async fn logs(&self, container: &str, tail: u32) -> DResult<String> {
+        let path = format!("/containers/{container}/logs?stdout=1&stderr=1&tail={tail}");
+        Ok(demux_logs(&self.req(Method::GET, &path, None, &[200], Self::T).await?.body))
+    }
+
     pub async fn containers(&self, all: bool) -> DResult<Vec<Value>> {
         let j = self
             .req(Method::GET, &format!("/containers/json?all={}", u8::from(all)), None, &[200], Self::T)
@@ -438,6 +462,18 @@ impl Docker {
 
 #[cfg(test)]
 mod tests {
+    use super::demux_logs;
+
+    #[test]
+    fn logs_come_out_of_their_frames() {
+        let mut b = vec![1, 0, 0, 0, 0, 0, 0, 6];
+        b.extend_from_slice(b"hello\n");
+        b.extend_from_slice(&[2, 0, 0, 0, 0, 0, 0, 5]);
+        b.extend_from_slice(b"oops\n");
+        assert_eq!(demux_logs(&b), "hello\noops\n");
+        assert_eq!(demux_logs(b"plain tty text\n"), "plain tty text\n");
+    }
+
     use super::split_ref;
 
     async fn read_mock_request(stream: &mut tokio::net::UnixStream) {

@@ -61,7 +61,20 @@ pub fn router(app: App) -> Router {
         .with_state(app.clone());
     // Router layers run after route matching. An outer fallback dispatches to
     // the real router only after stripping the optional browser prefix.
-    Router::new().fallback_service(routes).layer(middleware::from_fn_with_state(app, strip_url_base))
+    Router::new()
+        .fallback_service(routes)
+        .layer(middleware::from_fn_with_state(app, strip_url_base))
+        .layer(middleware::map_response(referrer_policy))
+}
+
+/// Links and windows that leave wranglarr don't tell the other site where they
+/// came from: your wranglarr's address would name your domain. Same-origin
+/// requests keep theirs, and their `Origin` header.
+async fn referrer_policy(mut resp: Response) -> Response {
+    resp.headers_mut()
+        .entry(axum::http::header::REFERRER_POLICY)
+        .or_insert(axum::http::HeaderValue::from_static("same-origin"));
+    resp
 }
 
 async fn strip_url_base(State(app): State<App>, mut req: Request, next: Next) -> Response {

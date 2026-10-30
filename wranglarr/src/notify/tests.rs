@@ -313,6 +313,16 @@ fn job_messages() {
         m,
         ("update_failed", "Container rollback failed".into(), "failed: pull. See Activity, run 5.".into(), "error")
     );
+    let failed = json!({
+        "results": {"radarr": "failed"},
+        "reports": {"radarr": {"id": "wf-0123456789", "search": "https://github.com/o/r/issues?q=wf-0123456789"}}
+    });
+    let m = run_message("_", "update", "radarr", "failed", &failed, 7).expect("msg");
+    assert_eq!(
+        m.2,
+        "radarr failed. See Activity, run 7. radarr: check whether it's been reported: \
+         https://github.com/o/r/issues?q=wf-0123456789 If it hasn't, its report is on the Updates page."
+    );
     let m = run_message("media", "connect", "", "partial", &json!({}), 6).expect("msg");
     assert_eq!(
         m,

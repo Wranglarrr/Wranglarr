@@ -26,6 +26,37 @@ pub fn routes() -> Router<App> {
         .route("/api/updates/self", post(self_update))
         .route("/api/updates/settings", put(save_settings).delete(reset_settings))
         .route("/api/updates/tracks/{container}", put(save_track).delete(reset_track))
+        .route("/api/updates/reports", get(reports))
+        .route("/api/updates/reports/{id}", get(report).delete(forget_report))
+        .route("/api/updates/reports/{id}/reported", get(reported))
+        .route("/updates/report/{id}", get(report_page))
+}
+
+async fn reports(State(app): State<App>) -> Json<Value> {
+    Json(json!({"reports": app.updates().report_views().await}))
+}
+
+async fn report(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    let r = app.updates().report_view(&id).await.ok_or_else(|| Error::not_found(format!("no failure report {id}")))?;
+    Ok(Json(r))
+}
+
+/// The issue its failure was already reported in, or `{"issue": null}`.
+async fn reported(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    Ok(Json(app.updates().reported(&id).await?))
+}
+
+async fn forget_report(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    if !app.updates().forget_report(&id).await? {
+        return Err(Error::not_found(format!("no failure report {id}")).into());
+    }
+    Ok(Json(json!({"forgotten": id})))
+}
+
+/// A failed update's report, to check for and file an issue with.
+async fn report_page(State(app): State<App>, ctx: Ctx, Path(id): Path<String>) -> Page {
+    let r = app.updates().report_view(&id).await.ok_or_else(|| Error::not_found(format!("no failure report {id}")))?;
+    page(&app, &ctx, "update_report.html", "updates", json!({"r": r})).await.map_err(Into::into)
 }
 
 #[derive(Deserialize)]
@@ -77,6 +108,9 @@ pub struct ContainerIn {
     pub container: String,
     #[serde(default = "yes")]
     pub hold: bool,
+    /// A rollback also puts the app's data back from its pre-update backup.
+    #[serde(default)]
+    pub restore_data: bool,
 }
 
 fn yes() -> bool {
@@ -109,7 +143,7 @@ async fn apply(State(app): State<App>, Body(body): Body<Option<UpdateIn>>) -> Ap
 }
 
 async fn rollback(State(app): State<App>, Body(body): Body<ContainerIn>) -> ApiResult<(StatusCode, Json<Value>)> {
-    let run = app.updates().rollback(&body.container).await?;
+    let run = app.updates().rollback(&body.container, body.restore_data).await?;
     Ok((StatusCode::ACCEPTED, Json(json!({"run": run}))))
 }
 

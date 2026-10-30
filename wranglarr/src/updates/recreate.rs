@@ -6,16 +6,21 @@
 use std::collections::HashSet;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde_json::{Map, Value, json};
 use tokio::time::Instant;
 
+use super::recovery::{ContainerRecovery, DataPhase, DataRecovery, Outcome, Placement, Recovery, RecoveryPhase};
+use super::report::Captured;
 use super::{OLD_SUFFIX, Target, USER_ENV, Updater, short};
 use crate::config::AppConfig;
 use crate::docker::{Docker, DockerError, IMAGE_REFERENCE_LABEL, image_reference};
 use crate::error::{Error, Result};
 use crate::jobs::RunLog;
+use crate::jobs::restore::{ApiAvailability, ApiRestoreFailed, ApiRestoreOutcome, Prepared};
 use crate::standalone::image_version;
 use crate::state::NewUpdate;
 use crate::value::head;
@@ -216,6 +221,16 @@ pub(super) trait Swapper: Log {
     fn before_put_back(&self, _d: &Docker) -> impl Future<Output = Result<()>> + Send {
         async { Ok(()) }
     }
+
+    /// Just before the new container is started. From here on it may have run,
+    /// even when Docker's answer to the start never arrives.
+    fn starting(&self) {}
+
+    /// A failed swap made the new container `id`: a last look at it before
+    /// it's removed.
+    fn on_failure(&self, _d: &Docker, _id: &str) -> impl Future<Output = ()> + Send {
+        async {}
+    }
 }
 
 /// The images and versions one swap went between: what the history row records.
@@ -267,12 +282,39 @@ pub(super) struct Swapped {
 #[derive(Debug)]
 pub(super) struct SwapFailed {
     pub(super) error: Error,
-    pub(super) attempted: Option<Box<SwapFacts>>,
+    pub(super) attempted: Option<Box<AttemptedSwap>>,
+}
+
+/// A parked swap always has both its image facts and a recovery result.
+#[derive(Debug)]
+pub(super) struct AttemptedSwap {
+    pub(super) facts: SwapFacts,
+    recovery: ContainerRecovery,
+    was_running: bool,
 }
 
 impl SwapFailed {
     fn before(error: impl Into<Error>) -> SwapFailed {
         SwapFailed { error: error.into(), attempted: None }
+    }
+}
+
+async fn left_after(d: &Docker, name: &str, new_id: Option<&str>) -> Placement {
+    let running = |c: &Value| c["State"]["Running"].as_bool();
+    if let Some(id) = new_id {
+        match d.inspect(id).await {
+            Ok(c) => return running(&c).map_or(Placement::Unknown, |running| Placement::Rejected { running }),
+            Err(DockerError::NotFound(_)) => {}
+            Err(_) => return Placement::Unknown,
+        }
+    }
+    let parked = format!("{name}{OLD_SUFFIX}");
+    match (d.inspect(&parked).await, d.inspect(name).await) {
+        (Ok(p), Err(DockerError::NotFound(_))) if running(&p) == Some(false) => Placement::Parked,
+        (Err(DockerError::NotFound(_)), Ok(c)) => {
+            running(&c).map_or(Placement::Unknown, |running| Placement::Back { running })
+        }
+        _ => Placement::Unknown,
     }
 }
 
@@ -422,6 +464,7 @@ pub(super) async fn swap(
             d.connect(net, &id, ep).await?;
         }
         if was_running {
+            s.starting();
             d.start(&id).await?;
             s.ready(d, &id).await?;
         }
@@ -430,11 +473,17 @@ pub(super) async fn swap(
     .await;
     if let Err(e) = swapped {
         s.line(format!("{name}: new container did not come up ({e}); restoring the old one")).await;
-        let error = match put_back(d, s, name, &parked, new_id.as_deref(), was_running).await {
-            Ok(()) => e,
-            Err(recovery) => Error::internal(format!("{e}; rollback failed: {recovery}")),
+        if let Some(id) = &new_id {
+            s.on_failure(d, id).await;
+        }
+        let recovery = put_back(d, s, name, &parked, new_id.as_deref(), was_running).await;
+        let error = match &recovery {
+            ContainerRecovery::Restored { .. } => e,
+            ContainerRecovery::Incomplete { phase, error, .. } => {
+                Error::internal(format!("{e}; rollback failed while {phase}: {error}"))
+            }
         };
-        return Err(SwapFailed { error, attempted: Some(Box::new(facts)) });
+        return Err(SwapFailed { error, attempted: Some(Box::new(AttemptedSwap { facts, recovery, was_running })) });
     }
     let new_id = new_id.unwrap_or_default();
     if let Err(e) = d.remove(&parked, true).await {
@@ -453,14 +502,30 @@ async fn put_back(
     parked: &str,
     new_id: Option<&str>,
     was_running: bool,
-) -> Result<()> {
+) -> ContainerRecovery {
+    let mut phase = RecoveryPhase::RemoveNew;
     let restored: Result<()> = async {
-        if let Some(id) = new_id {
-            d.remove(id, true).await?;
+        if let Some(id) = new_id
+            && let Err(e) = d.remove(id, true).await
+        {
+            // it may be running on the data still: stopped, at least, it changes nothing
+            match d.stop(id, 30).await {
+                Ok(()) => s.line(format!("{name}: the new container couldn't be removed ({e}); it's stopped")).await,
+                Err(e2) => {
+                    s.line(format!(
+                        "{name}: the new container couldn't be removed ({e}) or stopped ({e2}): it may still be running"
+                    ))
+                    .await;
+                }
+            }
+            return Err(e.into());
         }
+        phase = RecoveryPhase::RestoreData;
         s.before_put_back(d).await?;
+        phase = RecoveryPhase::RenameOld;
         d.rename(parked, name).await?;
         if was_running {
+            phase = RecoveryPhase::StartOld;
             d.start(name).await?;
         }
         Ok(())
@@ -472,10 +537,27 @@ async fn put_back(
             s.line(format!("{name}: could not restore the old container: {e}; inspect {parked} and recovery artifacts before starting it manually")).await;
         }
     }
-    restored
+    match restored {
+        Ok(()) => ContainerRecovery::Restored { running: was_running },
+        Err(error) => ContainerRecovery::Incomplete { phase, placement: left_after(d, name, new_id).await, error },
+    }
 }
 
 type Fut<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
+/// The app data that goes back with a swap, from a pre-update backup version.
+/// The new version of an app may migrate its database (or config files) when it
+/// starts, and the old version can't read them after that.
+pub(super) enum DataBack {
+    /// Nothing: the swap only changes the program.
+    None,
+    /// An update: when the new container was started and fails, the app's data
+    /// goes back from this version before the old container starts again.
+    IfFailed { suite: String, version: String },
+    /// A rollback: the data goes back before the container on the old image is
+    /// created.
+    First(Box<Prepared>),
+}
 
 /// A swap on the job worker: lines go to the run's log, and the new container
 /// is up once its app's API (or Postgres) answers.
@@ -483,6 +565,34 @@ struct OnRun<'a> {
     updater: &'a Updater,
     rl: &'a RunLog,
     target: &'a Target,
+    data: &'a DataBack,
+    /// The new container was (or may have been) started: it may have changed the data.
+    started: AtomicBool,
+    /// Data progress is one coherent state, independent of container placement.
+    progress: Mutex<DataProgress>,
+    /// The failed container's log and state, for the report.
+    captured: Mutex<Option<Captured>>,
+}
+
+#[derive(Default)]
+struct DataProgress {
+    recovery: DataRecovery,
+    note: String,
+    prepared: Option<Prepared>,
+}
+
+impl OnRun<'_> {
+    fn note(&self, s: impl Into<String>) {
+        self.progress.lock().expect("data progress").note = s.into();
+    }
+
+    fn data_recovery(&self) -> DataRecovery {
+        self.progress.lock().expect("data progress").recovery.clone()
+    }
+
+    fn data_note(&self) -> String {
+        self.progress.lock().expect("data progress").note.clone()
+    }
 }
 
 impl Log for OnRun<'_> {
@@ -491,9 +601,131 @@ impl Log for OnRun<'_> {
     }
 }
 
+impl OnRun<'_> {
+    fn parked(&self) -> String {
+        format!("{}{OLD_SUFFIX}", self.target.container)
+    }
+
+    fn done(&self) -> String {
+        let parts = self.data_recovery().completed;
+        if parts.is_empty() { "nothing had finished".into() } else { format!("done: {}", parts.join(", ")) }
+    }
+
+    /// Put `p` back with the container stopped, keeping track of what went back.
+    async fn restore(&self, p: &Prepared) -> Result<()> {
+        self.progress.lock().expect("data progress").recovery.state = DataPhase::Restoring;
+        let mut done = vec![];
+        let r = async {
+            let c = crate::service::client(&p.app).await?;
+            self.updater.app.restore_stopped(self.rl, p, &c, &mut done).await
+        }
+        .await;
+        let mut progress = self.progress.lock().expect("data progress");
+        progress.recovery.completed.extend(done);
+        progress.recovery.state = if r.is_ok() { DataPhase::OfflineRestored } else { DataPhase::NeedsRecovery };
+        r
+    }
+
+    /// Stop here: the old container stays parked and stopped, for recovery by hand.
+    fn keep_stopped(&self, why: String) -> Error {
+        let msg = format!(
+            "{why}. {} stays stopped as {} so nothing runs on that data: restore the backup by hand, then rename it back and start it",
+            self.target.container,
+            self.parked()
+        );
+        self.note(msg.clone());
+        self.progress.lock().expect("data progress").recovery.state = DataPhase::NeedsRecovery;
+        Error::conflict(msg)
+    }
+}
+
 impl Swapper for OnRun<'_> {
     fn ready(&self, _d: &Docker, id: &str) -> impl Future<Output = Result<()>> + Send {
         self.updater.wait_healthy(self.rl, self.target, id)
+    }
+
+    fn starting(&self) {
+        self.started.store(true, Ordering::Release);
+    }
+
+    async fn before_create(&self, _d: &Docker) -> Result<()> {
+        let DataBack::First(p) = self.data else { return Ok(()) };
+        let name = &self.target.container;
+        self.rl
+            .append(format!("{name}: putting {}'s data back from the pre-update backup {}", p.app.name, p.version))
+            .await;
+        self.restore(p).await
+    }
+
+    async fn on_failure(&self, d: &Docker, id: &str) {
+        let log = d.logs(id, 300).await.unwrap_or_default();
+        let state = d.inspect(id).await.map(|c| c["State"].clone()).unwrap_or(Value::Null);
+        if let Ok(mut c) = self.captured.lock() {
+            *c = Some(Captured { log, state });
+        }
+    }
+
+    async fn before_put_back(&self, _d: &Docker) -> Result<()> {
+        let Some(app) = &self.target.app else { return Ok(()) };
+        let name = &self.target.container;
+        match self.data {
+            DataBack::None => Ok(()),
+            DataBack::First(p) => {
+                if self.data_recovery().state == DataPhase::Untouched {
+                    return Ok(()); // failed before any data changed
+                }
+                // the data is (partly) the old version's now: the newer one mustn't start on it
+                let why = format!(
+                    "the rollback had begun putting {}'s data back from {} ({}), so the newer version isn't started on it again",
+                    app.name,
+                    p.version,
+                    self.done()
+                );
+                self.rl.append(format!("{name}: {why}")).await;
+                Err(self.keep_stopped(why))
+            }
+            DataBack::IfFailed { suite, version } => {
+                if !self.started.load(Ordering::Acquire) {
+                    self.note("The new version never started, so the data was left as it was.");
+                    return Ok(()); // the new one never ran: the data is as it was
+                }
+                let a = &self.updater.app;
+                // checked again: files can go missing or change after the update began
+                let p = match a.prepare_offline(suite, version, &app.name).await {
+                    Ok(p) => p,
+                    Err(e) => {
+                        let why = format!(
+                            "the new version ran, and {}'s data can't be put back from {version} ({e}); the old version isn't started on what the new one may have migrated",
+                            app.name
+                        );
+                        self.rl.append(format!("{name}: {why}")).await;
+                        return Err(self.keep_stopped(why));
+                    }
+                };
+                if let Some(gap) = p.offline_gap() {
+                    let why = format!("the new version ran, and {gap}");
+                    self.rl.append(format!("{name}: {why}")).await;
+                    return Err(self.keep_stopped(why));
+                }
+                if p.needs_stop() {
+                    self.rl
+                        .append(format!(
+                            "{name}: the new version may have migrated {}'s data: putting it back from {version}",
+                            app.name
+                        ))
+                        .await;
+                    if let Err(e) = self.restore(&p).await {
+                        let why =
+                            format!("putting {}'s data back from {version} failed ({e}; {})", app.name, self.done());
+                        self.rl.append(format!("{name}: {why}")).await;
+                        return Err(self.keep_stopped(why));
+                    }
+                    self.note("The data was put back from the pre-update backup.");
+                }
+                self.progress.lock().expect("data progress").prepared = Some(p);
+                Ok(())
+            }
+        }
     }
 }
 
@@ -524,9 +756,51 @@ impl Updater {
         network_mode: Option<&'a str>,
         action: &'a str,
     ) -> Fut<'a, Result<Recreated>> {
+        self.recreate_with(rl, t, image, network_mode, action, &DataBack::None)
+    }
+
+    /// [`recreate`](Self::recreate), with the app's data put back as `data` says.
+    pub(super) fn recreate_with<'a>(
+        &'a self,
+        rl: &'a RunLog,
+        t: &'a Target,
+        image: Option<&'a str>,
+        network_mode: Option<&'a str>,
+        action: &'a str,
+        data: &'a DataBack,
+    ) -> Fut<'a, Result<Recreated>> {
         Box::pin(async move {
-            let swapped = self.replace(rl, t, image, network_mode, action).await?;
+            let swapped = self.replace(rl, t, image, network_mode, action, data).await?;
             Ok(self.follow(rl, &t.container, &swapped).await)
+        })
+    }
+
+    /// What to do about a container a failed swap left parked or half put
+    /// back, for the Updates page while it's like that. `None` when nothing
+    /// is left to sort out by hand.
+    fn recovery_note(&self, name: &str, state: Recovery, on_run: &OnRun<'_>) -> Option<String> {
+        let parked = on_run.parked();
+        let data = on_run.data_note();
+        let data_back = "if the new version ran, put the data back from the pre-update backup";
+        Some(match state {
+            Recovery::Parked if on_run.data_recovery().state == DataPhase::NeedsRecovery => data,
+            Recovery::Parked => format!(
+                "The old container couldn't be renamed back from {parked} (see the run log). {data} \
+                 Rename it to {name} and start it."
+            ),
+            Recovery::Rejected => format!(
+                "The new {name} couldn't be removed; it's stopped. The old container is parked as {parked}. \
+                 Remove {name}, {data_back}, then rename {parked} to {name} and start it."
+            ),
+            Recovery::RejectedRunning => format!(
+                "The new {name} couldn't be removed or stopped, and may still be changing the data. Stop and \
+                 remove it first. Then {data_back}, rename {parked} to {name} and start it."
+            ),
+            Recovery::Unknown => format!(
+                "wranglarr couldn't tell how {name} was left. Check {name} and {parked} in Docker, and don't \
+                 start either until you know which data it would run on."
+            ),
+            Recovery::Running | Recovery::Unhealthy | Recovery::Stopped | Recovery::NotStarted => return None,
         })
     }
 
@@ -539,27 +813,141 @@ impl Updater {
         image: Option<&str>,
         network_mode: Option<&str>,
         action: &str,
+        data: &DataBack,
     ) -> Result<Swapped> {
         let d = self.docker()?;
         let name = t.container.as_str();
-        let on_run = OnRun { updater: self, rl, target: t };
+        let on_run = OnRun {
+            updater: self,
+            rl,
+            target: t,
+            data,
+            started: AtomicBool::new(false),
+            progress: Mutex::new(DataProgress::default()),
+            captured: Mutex::new(None),
+        };
         match swap(d, &on_run, name, image, network_mode).await {
             Ok(swapped) => {
+                self.set_recovery(name, None).await;
                 let f = &swapped.facts;
                 self.record(rl, f.row(action, "ok", String::new())).await;
                 let now = if f.new_version.is_empty() { String::new() } else { format!(", now {}", f.new_version) };
                 rl.append(format!("{name}: {action} done{now}")).await;
                 Ok(swapped)
             }
-            Err(SwapFailed { error, attempted: None }) => Err(error),
-            Err(SwapFailed { error, attempted: Some(f) }) => {
+            Err(SwapFailed { error, attempted: None, .. }) => Err(error),
+            Err(SwapFailed { error, attempted: Some(attempt) }) => {
+                let AttemptedSwap { facts: f, recovery, was_running } = *attempt;
                 self.record(rl, f.row(action, "failed", head(&error.to_string(), 300))).await;
-                if action == "update" && f.new_image != f.old_image {
+                let rejected = action == "update" && f.new_image != f.old_image;
+                let mut blocked = false;
+                if rejected {
                     let reason = head(&format!("{} failed to start: {error}", f.new_shown()), 200);
-                    if let Err(e3) = self.block(name, &f.new_image, &reason).await {
-                        rl.append(format!("{name}: could not remember the rejected image: {e3}")).await;
+                    match self.block(name, &f.new_image, &reason).await {
+                        Ok(()) => blocked = true,
+                        Err(e3) => rl.append(format!("{name}: could not remember the rejected image: {e3}")).await,
                     }
                     self.retag(rl, &f.reference, &f.old_image).await;
+                }
+                let recovered = matches!(recovery, ContainerRecovery::Restored { .. });
+                let left = recovery.placement();
+                // back under its name is not the same as up: look
+                let mut state = match left {
+                    Placement::Back { running: true } => match self.wait_healthy(rl, t, name).await {
+                        Ok(()) => Recovery::Running,
+                        Err(e) => {
+                            rl.append(format!(
+                                "{name}: the old container is back but didn't come up healthy ({e}); check it"
+                            ))
+                            .await;
+                            Recovery::Unhealthy
+                        }
+                    },
+                    Placement::Back { running: false } if was_running => Recovery::NotStarted,
+                    Placement::Back { running: false } => Recovery::Stopped,
+                    Placement::Parked => Recovery::Parked,
+                    Placement::Rejected { running: false } => Recovery::Rejected,
+                    Placement::Rejected { running: true } => Recovery::RejectedRunning,
+                    Placement::Unknown => Recovery::Unknown,
+                };
+                if on_run.data_note().is_empty()
+                    && matches!(on_run.data, DataBack::IfFailed { .. })
+                    && on_run.started.load(Ordering::Acquire)
+                {
+                    on_run.note("The data wasn't put back from the pre-update backup.");
+                }
+                if !recovered {
+                    let note = self.recovery_note(name, state, &on_run);
+                    // keep_stopped's own error already said it
+                    let said = state == Recovery::Parked && on_run.data_recovery().state == DataPhase::NeedsRecovery;
+                    if let Some(n) = note.as_ref().filter(|_| !said) {
+                        rl.append(format!("{name}: {n}")).await;
+                    }
+                    self.set_recovery(name, note).await;
+                }
+                let restored = on_run.progress.lock().expect("data progress").prepared.take();
+                if let Some(p) = restored.filter(Prepared::api_config) {
+                    if state == Recovery::Running {
+                        // the arrs: their own backup goes back through the old version's API
+                        let result = self.app.restore_api_config_within(rl, &p, self.health().timeout).await;
+                        let (api, availability, note) = match result {
+                            Ok(api) => (
+                                api,
+                                ApiAvailability::Ready,
+                                "The data was put back from the pre-update backup.".into(),
+                            ),
+                            Err(ApiRestoreFailed { error: e, outcome, availability }) => {
+                                let note = match outcome {
+                                    ApiRestoreOutcome::UnavailableBeforeUpload => format!(
+                                        "{}'s API became unavailable before its config restore; upload was not attempted ({e}).",
+                                        p.app.name
+                                    ),
+                                    ApiRestoreOutcome::RestartNotReady => format!(
+                                        "The databases were put back, but {} restarted to apply its own backup and didn't come back ({e}).",
+                                        p.app.name
+                                    ),
+                                    ApiRestoreOutcome::UploadOutcomeUnknown => format!(
+                                        "The databases were put back, but the outcome of {}'s config upload is unknown ({e}); inspect it before retrying.",
+                                        p.app.name
+                                    ),
+                                    _ => format!("The app's config couldn't be put back through its API ({e})."),
+                                };
+                                rl.append(format!(
+                                    "{name}: could not complete {}'s config restore from {} ({e}); check it",
+                                    p.app.name, p.version
+                                ))
+                                .await;
+                                (outcome, availability, note)
+                            }
+                        };
+                        state = state.after_api(availability);
+                        let mut progress = on_run.progress.lock().expect("data progress");
+                        progress.recovery.api = api;
+                        if api == ApiRestoreOutcome::Verified {
+                            progress.recovery.state = DataPhase::Verified;
+                            progress.recovery.completed.push("API config".into());
+                        }
+                        progress.note = note;
+                    } else {
+                        on_run.note(format!(
+                            "{}'s own backup wasn't put back: that goes through its API, and the old version isn't up.",
+                            p.app.name
+                        ));
+                    }
+                }
+                if rejected {
+                    let captured = on_run.captured.lock().ok().and_then(|mut c| c.take());
+                    let mut data = on_run.data_note();
+                    if data.is_empty() && matches!(on_run.data, DataBack::None) && t.role == "app" {
+                        data = "No pre-update backup was made, so the data wasn't put back.".into();
+                    }
+                    let recovery_phase = match recovery {
+                        ContainerRecovery::Incomplete { phase, .. } => Some(phase),
+                        ContainerRecovery::Restored { .. } => None,
+                    };
+                    let outcome =
+                        Outcome { state, blocked, data, data_recovery: on_run.data_recovery(), recovery_phase };
+                    self.report_failure(rl, t, &f, &error.to_string(), captured.as_ref(), &outcome).await;
                 }
                 Err(error)
             }

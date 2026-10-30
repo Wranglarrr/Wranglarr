@@ -24,11 +24,69 @@ How to write an entry:
 
 ## 1.1.1 — not released yet
 
+### Before you update
+
+- **Older pre-update backups go at the next prune.** They're now kept apart
+  from each suite's retention: the newest one stays, plus the ones a run of
+  quick updates still needs (below). If you want more kept, set
+  `pre_update_keep` under `[updates]` in wranglarr.toml before updating.
+- **An arr still on SQLite isn't updated** unless its config folder is
+  mounted into wranglarr read-write. The stock `compose.yaml` mounts the
+  arrs' folders read-only (`/arrconfig/radarr:ro`), which is enough for the
+  arrs on Postgres. For one on SQLite, drop the `:ro` from its line and
+  recreate wranglarr, or move it to Postgres
+  ([Importing existing apps](Importing-Existing-Apps.md)). Otherwise a failed
+  update couldn't put its database back, so the update is skipped and says
+  why.
+
 ### Changed
 
 - **A smaller image.** wranglarr is now built for size: its program is about a
   quarter smaller, so the image downloads faster. Backups, logins and
   compression run as fast as before.
+- **Pre-update backups are kept apart from scheduled ones,** so a week of
+  nightly backups never pushes out the backup a rollback needs. The newest
+  one stays. During a run of quick updates (catching up through several
+  versions), the backup from before the first stays until the last version has
+  run for a week. `pre_update_keep` and `pre_update_settle_days` under
+  `[updates]` change both.
+- **Roll back can put the data back too.** Its dialog offers to restore the
+  app's data from the backup taken just before that update, ticked by default
+  and showing that backup's date. A newer version may have migrated the
+  database, which the old version can't read.
+
+- **A failed update leaves a report to file it with.** The new container's
+  last log lines and exit state are kept before it's removed, with keys,
+  passwords, public addresses and domains taken out as far as wranglarr can
+  tell, so read it before you send it. It says how the app was left: back on
+  the old version, back but unhealthy, or stopped for you to recover. The run
+  log, the notification and the Updates page link to the report's page. Its
+  button copies the report and looks the failure up by its fingerprint: the
+  issue it was already reported in opens, or a new one with the report filled
+  in.
+- **An update is skipped when a failure couldn't be undone.** Before it
+  swaps a container, wranglarr checks that the backup it just made could put
+  the data back. An arr on SQLite needs its config folder mounted into
+  wranglarr read-write for that. Use `force` to update anyway.
+- **Links out of wranglarr no longer send its address** to the site they go
+  to, so a link to GitHub or release notes doesn't name your domain.
+
+### Fixed
+
+- **A failed update could leave the old version on migrated data.** When a new
+  version started, changed the app's database or config files, and then
+  failed its health check, the old version was put back on that changed data
+  and could refuse to start. The data now goes back from the pre-update
+  backup before the old version starts. For an arr on SQLite that's its
+  database file, put back with the app stopped, since an old version that
+  can't read the newer database never comes up to take its backup zip.
+  When the data can't go back (the backup can't be read, or a restore fails
+  halfway), nothing is started on it: the container stays stopped as
+  `<name>-wranglarr-old`, and the Updates page says what had been put back and
+  what to do. A rollback that fails while putting data back does the same.
+- **Two containers on one tag:** after the first failed to update, the second
+  could be "updated" onto the old image. A failed image is now skipped for the
+  rest of the run.
 
 ## 1.1.0 — 2026-10-28
 

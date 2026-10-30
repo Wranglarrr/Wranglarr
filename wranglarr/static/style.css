@@ -186,6 +186,7 @@ pre.env { background: var(--page-bg); border: 1px solid var(--line); padding: 10
 .dlg .row { display: flex; gap: 8px; flex-wrap: wrap }
 .modal { width: min(440px, calc(100vw - 32px)) }
 .modal .modal-body { color: var(--fg); font-size: 13.5px; line-height: 1.5 } .modal .modal-body p { margin: 6px 0 0 }
+.modal .check-line { display: flex; gap: 8px; align-items: baseline; margin: 12px 0 0; font-weight: 400; font-size: 13.5px }
 .modal input { margin: 12px 0 2px }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; flex-wrap: wrap }
 .btn.danger-fill { background: var(--err); border-color: var(--err); color: #fff } .btn.danger-fill:hover { filter: brightness(1.08) }
@@ -614,3 +615,5 @@ table.versions td { vertical-align: middle } table.versions td:first-child { whi
 .cc-blast { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--warn); border-radius: 8px; background: color-mix(in srgb, var(--warn) 8%, var(--panel-bg)) }
 .cc-blast > b:first-child { display: flex; align-items: center; gap: 6px; color: var(--warn) }
 .cc-blast p { margin: 4px 0 0 }
+pre.report { background: var(--page-bg); border: 1px solid var(--line); padding: 10px 12px; border-radius: 4px; font-size: 12px; max-height: 60vh; overflow: auto; white-space: pre-wrap; word-break: break-word }
+.report-steps { margin: 8px 0 4px; padding-left: 20px; line-height: 1.7 }

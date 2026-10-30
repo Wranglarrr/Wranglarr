@@ -153,6 +153,16 @@ class MockDocker:
     def fail_create(self, name: str | None):
         self.http.post("/_mock/fail_create", json={"name": name}).raise_for_status()
 
+    def fail(self, op: str | None = None, name: str | None = None, skip: int = 0):
+        """After `skip` calls of `op` on the container then called `name`, the next fails.
+        Each call adds a fault; with no `op`, they're cleared."""
+        body = {"op": op, "name": name, "skip": skip} if op else {}
+        self.http.post("/_mock/fail", json=body).raise_for_status()
+
+    def drop_start(self, name: str):
+        """The next start of `name` starts it, and its answer never arrives."""
+        self.http.post("/_mock/drop_start", json={"name": name}).raise_for_status()
+
     def stop(self):
         self.http.close()
         self.proc.stop()

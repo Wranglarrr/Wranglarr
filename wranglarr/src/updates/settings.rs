@@ -23,6 +23,8 @@ const JITTER_SECS: u64 = 90;
 const HOLDS: &str = "updates:holds";
 /// kv: container -> the image it must not be updated to
 const BLOCKED: &str = "updates:blocked";
+/// kv: container -> what to do before starting its parked container again
+const RECOVERY: &str = "updates:recovery";
 
 /// Update settings: wranglarr.toml's `[updates]`, overridden by what was saved on the page.
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -157,6 +159,38 @@ impl Updater {
                 tx.put(BLOCKED, &b)
             })
             .await
+    }
+
+    /// container -> what to do before its parked container is started again:
+    /// left by an update or rollback that stopped with the data half back.
+    pub(crate) async fn recovery_notes(&self) -> Map<String, Value> {
+        self.app.state().get(RECOVERY).await.ok().flatten().unwrap_or_default()
+    }
+
+    /// Set (`Some`) or clear `container`'s recovery note.
+    pub(crate) async fn set_recovery(&self, container: &str, note: Option<String>) {
+        let container = container.to_owned();
+        let r = self
+            .app
+            .state()
+            .write(move |tx| {
+                let mut m: Map<String, Value> = tx.get(RECOVERY)?.unwrap_or_default();
+                let changed = match note {
+                    Some(n) => {
+                        m.insert(container, json!(n));
+                        true
+                    }
+                    None => m.remove(&container).is_some(),
+                };
+                if changed {
+                    tx.put(RECOVERY, &m)?;
+                }
+                Ok(())
+            })
+            .await;
+        if let Err(e) = r {
+            tracing::error!("updates: could not keep the recovery note: {e}");
+        }
     }
 
     pub(crate) async fn unblock(&self, container: &str) -> Result<()> {

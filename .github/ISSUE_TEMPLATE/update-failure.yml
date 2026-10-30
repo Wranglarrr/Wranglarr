@@ -1,0 +1,48 @@
+name: Update failure
+description: An app's update failed and wranglarr put the old version back. Use the report from the Updates page.
+title: "Update failed: "
+labels: ["update-failure"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting it. Before you send this, search the issues for the fingerprint (`wf-` and ten
+        characters): if someone has already reported it, a thumbs-up or a comment there helps more than a new issue.
+
+        wranglarr fills these fields in when you open this from its failure report. Keep the fingerprint in the title.
+  - type: input
+    id: fingerprint
+    attributes:
+      label: Fingerprint
+      description: From the report, e.g. wf-0123456789. The same failure gets the same one on every machine.
+      placeholder: wf-0123456789
+    validations:
+      required: true
+  - type: input
+    id: app
+    attributes:
+      label: App
+      placeholder: Radarr (radarr)
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: From → to
+      placeholder: 5.14.0 → 5.15.0
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Report
+      description: >-
+        The report from the failure report page (Copy report). Keys, passwords, public addresses and domains are
+        taken out, but log lines can still name things in your library: read it first.
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: How you run it (Docker or Podman, the host), and anything you changed around the time of the update.

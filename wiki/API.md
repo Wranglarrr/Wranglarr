@@ -139,8 +139,8 @@ Ask `GET /api/runs/{id}` until `status` is no longer `queued` or `running`:
 | `restore-plan` | `done`, `failed`, `unavailable` (lists of `app@version`) |
 | `sync` | `results`: `[{"app", "resource", "name", "action", "error"?}]` |
 | `connect` | `results`: `[{"link", "src", "dst", "action", "detail"}]`; `action` is `created`, `updated`, `kept`, `connected`, `waiting` or `failed`. `kept`: already set up (in "new" mode left alone; in "all" mode saved again with its key, nothing else changed) |
-| `update` | `results`: `{"<container>": "updated" \| "recreated" \| "current" \| "held" \| "skipped" \| "refused" \| "failed"}` |
-| `rollback` | `container`, `image` |
+| `update` | `results`: `{"<container>": "updated" \| "recreated" \| "current" \| "held" \| "skipped" \| "refused" \| "failed"}`, and `reports`: `{"<container>": {"key", "id", "title", "search", "state"}}` for the failures that left a [report](Updates.md#failure-reports) |
+| `rollback` | `container`, `image`, and `data_from` (the backup version) when its data went back too |
 | `indexers` | `results`: `[{"app", "indexer", "action", "error"?}]` |
 
 **One run per suite at a time.** Starting another while one is queued or
@@ -352,13 +352,17 @@ suite summary's `shared`.
 | GET | `/api/updates` | | the overview (below), from the last check |
 | POST | `/api/updates/check` | none | asks the registries now and answers the overview. It waits for every registry, so it can take a while; `409` when Docker control is off |
 | POST | `/api/updates/apply` | `{"containers": ["radarr"], "force": false}`; none or `"containers": null` = everything with an update that isn't held | `202 {"run": id}`; **stops containers** (recreates them); `404` not a managed container; `409` Docker control off, nothing to update, or busy |
-| POST | `/api/updates/rollback` | `{"container": "radarr"}` | `202 {"run": id}`; **stops containers**; then holds it; `404` not a managed container; `409` no successful update to roll back, or busy |
+| POST | `/api/updates/rollback` | `{"container": "radarr", "restore_data": true}` | `202 {"run": id}`; **stops containers**; then holds it. `restore_data` (default `false`) also puts the app's data back from the backup taken just before that update; `404` not a managed container; `409` no successful update to roll back, that backup isn't kept any more, its data can't be put back with the app stopped (an SQLite arr whose config folder isn't mounted into wranglarr read-write), a container left parked as `<name>-wranglarr-old` from an earlier update or rollback, or busy |
 | POST | `/api/updates/hold` | `{"container": "radarr", "hold": true}` | the overview; `"hold": false` releases it; `404` |
 | POST | `/api/updates/self` | none | `202 {"run": id}`; **replaces wranglarr's own container**, so its API goes away for a while; needs a signed-in browser session (`403` with an API key); `409` Docker control off, its container not found, it can't update itself here (the reason), or an update of wranglarr already under way |
 | PUT | `/api/updates/settings` | below | the settings; `400` for a bad cron schedule |
 | DELETE | `/api/updates/settings` | | back to `wranglarr.toml`'s values; the settings |
 | PUT | `/api/updates/tracks/{container}` | `{"tag":"develop"}`; `null` or blank follows the deployed tag/digest | overview; stores a preference without restarting; invalid tag `400`, unknown container `404`, queued/running update `409` |
 | DELETE | `/api/updates/tracks/{container}` | | overview; removes the UI track override and uses `[updates.tracks]` or the deployed image |
+| GET | `/api/updates/reports` | | `{"reports": [...]}`: the kept failure reports, newest first, each as below |
+| GET | `/api/updates/reports/{key}` | | one failure report, by its `key` (`<run>-<container>`; `id` is the fingerprint, shared by the same failure): its fields, `state` (how the container was left, as Docker tells it afterwards: `running`, `unhealthy`, `stopped` as it was, `not_started` (back under its name, but it wouldn't start), `parked`, `rejected` (the new container couldn't be removed; it's stopped and the old one parked), `rejected_running` (it couldn't be stopped either) or `unknown`), `blocked` (whether the new image is skipped from now on), `data`, `outcome` (those in a sentence), `seen` and `first_seen` (how often and since when its fingerprint has failed here), `title`, `markdown` and `links` (`search`, `new_issue`, `body_in_link`; `null` links when there's no repo to report to); `404` |
+| GET | `/api/updates/reports/{key}/reported` | | `{"issue": {"number", "title", "state", "url"}}`: the oldest issue in the report's repo, open or closed, with its fingerprint; `{"issue": null}` when there's none. wranglarr asks GitHub's search; `404` no such report, `409` no repo to look in, `502` GitHub didn't answer or is limiting searches |
+| DELETE | `/api/updates/reports/{key}` | | `{"forgotten": key}`; `404` |
 
 An update pulls the new images first, backs up the suites of the apps it is
 about to replace (`backup_first`), then recreates each container with the
@@ -404,11 +408,32 @@ The overview:
                "status": "available", "image": "lscr.io/linuxserver/radarr:latest", "version": "5.14.0",
                "running": true, "health": "healthy", "checked": "2026-10-26T12:00:03+00:00", "error": null,
                "held": false, "hold_reason": null, "blocked": null, "last_update": null,
-               "can_rollback": false, "rollback_to": null}],
+               "can_rollback": false, "rollback_to": null, "rollback_backup": null, "report": null,
+               "interrupted": null, "recovery": null}],
   "history": [{"id": 7, "container": "sonarr", "action": "update", "status": "ok", "old_version": "4.0.9",
                "new_version": "4.0.10", "run_id": 40, "at": "2026-10-20T04:00:12Z", "note": ""}]
 }
 ```
+
+`report` is `{"key", "id", "title", "search", "state"}` while the container's last
+update is a failed one that left a failure report, else `null`. `interrupted` names
+the parked `<name>-wranglarr-old` container while there is one, and `recovery` says
+why it was left stopped and what to do, when an update or rollback stopped because
+the data couldn't go back.
+
+The full `/api/updates/reports/{key}` response records recovery facts separately:
+`state` describes the container's final availability; `recovery_phase` identifies
+an incomplete container recovery (`remove_new`, `restore_data`, `rename_old` or
+`start_old`), or is `null` when those steps completed. `data_recovery` contains
+`state`, `completed` and `api`. Its state is `untouched` (no recovery writes
+attempted), `restoring`, `offline_restored`, `verified` or `needs_recovery`.
+`completed` lists the database/file steps that finished. The API outcome is
+`not_attempted`, `unavailable_before_upload`, `request_failed`,
+`upload_outcome_unknown`, `restart_not_ready` or `verified`. An app answering
+requests does not prove that an uncertain config upload succeeded; inspect both
+the container and data outcomes. `data` retains the human-readable explanation.
+`request_failed` means the app returned an error and still answers, not that the
+restore made no changes.
 
 `role` is `app`, `postgres`, `vpn`, `extra` or `wranglarr`. `status` is `unchecked`,
 `current`, `available`, `pinned` (a digest in the image reference), `local`
