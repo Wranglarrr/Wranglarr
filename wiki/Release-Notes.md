@@ -22,7 +22,7 @@ How to write an entry:
   do, not how the code changed.
 -->
 
-## 1.1.1 — not released yet
+## 1.1.1 — 2026-10-30
 
 ### Before you update
 
