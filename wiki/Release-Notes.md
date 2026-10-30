@@ -26,10 +26,6 @@ How to write an entry:
 
 ### Before you update
 
-- **Older pre-update backups go at the next prune.** They're now kept apart
-  from each suite's retention: the newest one stays, plus the ones a run of
-  quick updates still needs (below). If you want more kept, set
-  `pre_update_keep` under `[updates]` in wranglarr.toml before updating.
 - **An arr still on SQLite isn't updated** unless its config folder is
   mounted into wranglarr read-write. The stock `compose.yaml` mounts the
   arrs' folders read-only (`/arrconfig/radarr:ro`), which is enough for the
@@ -49,7 +45,10 @@ How to write an entry:
   one stays. During a run of quick updates (catching up through several
   versions), the backup from before the first stays until the last version has
   run for a week. `pre_update_keep` and `pre_update_settle_days` under
-  `[updates]` change both.
+  `[updates]` change both. The pre-update backups you already have, made by
+  1.1.0 or 1.0.0, aren't touched by the new rule: they stay counted with the
+  scheduled ones, under the suite's `keep_last` and `keep_days`, until they
+  age out as they would have before.
 - **Roll back can put the data back too.** Its dialog offers to restore the
   app's data from the backup taken just before that update, ticked by default
   and showing that backup's date. A newer version may have migrated the
