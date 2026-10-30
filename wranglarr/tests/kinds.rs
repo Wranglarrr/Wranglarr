@@ -18,7 +18,7 @@ const ALLOWED: &[(&str, &str, &str)] = &[
         "an indexer source's type (a Prowlarr outside the stack), persisted in the state db",
     ),
     (
-        "src/setup/env.rs",
+        "src/setup/env/render.rs",
         "\"prowlarr\" => \":compose.vpn-prowlarr.yaml\"",
         "VPN_SCOPE=prowlarr, a persisted .env value",
     ),
