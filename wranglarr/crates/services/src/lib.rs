@@ -268,6 +268,9 @@ pub struct Container {
     pub env: &'static [(&'static str, &'static str)],
     /// No PUID/PGID support: run as that user, with an init.
     pub run_as_user: bool,
+    /// Writable temporary mounts needed even when the image runs as PUID:PGID.
+    /// Compose short syntax; PUID/PGID substitutions refer to the restore stack's env.
+    pub tmpfs: &'static [&'static str],
     /// Needs the shared `/data` mount (media and downloads).
     pub data: bool,
     /// Can run inside the VPN's network (the wizard's per-app tunnels).

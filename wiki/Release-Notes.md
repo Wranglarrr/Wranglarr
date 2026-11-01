@@ -24,6 +24,12 @@ How to write an entry:
 
 ## 1.1.2 — not released yet
 
+### Before you update
+
+- **Update your stack's `compose.yaml` and recreate Seerr** with
+  `docker compose up -d --no-deps seerr` (or the equivalent Podman command).
+  Updating only the Wranglarr container does not apply the new cache mount.
+
 ### New
 
 - **qBittorrent's apps can work through AuthTunnel, if you turn it on.** With
@@ -46,6 +52,11 @@ How to write an entry:
 - **A backup manifest keeps a long decimal number exactly as it was.** A
   number like that, written by another version, changed slightly each time
   wranglarr read the manifest and wrote it back.
+- **Seerr could restart when loading Plex user avatars or posters** if your
+  `PUID:PGID` differed from the image's default user. That could interrupt a Plex
+  user import, send you back to login and produce a 502 through the reverse proxy.
+  Its image cache now has a temporary writable mount owned by your configured
+  user. Newly generated standalone restore stacks include the same mount.
 
 ## 1.1.1 — 2026-10-30
 

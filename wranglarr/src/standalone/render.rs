@@ -81,6 +81,12 @@ fn app_service(st: &Stack, sa: &StackApp) -> Vec<String> {
         l.push("    init: true".into());
         l.push(r#"    user: "${PUID}:${PGID}""#.into());
     }
+    if let Some(def) = a.def()
+        && !def.container.tmpfs.is_empty()
+    {
+        l.push("    tmpfs:".into());
+        l.extend(def.container.tmpfs.iter().map(|mount| format!("      - {}", q(mount))));
+    }
     l.push("    environment:".into());
     l.extend(COPY_ENV.iter().map(|k| format!("      {k}: ${{{k}}}")));
     for (k, v) in crate::service::get(&a.kind).map_or(&[][..], |d| d.container.env) {

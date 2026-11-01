@@ -54,6 +54,7 @@ pub static DEF: ServiceDef = ServiceDef {
         config_mount: "/config",
         env: &[("WEBUI_PORT", "8090"), ("TORRENTING_PORT", "6881")],
         run_as_user: false,
+        tmpfs: &[],
         data: true,
         vpn: true,
     },
