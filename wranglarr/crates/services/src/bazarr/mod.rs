@@ -46,6 +46,7 @@ pub static DEF: ServiceDef = ServiceDef {
         config_mount: "/config",
         env: &[],
         run_as_user: false,
+        tmpfs: &[],
         data: true,
         vpn: true,
     },

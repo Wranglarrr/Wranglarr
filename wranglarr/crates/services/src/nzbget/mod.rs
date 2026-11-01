@@ -55,6 +55,7 @@ pub static DEF: ServiceDef = ServiceDef {
         // linuxserver NZBGet applies its login from these at launch (nzbget.conf keeps the default)
         env: &[("NZBGET_USER", "${NZBGET_USER}"), ("NZBGET_PASS", "${NZBGET_PASS}")],
         run_as_user: false,
+        tmpfs: &[],
         data: true,
         vpn: true,
     },

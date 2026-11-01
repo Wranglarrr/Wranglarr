@@ -265,6 +265,48 @@ mod tests {
     }
 
     #[test]
+    fn seerr_cache_mount_survives_restore_with_a_custom_user() {
+        let cfg = crate::service::apps::parse(
+            "[[suite]]\nname = \"requests\"\n\
+             [[suite.app]]\nname = \"requests\"\nkind = \"seerr\"\nurl = \"http://seerr:5055\"\napi_key = \"k\"\n",
+            |_| None,
+        )
+        .expect("cfg");
+        let stock_mount = include_str!("../../../compose.yaml")
+            .lines()
+            .find_map(|line| {
+                line.trim().strip_prefix("- /app/.next/cache:").map(|opts| format!("/app/.next/cache:{opts}"))
+            })
+            .expect("stock cache mount");
+        for (uid, gid) in [("1000", "1000"), ("1027", "100")] {
+            let t = tempfile::tempdir().expect("tmp");
+            let m: Manifest = serde_json::from_value(json!({
+                "version": "20261101T000000Z", "created": "2026-11-01T00:00:00Z",
+                "apps": {"requests": {
+                    "config_snapshot": {"files": 1}, "databases": [],
+                    "container": {"env": {"PUID": uid, "PGID": gid}}
+                }}
+            }))
+            .expect("manifest");
+            write(t.path(), &m, &cfg, &cfg.suites[0], &StackEnv::read(&|_| None)).expect("write");
+            let compose = std::fs::read_to_string(t.path().join("compose.yaml")).expect("read");
+            let mount = compose
+                .lines()
+                .find(|line| line.trim().starts_with("- \"/app/.next/cache:"))
+                .expect("restore cache mount");
+            let mount: String =
+                serde_json::from_str(mount.trim().strip_prefix("- ").expect("list item")).expect("quoted mount");
+            assert_eq!(mount, stock_mount, "stock and restore must mount the same cache");
+            assert!(compose.contains("\n    tmpfs:\n"));
+            assert!(compose.contains("user: \"${PUID}:${PGID}\""));
+            assert!(mount.contains("uid=${PUID:-1000},gid=${PGID:-1000},mode=0700"));
+            let env = std::fs::read_to_string(t.path().join(".env")).expect("read");
+            assert!(env.contains(&format!("\nPUID={uid}\nPGID={gid}\n")), "{env}");
+            assert!(compose.contains("- ./requests/config:/app/config"));
+        }
+    }
+
+    #[test]
     fn writes_a_stack() {
         let t = tempfile::tempdir().expect("tmp");
         let cfg = crate::service::apps::parse(
