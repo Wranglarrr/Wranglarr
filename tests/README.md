@@ -12,7 +12,9 @@ No containers, no network beyond 127.0.0.1: every process listens on a free high
 ## Running
 
 From the repo root: build wranglarr, then run pytest from any Python 3.11+ with
-[requirements.txt](requirements.txt) (pytest, httpx):
+[requirements.txt](requirements.txt) (pytest, httpx). It's locked with hashes and
+compiled from [requirements.in](requirements.in): change the .in, then
+`pip-compile --allow-unsafe --generate-hashes --strip-extras tests/requirements.in`.
 
 ```sh
 cargo build --manifest-path wranglarr/Cargo.toml
