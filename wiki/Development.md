@@ -287,6 +287,12 @@ touch `wranglarr/` or `tests/`, plus `cargo check` on the minimum Rust version. 
 weekly and manual runs, and every release tag, add the slow black-box tests
 (`WRANGLARR_TEST_SLOW=1`).
 
+`main` requires the checks and both image builds from `image.yml` on every pull
+request. That workflow runs on all of them: one that changes nothing under
+`wranglarr/` or `tests/`, the smoke-test script or these two workflows (docs,
+another workflow, a Dependabot action bump) passes those jobs without running
+their steps, so it can still be merged.
+
 ## Conventions
 
 - `#![forbid(unsafe_code)]`, and clippy with `-D warnings`.

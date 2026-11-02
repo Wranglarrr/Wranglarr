@@ -23,8 +23,9 @@ on:
     branches: [main]
     tags: ["v*.*.*"]
     paths-ignore: ["wiki/**", "**.md", "site/**", "assets/**", ".github/workflows/pages.yml", ".github/workflows/wiki.yml", "scripts/build-wiki.py"]
+  # every pull request, so the checks main requires always report; `changes` decides
+  # whether they have anything to do
   pull_request:
-    paths: ["wranglarr/**", "scripts/smoke-image.sh", ".github/workflows/image.yml", ".github/workflows/rust.yml"]
   workflow_dispatch:
 
 permissions:
@@ -47,8 +48,43 @@ env:
     org.opencontainers.image.licenses=GPL-3.0-or-later
 
 jobs:
+  # A pull request that touches none of these passes checks and build without
+  # running them (a workflow-only Dependabot bump, docs). Pushes and tags always run.
+  changes:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.files.outputs.relevant }}
+    steps:
+      - name: Does this change touch the code, the tests or the image?
+        id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          relevant=true
+          if [ "$EVENT" = pull_request ]; then
+            relevant=false
+            files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename')
+            while IFS= read -r f; do
+              case "$f" in
+                wranglarr/*|tests/*|scripts/smoke-image.sh|.github/workflows/image.yml|.github/workflows/rust.yml)
+                  relevant=true ;;
+              esac
+            done <<<"$files"
+            # a pull request without a file list can't prove it's irrelevant
+            [ -n "$files" ] || relevant=true
+          fi
+          echo "relevant=$relevant" | tee -a "$GITHUB_OUTPUT"
+
   checks:
+    needs: changes
     uses: ./.github/workflows/rust.yml
+    with:
+      skip: ${{ needs.changes.outputs.relevant != 'true' }}
 
   version:
     runs-on: ubuntu-24.04
@@ -76,7 +112,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: [checks, version]
+    needs: [changes, checks, version]
     strategy:
       matrix:
         include:
@@ -93,15 +129,19 @@ jobs:
       PLATFORM: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.changes.outputs.relevant == 'true'
         with:
           persist-credentials: false
 
       - name: Platform name for caches and artifacts
+        if: needs.changes.outputs.relevant == 'true'
         run: echo "PLATFORM_SLUG=${PLATFORM//\//-}" >> "$GITHUB_ENV"
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: needs.changes.outputs.relevant == 'true'
 
       - id: meta
+        if: needs.changes.outputs.relevant == 'true'
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE }}
@@ -110,6 +150,7 @@ jobs:
             org.opencontainers.image.version=${{ env.VERSION }}
 
       - name: Build for the smoke test
+        if: needs.changes.outputs.relevant == 'true'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ./wranglarr
@@ -124,6 +165,7 @@ jobs:
           cache-to: ${{ github.ref == 'refs/heads/main' && format('type=gha,scope={0},mode=max', env.PLATFORM_SLUG) || '' }}
 
       - name: Smoke test
+        if: needs.changes.outputs.relevant == 'true'
         run: |
           test "$(docker image inspect wranglarr:ci --format '{{.Os}}/{{.Architecture}}')" = "$PLATFORM"
           test "$(docker run --rm wranglarr:ci sh -c 'echo "$WRANGLARR_IMAGE"')" = "$IMAGE:${{ github.ref_type == 'tag' && 'latest' || 'edge' }}"
