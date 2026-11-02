@@ -1,5 +1,7 @@
 [workspace]
 members = ["crates/core", "crates/services"]
+# its own workspace: built only by `fuzz.yml` and by hand (see fuzz/README.md)
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "1.1.1"
@@ -113,6 +115,10 @@ webauthn-rs-proto.workspace = true
 zip.workspace = true
 async-trait.workspace = true
 url.workspace = true
+
+[features]
+# entry points for the fuzz targets in fuzz/; nothing else turns it on
+fuzzing = []
 
 [dev-dependencies]
 openssl.workspace = true

@@ -1,0 +1,4 @@
+# builds, and what cargo fuzz or a local run writes
+target/
+artifacts/
+coverage/
