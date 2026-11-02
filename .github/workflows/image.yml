@@ -120,7 +120,8 @@ jobs:
           build-args: |
             WRANGLARR_IMAGE=${{ env.IMAGE }}:${{ github.ref_type == 'tag' && 'latest' || 'edge' }}
           cache-from: type=gha,scope=${{ env.PLATFORM_SLUG }}
-          cache-to: type=gha,scope=${{ env.PLATFORM_SLUG }},mode=max
+          # only main saves the layer cache; pull requests and tags restore main's
+          cache-to: ${{ github.ref == 'refs/heads/main' && format('type=gha,scope={0},mode=max', env.PLATFORM_SLUG) || '' }}
 
       - name: Smoke test
         run: |
