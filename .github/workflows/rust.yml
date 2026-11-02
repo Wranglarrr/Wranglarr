@@ -16,6 +16,14 @@ on:
   # image.yml runs these checks before it builds, so an image is never published
   # from a commit that fails them
   workflow_call:
+    inputs:
+      # true: a pull request that changes nothing these check. Every job still
+      # runs and passes without doing anything, so the checks the main branch
+      # requires report under their usual names instead of never appearing.
+      # (Outside a call `inputs.skip` is empty, which `!` reads as don't skip.)
+      skip:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,24 +43,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ !inputs.skip }}
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: ${{ !inputs.skip }}
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: ${{ !inputs.skip }}
         with:
           workspaces: wranglarr
           # only main saves: other refs restore main's cache instead of adding their own
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo fmt --all --check
+        if: ${{ !inputs.skip }}
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        if: ${{ !inputs.skip }}
       - name: cargo doc (broken links and unescaped markup fail)
+        if: ${{ !inputs.skip }}
         run: cargo doc --workspace --no-deps --locked
         env:
           RUSTDOCFLAGS: -D warnings
       - run: cargo test --workspace --locked
+        if: ${{ !inputs.skip }}
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        if: ${{ !inputs.skip }}
         with:
           manifest-path: wranglarr/Cargo.toml
 
@@ -60,35 +76,46 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ !inputs.skip }}
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@599c45df1a24c1c63ae1129a7e59f46654b8fb66 # 1.89
+        if: ${{ !inputs.skip }}
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: ${{ !inputs.skip }}
         with:
           workspaces: wranglarr
           # only main saves: other refs restore main's cache instead of adding their own
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo check --workspace --locked --all-targets
+        if: ${{ !inputs.skip }}
 
   blackbox:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ !inputs.skip }}
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: ${{ !inputs.skip }}
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: ${{ !inputs.skip }}
         with:
           workspaces: wranglarr
           # only main saves: other refs restore main's cache instead of adding their own
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo build --locked
+        if: ${{ !inputs.skip }}
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: ${{ !inputs.skip }}
         with:
           python-version: "3.13"
       - run: pip install --require-hashes -r tests/requirements.txt
+        if: ${{ !inputs.skip }}
         working-directory: .
       - name: tests/ against the Rust binary
+        if: ${{ !inputs.skip }}
         working-directory: .
         env:
           WRANGLARR_CMD: ${{ github.workspace }}/wranglarr/target/debug/wranglarr serve
