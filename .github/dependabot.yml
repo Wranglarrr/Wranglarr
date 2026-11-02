@@ -10,10 +10,19 @@ updates:
     schedule:
       interval: weekly
     ignore:
-      # its "version" is the Rust toolchain: @1.89 is the minimum supported Rust
-      # (rust-version in wranglarr/Cargo.toml), raised by hand with it, and
-      # @stable needs no updates
+      # pinned to the commit of a branch named for the toolchain (# 1.89, # stable),
+      # not a release: 1.89 is the minimum supported Rust (rust-version in
+      # wranglarr/Cargo.toml), raised by hand with it, and stable picks up new Rust
+      # releases at run time
       - dependency-name: dtolnay/rust-toolchain
+  # tests/requirements.txt, compiled with hashes from tests/requirements.in
+  - package-ecosystem: pip
+    directory: /tests
+    schedule:
+      interval: weekly
+    groups:
+      test-dependencies:
+        patterns: ["*"]
   - package-ecosystem: cargo
     directory: /wranglarr
     schedule:
