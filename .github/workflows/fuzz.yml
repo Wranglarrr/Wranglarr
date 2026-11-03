@@ -1,0 +1,99 @@
+# Fuzz targets (wranglarr/fuzz): every pull request that touches the code runs all
+# targets side by side for two minutes; the weekly and manual runs give them
+# fifteen. A failure uploads the input that broke it (see wranglarr/fuzz/README.md
+# for what to do).
+# Runs on stable Rust with the coverage flags cargo-fuzz uses, so no nightly.
+name: fuzz
+
+on:
+  push:
+    branches: [main]
+    paths: ["wranglarr/**", ".github/workflows/fuzz.yml"]
+  pull_request:
+    paths: ["wranglarr/**", ".github/workflows/fuzz.yml"]
+  schedule:
+    - cron: "41 4 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: wranglarr/fuzz
+
+jobs:
+  # every target wired up, and every saved input (seeds, past crashes) still clean
+  targets:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: wranglarr/fuzz
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked
+
+  fuzz:
+    needs: targets
+    runs-on: ubuntu-24.04
+    env:
+      SECONDS_EACH: ${{ github.event_name == 'pull_request' && '120' || '900' }}
+      RUSTFLAGS: >-
+        -Cpasses=sancov-module -Cllvm-args=-sanitizer-coverage-level=4
+        -Cllvm-args=-sanitizer-coverage-inline-8bit-counters -Cllvm-args=-sanitizer-coverage-pc-table
+        -Cllvm-args=-sanitizer-coverage-trace-compares --cfg fuzzing -Cdebug-assertions -Coverflow-checks
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: wranglarr/fuzz
+          key: instrumented
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # one build for every target; --target keeps the coverage flags off build
+      # scripts and proc macros
+      - run: cargo build --release --locked --target x86_64-unknown-linux-gnu --bins
+      - name: Fuzz every target at once
+        run: |
+          out="$RUNNER_TEMP/fuzz"
+          mkdir -p "$out/artifacts"
+          for f in fuzz_targets/*.rs; do
+            t=$(basename "$f" .rs)
+            mkdir -p "$out/corpus/$t"
+            "target/x86_64-unknown-linux-gnu/release/$t" -max_total_time="$SECONDS_EACH" \
+              -artifact_prefix="$out/artifacts/$t-" -print_final_stats=1 \
+              "$out/corpus/$t" "corpus/$t" > "$out/$t.log" 2>&1 &
+            echo "$! $t" >> "$out/pids"
+          done
+          failed=0
+          while read -r pid t; do
+            if wait "$pid"; then
+              echo "$t: $(grep -m1 'stat::number_of_executed_units' "$out/$t.log")"
+            else
+              failed=1
+              echo "::error::fuzz target $t failed"
+              tail -40 "$out/$t.log"
+            fi
+          done < "$out/pids"
+          exit "$failed"
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-crashes
+          path: ${{ runner.temp }}/fuzz/artifacts/
+          if-no-files-found: ignore
+          retention-days: 30

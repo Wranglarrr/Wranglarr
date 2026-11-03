@@ -12,7 +12,7 @@ For running the stack, start at the [Quickstart](Quickstart.md).
 | `wranglarr/` | the app: a Rust workspace, built into the image `ghcr.io/wranglarrr/wranglarr` |
 | `tests/` | the black-box suite: Python, talks to a running wranglarr over HTTP only |
 | `wiki/`, `README.md`, `site/` | the docs, and the site that renders them |
-| `.github/workflows/` | `rust.yml` (checks and tests), `image.yml` (the image), `pages.yml` (the docs site), `wiki.yml` (copies `wiki/` to the GitHub wiki) |
+| `.github/workflows/` | `rust.yml` (checks and tests), `fuzz.yml` (the fuzz targets), `image.yml` (the image), `pages.yml` (the docs site), `wiki.yml` (copies `wiki/` to the GitHub wiki) |
 
 ## The app
 
@@ -287,6 +287,13 @@ touch `wranglarr/` or `tests/`, plus `cargo check` on the minimum Rust version. 
 weekly and manual runs, and every release tag, add the slow black-box tests
 (`WRANGLARR_TEST_SLOW=1`).
 
+`wranglarr/fuzz` holds fuzz targets for the parsers of outside input (community
+configs, Jackett's XML, backup manifests, `wranglarr.toml`, image references,
+dates, schedules, `.env`). `fuzz.yml` runs them for two minutes on pull requests
+that touch the code and fifteen weekly; `cargo test` there checks every target
+is wired up and replays saved inputs. How to run one and add one:
+[wranglarr/fuzz/README.md](../wranglarr/fuzz/README.md).
+
 `main` requires the checks and both image builds from `image.yml` on every pull
 request. That workflow runs on all of them: one that changes nothing under
 `wranglarr/` or `tests/`, the smoke-test script or these two workflows (docs,
@@ -329,6 +336,8 @@ their steps, so it can still be merged.
   before use: they must stay inside the version and follow no symlinks.
 
 ## Releases
+
+Before tagging, go through the [release checklist](../RELEASE-CHECKLIST.md).
 
 Images are built and published by CI (`.github/workflows/image.yml`) for amd64
 and arm64: `:edge` from `main`, `:X.Y.Z`, `:X.Y`, `:X` and `:latest` from a
