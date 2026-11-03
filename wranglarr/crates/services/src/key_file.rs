@@ -15,6 +15,10 @@ pub enum KeyFile {
     YamlKey(&'static str),
     /// An INI key: `api_key = …` (SABnzbd's sabnzbd.ini).
     IniKey(&'static str),
+    /// A `key=value` line in one section of an INI file, the value as written
+    /// (`APIKey=qbt_…` in `[WebUI]`, qBittorrent.conf). Keys that aren't only
+    /// letters and digits need this: [`KeyFile::IniKey`] would cut them short.
+    IniSection { section: &'static str, key: &'static str },
     /// A JSON pointer: `/main/apiKey` (Seerr's settings.json). The app writes the
     /// key the first time it starts.
     JsonPointer(&'static str),
@@ -43,6 +47,7 @@ impl KeyFile {
             KeyFile::IniKey(key) => {
                 first_capture(&format!(r"(?m)^\s*{}\s*=\s*([A-Za-z0-9]+)", regex::escape(key)), text)
             }
+            KeyFile::IniSection { section, key } => in_section(text, section, key),
             KeyFile::JsonPointer(pointer) => {
                 let j: Value = serde_json::from_str(text).map_err(|e| KeyFileError::Unreadable(e.to_string()))?;
                 j.pointer(pointer).and_then(Value::as_str).filter(|k| !k.is_empty()).map(str::to_string)
@@ -59,7 +64,7 @@ impl KeyFile {
                 let dotted = pointer.trim_start_matches('/').replace('/', ".");
                 format!("{app}: no {dotted} in {path} (has it started once?)")
             }
-            KeyFile::XmlTag(_) | KeyFile::YamlKey(_) | KeyFile::IniKey(_) => {
+            KeyFile::XmlTag(_) | KeyFile::YamlKey(_) | KeyFile::IniKey(_) | KeyFile::IniSection { .. } => {
                 format!("{app}: no API key found in {path}")
             }
         }
@@ -71,6 +76,23 @@ impl KeyFile {
 fn first_capture(pattern: &str, text: &str) -> Option<String> {
     let re = Regex::new(pattern).ok()?;
     re.captures(text).map(|c| c[1].to_string())
+}
+
+/// The value of `key` in the INI section `section`, when it has one.
+fn in_section(text: &str, section: &str, key: &str) -> Option<String> {
+    let mut inside = false;
+    for line in text.lines().map(str::trim) {
+        if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
+            inside = name == section;
+        } else if inside
+            && let Some((k, v)) = line.split_once('=')
+            && k.trim() == key
+            && !v.trim().is_empty()
+        {
+            return Some(v.trim().to_string());
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -87,6 +109,17 @@ mod tests {
         assert_eq!(KeyFile::IniKey("api_key").read(ini), Ok("sab42".into()));
         let json = r#"{"main": {"apiKey": "seer=="}}"#;
         assert_eq!(KeyFile::JsonPointer("/main/apiKey").read(json), Ok("seer==".into()));
+    }
+
+    #[test]
+    fn reads_a_key_from_its_ini_section_whole() {
+        const WEBUI: KeyFile = KeyFile::IniSection { section: "WebUI", key: "APIKey" };
+        let conf =
+            "[Preferences]\nAPIKey=wrong\n\n[WebUI]\nAddress=*\nAPIKey=qbt_ab_c-1\nPort=8090\n\n[Zzz]\nAPIKey=wrong\n";
+        assert_eq!(WEBUI.read(conf), Ok("qbt_ab_c-1".into()), "an underscore doesn't end the key");
+        for none in ["", "[WebUI]\nAPIKey=\n", "[WebUI]\nPort=1\n", "[Other]\nAPIKey=x\n", "APIKey=x\n[WebUI]\n"] {
+            assert_eq!(WEBUI.read(none), Err(KeyFileError::NoKey), "{none:?}");
+        }
     }
 
     #[test]

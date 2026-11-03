@@ -10,7 +10,7 @@ write back the same). What each one checks is in [`src/lib.rs`](src/lib.rs).
 | `jackett_xml` | Jackett's list of trackers |
 | `backup_manifest` | a backup's `manifest.json` |
 | `wranglarr_toml` | `wranglarr.toml` |
-| `small_parsers` | image references, app dates, cron schedules, `.env` lines |
+| `small_parsers` | image references, app dates, cron schedules, `.env` lines, API keys in INI files |
 
 ## Running one
 

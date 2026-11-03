@@ -1,0 +1,6 @@
+[Preferences]
+Connection\ResolvePeerCountries=true
+
+[WebUI]
+APIKey=qbt_aB3dE6gH9iJ2kL5mN8oP1qR4sT
+Port=8090

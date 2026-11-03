@@ -10,13 +10,21 @@ from harness import Server, base_toml, suite_toml
 
 PW = "correct horse battery"
 HOST = "wranglarr.example.com"
+QB_KEY = "qbt_aB3_dE6-gH9iJ2kL5mN8oP1qR4s"
 H = {"Host": HOST, "Origin": f"https://{HOST}", "X-Forwarded-Proto": "https"}
 
 
 @pytest.fixture(scope="module")
 def srv(tmp_path_factory):
     tmp = tmp_path_factory.mktemp("gate")
-    toml = base_toml(tmp) + suite_toml("media", [dict(name="radarr", kind="radarr", url="http://127.0.0.1:1", api_key="x")])
+    conf = tmp / "qb" / "qBittorrent" / "qBittorrent.conf"
+    conf.parent.mkdir(parents=True)
+    conf.write_text(f"[Preferences]\nAPIKey=wrong\n\n[WebUI]\nAPIKey={QB_KEY}\nPort=8090\n")
+    (tmp / "qb-nokey").mkdir()
+    client = dict(kind="qbittorrent", url="http://127.0.0.1:1", username="u", password="p")
+    toml = base_toml(tmp) + suite_toml("media", [dict(name="radarr", kind="radarr", url="http://127.0.0.1:1", api_key="x"),
+                                                 dict(client, name="qbittorrent", config_dir=str(tmp / "qb")),
+                                                 dict(client, name="qb-nokey", config_dir=str(tmp / "qb-nokey"))])
     s = Server(tmp, toml, auth=True, env=dict(APPS_AUTH="tunnel", AUTH_COOKIE_DOMAIN="example.com",
                                              AUTH_LOGIN_URL=f"https://{HOST}")).start()
     yield s
@@ -74,6 +82,30 @@ def test_gate_app_keys(srv, session):
     assert gate(srv, {**ga, "X-Wranglarr-Key-Arg": "x"}).status_code == 204, "the app's real API key (apikey=)"
     assert gate(srv, {**ga, "X-Wranglarr-Key": "made-up"}).status_code == 401
     assert gate(srv, {"X-Wranglarr-App": "sonarr", "X-Wranglarr-Key": "x"}).status_code == 401, "an app wranglarr doesn't know"
+
+
+def test_gate_qbittorrent_key(srv, session):
+    # read from its qBittorrent.conf; made in qBittorrent, so wranglarr.toml doesn't have it
+    qb = {"X-Wranglarr-App": "qbittorrent"}
+    assert gate(srv, {**qb, "X-Wranglarr-Key": QB_KEY}).status_code == 204
+    assert gate(srv, {**qb, "X-Wranglarr-Key": "qbt"}).status_code == 401, "the start of a real key"
+    assert gate(srv, {**qb, "X-Wranglarr-Key": "wrong"}).status_code == 401, "from another section of the file"
+    assert gate(srv, {**qb, "X-Wranglarr-Key": "x"}).status_code == 401, "radarr's key isn't qBittorrent's"
+    assert gate(srv, qb).status_code == 401, "no key"
+    assert gate(srv, {"X-Wranglarr-App": "radarr", "X-Wranglarr-Key": QB_KEY}).status_code == 401, "qBittorrent's key isn't radarr's"
+    # none made yet: nothing gets through, whatever is sent
+    none = {"X-Wranglarr-App": "qb-nokey"}
+    assert gate(srv, {**none, "X-Wranglarr-Key": "made-up"}).status_code == 401
+    assert gate(srv, none).status_code == 401
+
+
+def test_api_keys_page_leaves_qbittorrent_out(srv, session):
+    # it signs in with a login, so nothing should try to reconnect it with this key
+    with srv.client() as c:
+        r = c.get("/api/keys", headers={**H, "Cookie": f"wranglarr_session={session}"})
+    assert r.status_code == 200, r.text
+    names = [a["name"] for a in r.json()["apps"]]
+    assert names == ["radarr"] and QB_KEY not in r.text, names
 
 
 @pytest.mark.parametrize("nxt,want", [

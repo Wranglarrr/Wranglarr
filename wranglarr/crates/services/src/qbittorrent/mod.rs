@@ -17,6 +17,7 @@ use super::login::{
 };
 use crate::AnyClient;
 use crate::AppConfigExt;
+use crate::KeyFile;
 use wranglarr_core::config::AppConfig;
 use wranglarr_core::error::Result;
 use wranglarr_core::files::{PayloadRules, collect_files, count, has_part, in_config, kv};
@@ -71,6 +72,11 @@ pub static DEF: ServiceDef = ServiceDef {
         default_pass: None,
         config_keys: None,
         basic_auth: false,
+        // qBittorrent 5.2+, Options → Web UI → API Key; the second path is hotio's layout
+        optional_key: Some((
+            &["qBittorrent/qBittorrent.conf", "config/qBittorrent.conf"],
+            KeyFile::IniSection { section: "WebUI", key: "APIKey" },
+        )),
     },
     backup: BackupMode::ConfigDir,
     database: None,

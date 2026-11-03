@@ -65,7 +65,7 @@ pub fn wranglarr_toml(data: &[u8]) {
 pub fn small_parsers(data: &[u8]) {
     let Some((&which, rest)) = data.split_first() else { return };
     let Some(s) = text(rest) else { return };
-    match which % 4 {
+    match which % 5 {
         // an image reference from a compose file or the registry
         0 => {
             let _ = wranglarr_core::registry::parse(s);
@@ -77,8 +77,12 @@ pub fn small_parsers(data: &[u8]) {
         // a schedule in wranglarr.toml
         2 => wranglarr::fuzz::cron(s),
         // the stack's .env
-        _ => {
+        3 => {
             let _ = wranglarr::setup::env::parse_env(s);
+        }
+        // an app's config file, for its API key
+        _ => {
+            let _ = wranglarr_services::KeyFile::IniSection { section: "WebUI", key: "APIKey" }.read(s);
         }
     }
 }

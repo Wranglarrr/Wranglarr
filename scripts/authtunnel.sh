@@ -92,6 +92,8 @@ map $http_x_forwarded_host $wr_host { default $http_x_forwarded_host; "" $http_h
 # API clients (mobile apps, scripts) sign in with the app's API key instead: wranglarr checks it
 # against that app's real key, so a made-up key gets nowhere. NZBGet checks its Basic login itself.
 map $http_authorization $wr_has_basic { default 0; "~*^basic " 1; }
+# qBittorrent's API key (5.2+) comes as a bearer token; wranglarr checks it like the others
+map $http_authorization $wr_bearer { default ""; "~*^bearer\s+(?<wr_bearer_key>\S+)\s*$" $wr_bearer_key; }
 map $http_authorization $wr_nzbget_auth { default $http_authorization; "" "Basic ${WR_NZBGET_AUTH}"; }
 # wranglarr's own cookies (the session, the sign-in's code step) never reach an app: the gate has
 # checked them already, and an app that kept one could replay it against wranglarr. Each map drops
@@ -104,7 +106,7 @@ EOF
   for a in $(gate_apps); do
     port="${GATE_PORT[$a]}"
     case $a in
-      qbittorrent) key='' ;;                                      # logs in with a cookie: no key to check
+      qbittorrent) key='        proxy_set_header X-Wranglarr-Key $wr_bearer;' ;;  # its login cookie isn't a key: only this
       nzbget)      key='        if ($wr_skip) { return 204; }' ;;
       *)           key='        proxy_set_header X-Wranglarr-Key $http_x_api_key;
         proxy_set_header X-Wranglarr-Key-Arg $wr_key_arg;' ;;

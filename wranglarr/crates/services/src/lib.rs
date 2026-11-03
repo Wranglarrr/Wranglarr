@@ -195,6 +195,10 @@ pub enum Credentials {
         config_keys: Option<(&'static str, &'static str)>,
         /// HTTP basic auth on every request, its images too (NZBGet).
         basic_auth: bool,
+        /// An API key it can have as well, made by you in the app: the file under
+        /// `config_dir` it's kept in (the first that holds one) and how. wranglarr
+        /// still signs in with the login; the key is for what wranglarr-gate lets in.
+        optional_key: Option<(&'static [&'static str], KeyFile)>,
     },
 }
 

@@ -65,6 +65,31 @@ fn forwarded(cookie: &str) -> String {
     vars.get("wr_cookie").cloned().expect("the chain ends in $wr_cookie")
 }
 
+/// What `$wr_bearer` is for a request whose Authorization header is `header`.
+fn bearer(header: &str) -> String {
+    let line = SCRIPT.lines().find(|l| l.starts_with("map $http_authorization $wr_bearer ")).expect("the map");
+    let rule = Regex::new(r#""~\*((?:[^"\\]|\\.)*)" \$(\w+);"#).unwrap().captures(line).expect("its rule");
+    let re = Regex::new(&format!("(?i){}", &rule[1])).expect("nginx regex is valid");
+    re.captures(header).and_then(|c| c.name(&rule[2]).map(|m| m.as_str().to_string())).unwrap_or_default()
+}
+
+#[test]
+fn qbittorrents_bearer_key_goes_to_the_check() {
+    for (header, want) in [
+        ("Bearer qbt_abc_123", "qbt_abc_123"),
+        ("bearer qbt_abc_123", "qbt_abc_123"),
+        ("BEARER   qbt_abc_123  ", "qbt_abc_123"),
+        ("Basic dXNlcjpwYXNz", ""),
+        ("Bearer", ""),
+        ("Bearer two words", ""),
+        ("", ""),
+    ] {
+        assert_eq!(bearer(header), want, "{header:?}");
+    }
+    let qbit = SCRIPT.lines().find(|l| l.trim_start().starts_with("qbittorrent) key=")).expect("its case");
+    assert!(qbit.contains("X-Wranglarr-Key $wr_bearer"), "{qbit}");
+}
+
 #[test]
 fn the_gate_forwards_the_filtered_cookie() {
     assert_eq!(cookie_maps().len(), 4);

@@ -51,8 +51,9 @@ Account for the name you use at home.
 nzb360, LunaSea, Helmarr and the like connect to `http://nas:<port>` over
 Tailscale like the browser. With AuthTunnel on, the gate lets through what
 carries the app's own credentials: the arrs' and SABnzbd's API key, NZBGet's
-login. qBittorrent signs in with a cookie instead, so a mobile app can't reach
-it through the gate.
+login, qBittorrent's API key (5.2 and later, made in qBittorrent). A qBittorrent
+app that can only sign in with a username and password can't reach it through
+the gate: that login is a cookie ([App logins](App-Logins.md)).
 
 ## Cloudflare Tunnel
 

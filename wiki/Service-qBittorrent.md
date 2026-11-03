@@ -42,6 +42,15 @@ arrs' connection test fails and [App Connections](App-Connections.md) shows
 qBittorrent as `failed` in the run log; press **Connect apps** on the System
 page once the password is set.
 
+## API key
+
+qBittorrent 5.2 and later can have an API key: Options → Web UI → API Key. It's
+what gets a mobile app or a script past wranglarr-gate under AuthTunnel, sent as
+`Authorization: Bearer <key>` ([App logins](App-Logins.md)). The key is qBittorrent's
+own: wranglarr reads it from `qBittorrent.conf` (`APIKey` in `[WebUI]`) on each
+check, so making, changing or deleting it there takes effect by itself. wranglarr
+and the arrs keep using the login.
+
 ## Save path and categories
 
 `init.sh` writes these into `qBittorrent.conf` (section `[BitTorrent]`), only

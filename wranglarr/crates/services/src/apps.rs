@@ -104,8 +104,16 @@ impl AppConfigExt for AppConfig {
         }
         let (name, path) = (&self.name, &self.api_key_file);
         match self.def().map(|d| d.credentials) {
-            // it signs in with a username and password
-            Some(Credentials::UserPassword { .. }) => Ok(String::new()),
+            // it signs in with a username and password, and may have a key as well
+            Some(Credentials::UserPassword { optional_key, .. }) => Ok(optional_key
+                .filter(|_| !self.config_dir.is_empty())
+                .and_then(|(files, format)| {
+                    files.iter().find_map(|f| {
+                        let text = std::fs::read_to_string(Path::new(&self.config_dir).join(f)).ok()?;
+                        format.read(&text).ok()
+                    })
+                })
+                .unwrap_or_default()),
             Some(Credentials::ApiKey { file }) if !path.is_empty() => {
                 let text = std::fs::read_to_string(path).map_err(|e| Error::invalid(format!("{name}: {path}: {e}")))?;
                 file.read(&text).map_err(|e| match e {
@@ -155,6 +163,7 @@ impl AppConfigExt for AppConfig {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod backup_tests {
     use super::*;
 
@@ -167,5 +176,34 @@ mod backup_tests {
         app.kind = "qbittorrent".into();
         app.databases.clear();
         assert!(app.backup_limitation().is_none());
+    }
+
+    #[test]
+    fn qbittorrents_key_comes_from_its_config_folder_if_it_has_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = AppConfig {
+            name: "qb".into(),
+            kind: "qbittorrent".into(),
+            config_dir: dir.path().to_string_lossy().into_owned(),
+            ..Default::default()
+        };
+        assert_eq!(app.api_key_blocking().unwrap(), "", "no file: no key, and that's not an error");
+
+        // hotio's layout
+        std::fs::create_dir(dir.path().join("config")).unwrap();
+        std::fs::write(dir.path().join("config/qBittorrent.conf"), "[WebUI]\nAPIKey=qbt_hotio\n").unwrap();
+        assert_eq!(app.api_key_blocking().unwrap(), "qbt_hotio");
+
+        // LinuxServer's layout, without a key: on to the next file
+        std::fs::create_dir(dir.path().join("qBittorrent")).unwrap();
+        std::fs::write(dir.path().join("qBittorrent/qBittorrent.conf"), "[WebUI]\nPort=8090\n").unwrap();
+        assert_eq!(app.api_key_blocking().unwrap(), "qbt_hotio");
+
+        // read each time: a key made or rotated in qBittorrent counts straight away
+        std::fs::write(dir.path().join("qBittorrent/qBittorrent.conf"), "[WebUI]\nAPIKey=qbt_new\n").unwrap();
+        assert_eq!(app.api_key_blocking().unwrap(), "qbt_new");
+
+        let elsewhere = AppConfig { config_dir: String::new(), ..app };
+        assert_eq!(elsewhere.api_key_blocking().unwrap(), "", "no config folder mounted");
     }
 }

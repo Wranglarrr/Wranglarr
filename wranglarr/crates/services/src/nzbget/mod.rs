@@ -72,6 +72,7 @@ pub static DEF: ServiceDef = ServiceDef {
         default_pass: Some("tegbzn6789"),
         config_keys: Some(("ControlUsername", "ControlPassword")),
         basic_auth: true,
+        optional_key: None,
     },
     backup: BackupMode::ConfigDir,
     database: None,
