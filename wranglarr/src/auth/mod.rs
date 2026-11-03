@@ -136,6 +136,8 @@ struct Mem {
     pending: HashMap<String, Pending>,
     /// passkey ceremonies
     challenges: HashMap<String, passkey::Challenge>,
+    /// hash of a session handed to an app's own client through the gate -> expires
+    app_sessions: HashMap<String, f64>,
     setup_code: String,
 }
 

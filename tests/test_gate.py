@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 import pytest
 
-from harness import Server, base_toml, suite_toml
+from harness import MockDownloads, Server, base_toml, free_port, suite_toml
 
 PW = "correct horse battery"
 HOST = "wranglarr.example.com"
@@ -74,6 +74,79 @@ def test_gate_app_keys(srv, session):
     assert gate(srv, {**ga, "X-Wranglarr-Key-Arg": "x"}).status_code == 204, "the app's real API key (apikey=)"
     assert gate(srv, {**ga, "X-Wranglarr-Key": "made-up"}).status_code == 401
     assert gate(srv, {"X-Wranglarr-App": "sonarr", "X-Wranglarr-Key": "x"}).status_code == 401, "an app wranglarr doesn't know"
+
+
+@pytest.fixture
+def qb_app(tmp_path):
+    """AuthTunnel over a mock qBittorrent; its own server, so a lockout stays in the test."""
+    dl = MockDownloads(tmp_path)
+    toml = base_toml(tmp_path) + suite_toml("media", [dict(
+        name="qbittorrent", kind="qbittorrent", url=f"http://127.0.0.1:{dl.qbit}", username="admin", password="qbpass")])
+    s = Server(tmp_path, toml, auth=True, env=dict(APPS_AUTH="tunnel")).start()
+    yield s
+    s.stop()
+    dl.stop()
+
+
+LOGIN = "/api/auth/gate/qbittorrent/login"
+
+
+def app_login(srv, username="admin", password="qbpass"):
+    with srv.client() as c:              # as an app sends it: a form, no Origin, no cookies
+        return c.post(LOGIN, data={"username": username, "password": password})
+
+
+def app_gate(srv, cookie=None, app="qbittorrent"):
+    with srv.client() as c:
+        h = {"X-Wranglarr-App": app, "X-Original-Host": "nas:8090", "X-Original-URI": "/api/v2/app/version"}
+        return c.get("/api/auth/gate", headers=dict(h, Cookie=cookie) if cookie else h)
+
+
+def test_qbittorrent_app_signs_in_through_the_gate(qb_app):
+    assert app_gate(qb_app).status_code == 401, "not signed in"
+    r = app_login(qb_app)
+    assert r.status_code == 200 and r.text == "Ok.", r.text
+    cookie = r.headers["set-cookie"].split(";")[0]
+    assert cookie == "SID=abc", "qBittorrent's own session, so its answers don't replace it"
+    assert app_gate(qb_app, cookie).status_code == 204
+    assert app_gate(qb_app, "SID=made-up").status_code == 401
+    assert app_gate(qb_app, cookie, app="radarr").status_code == 401, "only for qBittorrent"
+
+
+@pytest.mark.parametrize("username,password", [("admin", "wrong"), ("other", "qbpass"), ("admin", ""), ("", "")])
+def test_qbittorrent_app_login_is_checked(qb_app, username, password):
+    # the mock would refuse these too; the real one, whitelisted, says Ok. to anything
+    r = app_login(qb_app, username, password)
+    assert r.status_code == 401 and r.text == "Fails.", r.text
+    assert "set-cookie" not in r.headers
+
+
+def test_qbittorrent_app_login_locks_out(qb_app):
+    for _ in range(5):
+        assert app_login(qb_app, password="wrong").status_code == 401
+    r = app_login(qb_app)
+    assert r.status_code == 403 and "set-cookie" not in r.headers, "the right password doesn't get through a lockout"
+
+
+def test_qbittorrent_app_login_when_it_is_down(tmp_path):
+    toml = base_toml(tmp_path) + suite_toml("media", [dict(
+        name="qbittorrent", kind="qbittorrent", url=f"http://127.0.0.1:{free_port()}", username="admin", password="qbpass")])
+    s = Server(tmp_path, toml, auth=True, env=dict(APPS_AUTH="tunnel")).start()
+    try:
+        r = app_login(s)
+        assert r.status_code == 502 and "set-cookie" not in r.headers, r.text
+    finally:
+        s.stop()
+
+
+def test_qbittorrent_app_login_needs_authtunnel(tmp_path):
+    toml = base_toml(tmp_path) + suite_toml("media", [dict(
+        name="qbittorrent", kind="qbittorrent", url="http://127.0.0.1:1", username="admin", password="qbpass")])
+    s = Server(tmp_path, toml, auth=True).start()
+    try:
+        assert app_login(s).status_code == 404
+    finally:
+        s.stop()
 
 
 @pytest.mark.parametrize("nxt,want", [

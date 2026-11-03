@@ -92,6 +92,8 @@ map $http_x_forwarded_host $wr_host { default $http_x_forwarded_host; "" $http_h
 # API clients (mobile apps, scripts) sign in with the app's API key instead: wranglarr checks it
 # against that app's real key, so a made-up key gets nowhere. NZBGet checks its Basic login itself.
 map $http_authorization $wr_has_basic { default 0; "~*^basic " 1; }
+# qBittorrent's API refused with its own 403, not a redirect: its apps then sign in again
+map $request_uri $wr_api { default 0; "~^/api/" 1; }
 map $http_authorization $wr_nzbget_auth { default $http_authorization; "" "Basic ${WR_NZBGET_AUTH}"; }
 # wranglarr's own cookies (the session, the sign-in's code step) never reach an app: the gate has
 # checked them already, and an app that kept one could replay it against wranglarr. Each map drops
@@ -112,6 +114,25 @@ EOF
     # SABnzbd refuses host names it doesn't know; it knows its own service name
     if [[ $a == sabnzbd ]]; then host='$proxy_host'; else host='$http_host'; fi
     case $a in nzbget) skip='$wr_has_basic' ;; *) skip='0' ;; esac
+    # qBittorrent's apps sign in with a form, not a key: wranglarr checks it (qBittorrent would
+    # let the gate's network in on any password) and gives them a real session
+    app_login='' refused=''
+    if [[ $a == qbittorrent ]]; then
+      refused='        if ($wr_api) { return 403; }'
+      app_login='
+    location = /api/v2/auth/login {
+        set $wr_app_login http://wranglarr:8787/api/auth/gate/qbittorrent/login;
+        proxy_pass $wr_app_login;
+        client_max_body_size 4k;
+        proxy_set_header Host wranglarr;
+        proxy_set_header Cookie "";
+        proxy_set_header Authorization "";
+        proxy_set_header X-Api-Key "";
+        proxy_set_header X-Forwarded-Host "";
+        proxy_set_header X-Forwarded-Proto "";
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }'
+    fi
     cat <<EOF
 
 # ---- $a ----
@@ -138,9 +159,10 @@ $key
         proxy_set_header X-Wranglarr-App $a;
     }
     location @wr_login {
+$refused
         if (\$wr_login = "") { return 401; }
         return 302 \$wr_login;
-    }
+    }$app_login
     location / {
         set \$wr_skip $skip;
         # read here: the auth subrequest has no query string of its own

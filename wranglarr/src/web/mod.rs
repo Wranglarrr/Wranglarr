@@ -369,6 +369,10 @@ async fn error_pages(State(app): State<App>, req: Request, next: Next) -> Respon
     if !(status.is_client_error() || status.is_server_error()) || status == StatusCode::NOT_MODIFIED {
         return resp;
     }
+    // answers a qBittorrent app, which expects qBittorrent's own plain text
+    if ctx.path == auth::QBITTORRENT_LOGIN {
+        return resp;
+    }
     let api = ctx.path.starts_with("/api/") || ctx.path.starts_with("/static/");
     let is_json = header_str(resp.headers(), "content-type").starts_with("application/json");
     // API JSON already has its final representation. Buffering it here both

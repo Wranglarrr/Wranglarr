@@ -66,6 +66,18 @@ fn forwarded(cookie: &str) -> String {
 }
 
 #[test]
+fn only_qbittorrent_gets_the_sign_in_route() {
+    let case = SCRIPT.split("app_login='' refused=''").nth(1).expect("its case");
+    let block = case.split("\n    fi\n").next().expect("the end of it");
+    assert!(block.contains("location = /api/v2/auth/login"), "{block}");
+    assert!(block.contains("/api/auth/gate/qbittorrent/login"), "{block}");
+    assert!(block.contains("return 403"), "{block}");
+    // the password must reach wranglarr alone: it's checked there, never by qBittorrent
+    assert!(!block.contains("$wr_up"), "{block}");
+    assert!(SCRIPT.contains(r#"map $request_uri $wr_api { default 0; "~^/api/" 1; }"#));
+}
+
+#[test]
 fn the_gate_forwards_the_filtered_cookie() {
     assert_eq!(cookie_maps().len(), 4);
     assert!(

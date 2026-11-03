@@ -124,6 +124,14 @@ impl QbittorrentClient {
         Ok(())
     }
 
+    /// Sign in and hand over the session (`name=value`), for a client that talks to
+    /// qBittorrent itself.
+    pub async fn new_session(&self) -> ArrResult<String> {
+        self.set_sid(String::new());
+        self.login("auth/login").await?;
+        Ok(self.sid())
+    }
+
     /// GET /api/v2/<path>, signing in (again) as needed. The body as text.
     async fn get(&self, path: &str, query: &[(&str, &str)]) -> ArrResult<String> {
         self.send(path, || self.core.http.get(format!("{}/api/v2/{path}", self.core.base)).query(query)).await

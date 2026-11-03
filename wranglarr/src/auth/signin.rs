@@ -22,6 +22,8 @@ const LOCK_AFTER: usize = 5;
 const LOCK_WINDOW: f64 = 15.0 * 60.0;
 /// ... for this long.
 const LOCK_FOR: f64 = 15.0 * 60.0;
+/// How long a session handed to an app through the gate is let in, in seconds.
+const APP_SESSION_FOR: f64 = 7.0 * 86_400.0;
 
 pub(super) const WRONG_PASSWORD: &str = "the password is wrong";
 pub(super) const EXPIRED: &str = "that sign-in expired; start again";
@@ -188,6 +190,21 @@ impl Auth {
 
     pub fn succeeded(&self, ip: &str) {
         guard(&self.mem).fails.remove(ip);
+    }
+
+    /// `cookie` (`name=value`) was handed out after a good login: the gate lets it
+    /// through until it expires. Kept in memory: after a restart the client gets the
+    /// answer qBittorrent gives for a dead session and signs in again.
+    pub fn remember_app_session(&self, cookie: &str) {
+        let now = unix_now();
+        let mut m = guard(&self.mem);
+        m.app_sessions.retain(|_, until| *until > now);
+        m.app_sessions.insert(sha(cookie), now + APP_SESSION_FOR);
+    }
+
+    /// Whether `cookie` is a session [`remember_app_session`](Self::remember_app_session) knows.
+    pub fn app_session(&self, cookie: &str) -> bool {
+        guard(&self.mem).app_sessions.get(&sha(cookie)).is_some_and(|until| *until > unix_now())
     }
 
     // ---- password sign-in --------------------------------------------------------------

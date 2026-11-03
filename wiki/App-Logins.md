@@ -57,8 +57,11 @@ browser ──> :7878 ──> wranglarr-gate (nginx) ──> radarr:7878   (Auth
   wranglarr check the key against that app's real one first. So the arrs' mobile
   apps (nzb360, LunaSea…), Prowlarr's download links and scripts keep working,
   while a wrong or made-up key is sent to the sign-in page like any visitor.
-- **qBittorrent's mobile apps can't get past the gate**: qBittorrent's API has no
-  key, only its login.
+- **qBittorrent's mobile apps sign in with qBittorrent's login**, `QBITTORRENT_USER`
+  and `QBITTORRENT_PASSWORD` from `.env`, as they would without the gate. wranglarr
+  checks it, with the same lockout as its own sign-in, and the app gets a qBittorrent
+  session. That login has no two-factor, so give it a strong password; AuthTunnel
+  sets a random one.
 - The apps are still reachable inside the Docker network (that's how wranglarr,
   the arrs and Prowlarr reach each other). Don't publish their ports another way.
 

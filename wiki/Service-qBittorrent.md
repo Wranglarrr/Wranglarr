@@ -27,7 +27,10 @@ still has 4.x's `WebUI\…` keys in `[Preferences]` and no `[WebUI]`, those are
 set too: 5 ignores them once it has converted the file.
 With AuthTunnel it also turns on *Bypass authentication for clients in
 whitelisted IP subnets* for the private ranges, so the gate gets in; the
-port isn't published anywhere else.
+port isn't published anywhere else. **Don't publish it another way:** qBittorrent
+would then accept any password from anything on those ranges. Mobile apps sign in
+through the gate, which sends the login to wranglarr to check
+([App logins](App-Logins.md)).
 
 With `manual`, the linuxserver image generates a temporary admin password and prints it:
 

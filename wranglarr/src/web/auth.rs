@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Login pages, the account page, /api/auth/*, and the guard in front of everything else.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, SocketAddr};
 
 use axum::Router;
@@ -36,6 +36,8 @@ pub const PUBLIC: &[&str] = &[
     "/api/auth/gate",
 ];
 const REFUSED: &str = "refused: this request didn't come from wranglarr's own pages";
+/// Where wranglarr-gate sends qBittorrent's `/api/v2/auth/login`.
+pub const QBITTORRENT_LOGIN: &str = "/api/auth/gate/qbittorrent/login";
 
 // ---- request helpers -------------------------------------------------------------------
 
@@ -306,6 +308,10 @@ pub async fn guard(State(app): State<App>, mut req: Request, next: Next) -> Resp
     if req.method() == Method::POST && path.starts_with("/api/hooks/") {
         return next.run(req).await;
     }
+    // a qBittorrent app's sign-in, through the gate: no browser, so no Origin (checked by the handler)
+    if req.method() == Method::POST && path == QBITTORRENT_LOGIN {
+        return next.run(req).await;
+    }
     let token = cookie(h, SESSION_COOKIE);
     let api_key = header_str(h, "x-api-key").to_string();
     // SQLite (and its busy timeout) off the async workers
@@ -362,6 +368,7 @@ pub fn routes() -> Router<App> {
         .route("/login", get(login_page))
         .route("/account", get(account_page))
         .route("/api/auth/gate", get(api_gate))
+        .route(QBITTORRENT_LOGIN, post(api_gate_qbittorrent_login))
         .route("/api/auth/setup", post(api_setup))
         .route("/api/auth/login", post(api_login))
         .route("/api/auth/login/totp", post(api_login_totp))
@@ -509,6 +516,12 @@ async fn api_gate(State(app): State<App>, r: AuthReq) -> ApiResult<Response> {
             return Ok(StatusCode::NO_CONTENT.into_response());
         }
     }
+    // a qBittorrent app signed in through the gate: its session is from api_gate_qbittorrent_login
+    if r.header("x-wranglarr-app") == crate::service::qbittorrent::DEF.id
+        && qbittorrent_session(&app, r.header("cookie"))
+    {
+        return Ok(StatusCode::NO_CONTENT.into_response());
+    }
     let first = |k: &str| r.header(k).split(',').next().unwrap_or("").trim().to_string();
     let mut proto = first("x-original-proto").to_lowercase();
     if proto.is_empty() {
@@ -542,6 +555,66 @@ async fn api_gate(State(app): State<App>, r: AuthReq) -> ApiResult<Response> {
     {
         resp.headers_mut().insert("x-wranglarr-login", v);
     }
+    Ok(resp)
+}
+
+/// Whether a Cookie header holds a qBittorrent session the gate handed out.
+fn qbittorrent_session(app: &App, cookies: &str) -> bool {
+    cookies.split(';').map(str::trim).any(|c| {
+        let name = c.split('=').next().unwrap_or("");
+        (name == "SID" || name.starts_with("QBT_SID")) && app.auth().app_session(c)
+    })
+}
+
+/// `POST /api/v2/auth/login` on the gate: what every qBittorrent app does first. qBittorrent
+/// can't check it itself, because the gate's network is whitelisted and it would answer Ok. to
+/// any password. So the login in .env is checked here (with the sign-in's lockout), and the app
+/// gets a real session, answered the way qBittorrent answers.
+async fn api_gate_qbittorrent_login(
+    State(app): State<App>,
+    r: AuthReq,
+    body: axum::body::Bytes,
+) -> ApiResult<Response> {
+    let qb = app.cfg().all_apps().find(|a| a.kind == crate::service::qbittorrent::DEF.id && a.enabled).cloned();
+    let Some(qb) = qb.filter(|_| app.auth().options().tunnel) else {
+        return Err(Error::not_found("AuthTunnel with qBittorrent is off").into());
+    };
+    let form: HashMap<String, String> = url::form_urlencoded::parse(&body).into_owned().collect();
+    let field = |k: &str| form.get(k).cloned().unwrap_or_default();
+    let (user, password) = (field("username"), field("password"));
+    let (want_user, want_password) = crate::service::credentials(&qb).await;
+    let (u, p) = (want_user.clone(), want_password.clone());
+    let ip = r.ip();
+    let ok = app
+        .blocking(move |a| {
+            let _attempt = a.auth().admit(&ip)?;
+            let good = crate::auth::ct_eq_str(&user, &u) & crate::auth::ct_eq_str(&password, &p) && !p.is_empty();
+            if good {
+                a.auth().succeeded(&ip);
+            } else {
+                a.auth().failed(&ip);
+            }
+            Ok(good)
+        })
+        .await;
+    let plain = |status, text: &'static str| (status, [(header::CONTENT_TYPE, "text/plain; charset=UTF-8")], text);
+    match ok {
+        Err(Error::TooMany(_)) => return Ok(plain(StatusCode::FORBIDDEN, "Forbidden").into_response()),
+        Err(e) => return Err(e.into()),
+        Ok(false) => return Ok(plain(StatusCode::UNAUTHORIZED, "Fails.").into_response()),
+        Ok(true) => {}
+    }
+    let client = crate::service::qbittorrent::QbittorrentClient::new(&qb.name, &qb.url, &want_user, &want_password, "");
+    let session = match client.new_session().await {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!("gate: qBittorrent app sign-in: {e}");
+            return Ok(plain(StatusCode::BAD_GATEWAY, "qBittorrent isn't answering").into_response());
+        }
+    };
+    app.auth().remember_app_session(&session);
+    let mut resp = plain(StatusCode::OK, "Ok.").into_response();
+    add_cookie(&mut resp, &format!("{session}; HttpOnly; SameSite=Strict; path=/"));
     Ok(resp)
 }
 
