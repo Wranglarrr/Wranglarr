@@ -71,6 +71,8 @@ land, and move anything lasting into the sections below.
 - [ ] CodeQL alerts on `main` are fixed or dismissed with a reason.
 - [ ] The Scorecard score hasn't dropped since the last release. Check
       [the results](https://scorecard.dev/viewer/?uri=github.com/Wranglarrr/Wranglarr).
+- [ ] The OpenSSF Best Practices answers are still true (new tools, a changed
+      process or support policy). Update them on bestpractices.dev if not.
 - [ ] No secrets, keys or real hostnames in the diff since the last tag:
       `git diff vPREVIOUS..HEAD` checked for API keys, passwords, `.env` contents
       and private addresses.
