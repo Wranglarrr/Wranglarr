@@ -7,9 +7,9 @@ Please report it privately: open
 (Security tab -> Report a vulnerability). Don't open a public issue for it.
 
 Include what you found, the version (`wranglarr --version` or the image tag), and the
-steps or setup that show it. The fix is worked out in the advisory, and the advisory is
-published with credit to you once a fixed release is out, unless you'd rather not be
-named.
+steps or setup that show it. You'll get a reply within 14 days. The fix is worked out
+in the advisory, and the advisory is published with credit to you once a fixed release
+is out, unless you'd rather not be named.
 
 ## Supported versions
 
