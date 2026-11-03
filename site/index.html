@@ -345,6 +345,8 @@ article td:first-child code { white-space: nowrap; }
 
   const $ = s => document.querySelector(s);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // a string matched literally in a RegExp
+  const re = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) { /* private mode */ } },
@@ -450,7 +452,7 @@ article td:first-child code { white-space: nowrap; }
       const raw = a.getAttribute('href');
       if (raw.startsWith('#')) { a.setAttribute('href', href(current, decodeURIComponent(raw.slice(1)))); return; }
       // a page's GitHub wiki URL (the README links there) opens the page here
-      const w = REPO && raw.match(new RegExp('^' + REPO.replace(/[.]/g, '\\.') + '/wiki(?:/([^/#?]+))?(?:#(.*))?$'));
+      const w = REPO && raw.match(new RegExp('^' + re(REPO) + '/wiki(?:/([^/#?]+))?(?:#(.*))?$'));
       if (w) { a.setAttribute('href', href(w[1] || 'Home', decodeURIComponent(w[2] || ''))); return; }
       const t = resolve(raw, path);
       if (!t) { a.target = '_blank'; a.rel = 'noopener'; return; }
@@ -606,7 +608,6 @@ article td:first-child code { white-space: nowrap; }
     });
     return index;
   }
-  const re = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   function hl(text, terms) {
     let out = esc(text);
     terms.forEach(t => { out = out.replace(new RegExp(`(${re(esc(t))})`, 'gi'), '<mark>$1</mark>'); });
