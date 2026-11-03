@@ -22,6 +22,7 @@ plus the app that sets it up, wires it together, backs it up and keeps it update
   <img alt="TrueNAS SCALE" src="https://img.shields.io/badge/TrueNAS_SCALE-24.10%2B-0095D5?logo=truenas&logoColor=white">
   <img alt="Postgres 17" src="https://img.shields.io/badge/Postgres-17-4169E1?logo=postgresql&logoColor=white">
   <a href="https://github.com/Wranglarrr/Wranglarr/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Wranglarrr/Wranglarr?label=release&color=e5a00d"></a>
+  <a href="https://www.bestpractices.dev/projects/16286"><img alt="OpenSSF Best Practices" src="https://www.bestpractices.dev/projects/16286/badge"></a>
 </p>
 
 <p align="center"><img src="wiki/images/readme/hero.png" alt="The wranglarr dashboard, half in the light theme and half in the dark theme" width="100%"></p>
@@ -266,6 +267,10 @@ Upstream guides this follows:
 - [gluetun wiki](https://github.com/qdm12/gluetun-wiki)
 - [hotio's container docs](https://hotio.dev/containers)
 </details>
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Security problems go through [SECURITY.md](SECURITY.md).
 
 ## License
 
