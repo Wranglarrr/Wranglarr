@@ -40,6 +40,10 @@ pub mod url_base;
 pub(crate) mod vpn;
 pub mod web;
 
+#[cfg(feature = "fuzzing")]
+#[doc(hidden)]
+pub mod fuzz;
+
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The published image, for messages and the setup wizard.
 pub const IMAGE: &str = "ghcr.io/wranglarrr/wranglarr:latest";

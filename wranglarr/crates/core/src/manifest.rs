@@ -417,6 +417,17 @@ mod tests {
     }
 
     #[test]
+    fn fields_from_another_version_write_back_unchanged() {
+        // found by the backup_manifest fuzz target (its regressions/long-decimal.json):
+        // a long decimal drifted on each read and write until serde_json parsed
+        // floats exactly
+        let text = r#"{"suite": "c7", "vdb_size": 1234427777777777777777777777777777777777777777777777.260106788}"#;
+        let m: Manifest = serde_json::from_str(text).expect("manifest");
+        let again: Manifest = serde_json::from_str(&serde_json::to_string(&m).expect("write")).expect("read back");
+        assert_eq!(serde_json::to_value(&again).expect("again"), serde_json::to_value(&m).expect("first"));
+    }
+
+    #[test]
     fn a_minimal_entry_reads_with_defaults() {
         let a: AppBackup = serde_json::from_value(json!({"config_zip": {"file": "radarr/x.zip"}})).expect("app");
         assert_eq!(a.config_zip.as_ref().map(|z| (z.file.as_str(), z.size)), Some(("radarr/x.zip", 0)));

@@ -21,6 +21,12 @@ mod plan;
 mod timeline;
 mod values;
 
+/// A pasted config through the same checks the Community configs page runs.
+#[cfg(feature = "fuzzing")]
+pub(crate) fn fuzz_parse(text: &str) -> bool {
+    parse::parse(Some(text)).is_ok()
+}
+
 use rust_embed::RustEmbed;
 use serde_json::{Map, Value, json};
 

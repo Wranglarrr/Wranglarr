@@ -1,0 +1,59 @@
+# Fuzz targets for wranglarr's parsers of outside input. Its own workspace and lock
+# file, so the app's builds, tests and licence checks never see libfuzzer-sys.
+# How to run them: README.md here; CI: .github/workflows/fuzz.yml.
+[package]
+name = "wranglarr-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = { version = "1", features = ["preserve_order"] }
+wranglarr = { path = "..", features = ["fuzzing"] }
+wranglarr-core = { path = "../crates/core" }
+wranglarr-services = { path = "../crates/services" }
+
+[[bin]]
+name = "community_config"
+path = "fuzz_targets/community_config.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "jackett_xml"
+path = "fuzz_targets/jackett_xml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "backup_manifest"
+path = "fuzz_targets/backup_manifest.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wranglarr_toml"
+path = "fuzz_targets/wranglarr_toml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "small_parsers"
+path = "fuzz_targets/small_parsers.rs"
+test = false
+doc = false
+bench = false
