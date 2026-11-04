@@ -97,7 +97,9 @@ pub(super) fn or<'a>(a: &'a str, b: &'a str) -> &'a str {
 }
 
 /// The AUTH_KEYS values. apps: qBittorrent and NZBGet get the same login. tunnel: they keep
-/// theirs (wranglarr, the arrs and the gate use it; you never type it) or get a random one.
+/// theirs (wranglarr, the arrs and the gate use it) or get a random one. With
+/// AUTH_QBITTORRENT_LOGIN, qBittorrent's apps sign in with its login, so a weak password
+/// is replaced by a random one (unless AUTH_QBITTORRENT_ALLOW_WEAK is on in .env).
 pub fn auth_env(a: &Answers, old: &BTreeMap<String, String>) -> Result<Pairs> {
     let mut out: Pairs = vec![
         ("APPS_AUTH", a.apps_auth.clone()),
@@ -108,6 +110,8 @@ pub fn auth_env(a: &Answers, old: &BTreeMap<String, String>) -> Result<Pairs> {
         ("AUTH_LOGIN_URL", String::new()),
     ];
     let old = |k: &str| old.get(k).map_or("", String::as_str);
+    let qb_login = a.apps_auth == "tunnel" && a.auth_qbittorrent_login;
+    let allow_weak = crate::value::flag_word(old("AUTH_QBITTORRENT_ALLOW_WEAK")) == Some(true);
     let (mut qu, mut qp) =
         (or(&a.qbittorrent_user, default_user(&service::qbittorrent::DEF)).to_string(), a.qbittorrent_password.clone());
     let (mut nu, mut np) = (or(&a.nzbget_user, default_user(&service::nzbget::DEF)).to_string(), a.nzbget_pass.clone());
@@ -131,6 +135,9 @@ pub fn auth_env(a: &Answers, old: &BTreeMap<String, String>) -> Result<Pairs> {
         } else {
             crate::ids::random_token(18)
         };
+        if qb_login && !allow_weak && crate::auth::weak_app_password(&qu, &qp) {
+            qp = crate::ids::random_token(18);
+        }
         nu = or(or(&nu, old("NZBGET_USER")), default_user(&service::nzbget::DEF)).to_string();
         np = if !np.is_empty() {
             np
@@ -144,6 +151,7 @@ pub fn auth_env(a: &Answers, old: &BTreeMap<String, String>) -> Result<Pairs> {
     set(&mut out, "QBITTORRENT_PASSWORD", qp);
     set(&mut out, "NZBGET_USER", nu);
     set(&mut out, "NZBGET_PASS", np);
+    set(&mut out, "AUTH_QBITTORRENT_LOGIN", if qb_login { "on" } else { "off" }.into());
     Ok(out)
 }
 
@@ -197,6 +205,9 @@ pub fn auth_steps(a: &Answers, auth_only: bool) -> Vec<String> {
             )
         };
         s.push(format!("AuthTunnel: the apps' ports now belong to wranglarr-gate, which asks for your wranglarr sign-in; {where_}. Point your reverse proxy at the same ports as before (wiki: Reverse-Proxy)."));
+        if a.auth_qbittorrent_login {
+            s.push("qBittorrent's apps sign in through the gate with QBITTORRENT_USER and QBITTORRENT_PASSWORD from .env (no wranglarr two-factor for them). A few qBittorrent settings stay wranglarr-only (wiki: App-Logins).".into());
+        }
     } else {
         s.push(
             "Manual: wranglarr leaves the apps' logins alone; each app asks you to create one on first visit.".into(),
@@ -254,6 +265,37 @@ mod tests {
         assert_eq!(get(&e, "QBITTORRENT_PASSWORD").len(), 24, "a random one");
         let old = BTreeMap::from([("NZBGET_PASS".to_string(), "kept".to_string())]);
         assert_eq!(get(&auth_env(&a, &old).expect("env"), "NZBGET_PASS"), "kept");
+    }
+
+    #[test]
+    fn qbittorrents_app_login_is_opt_in_and_never_weak() {
+        let tunnel = |on: bool, pw: &str| Answers {
+            apps_auth: "tunnel".into(),
+            auth_qbittorrent_login: on,
+            qbittorrent_password: pw.into(),
+            ..Default::default()
+        };
+        let none = BTreeMap::new();
+        let e = auth_env(&tunnel(false, "short-one"), &none).expect("env");
+        assert_eq!(get(&e, "AUTH_QBITTORRENT_LOGIN"), "off", "off by default");
+        assert_eq!(get(&e, "QBITTORRENT_PASSWORD"), "short-one", "only the gate login needs a long one");
+        let e = auth_env(&tunnel(true, "short-one"), &none).expect("env");
+        assert_eq!(get(&e, "AUTH_QBITTORRENT_LOGIN"), "on");
+        let pw = get(&e, "QBITTORRENT_PASSWORD");
+        assert!(pw != "short-one" && !crate::auth::weak_app_password("admin", pw), "replaced by a random one");
+        let e = auth_env(&tunnel(true, "a-long-qbittorrent-secret"), &none).expect("env");
+        assert_eq!(get(&e, "QBITTORRENT_PASSWORD"), "a-long-qbittorrent-secret", "a strong one stays");
+        let weak_ok = BTreeMap::from([("AUTH_QBITTORRENT_ALLOW_WEAK".to_string(), "on".to_string())]);
+        assert_eq!(
+            get(&auth_env(&tunnel(true, "short-one"), &weak_ok).expect("env"), "QBITTORRENT_PASSWORD"),
+            "short-one"
+        );
+        let apps = Answers {
+            auth_qbittorrent_login: true,
+            apps_login_password: "a-long-Enough-pass".into(),
+            ..Default::default()
+        };
+        assert_eq!(get(&auth_env(&apps, &none).expect("env"), "AUTH_QBITTORRENT_LOGIN"), "off", "tunnel only");
     }
 
     #[test]

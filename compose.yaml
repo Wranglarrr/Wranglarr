@@ -278,6 +278,11 @@ services:
       # AuthTunnel only: the sign-in cookie's domain and wranglarr's address for the login page
       AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:-}
       AUTH_LOGIN_URL: ${AUTH_LOGIN_URL:-}
+      # AuthTunnel: qBittorrent's apps sign in with its own login (off by default), and
+      # what wranglarr-gate proves itself with when it sends one on (init.sh writes it)
+      AUTH_QBITTORRENT_LOGIN: ${AUTH_QBITTORRENT_LOGIN:-off}
+      AUTH_QBITTORRENT_ALLOW_WEAK: ${AUTH_QBITTORRENT_ALLOW_WEAK:-off}
+      WRANGLARR_GATE_SECRET: ${WRANGLARR_GATE_SECRET:-}
       WRANGLARR_PORT: ${WRANGLARR_PORT:-8787}
       WRANGLARR_URL_BASE: ${WRANGLARR_URL_BASE:-}
       # this machine's address on the network (setup or init.sh finds it)

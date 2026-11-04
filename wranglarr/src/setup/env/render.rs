@@ -114,6 +114,9 @@ pub fn render_env(a: &Answers, image: &str) -> Result<String> {
         format!("# qBittorrent web login{qb_note}"),
         line("QBITTORRENT_USER", get(&ae, "QBITTORRENT_USER"))?,
         line("QBITTORRENT_PASSWORD", get(&ae, "QBITTORRENT_PASSWORD"))?,
+        "# tunnel: qBittorrent's apps sign in with that login, not wranglarr's (no two-factor for".into(),
+        "# them; wiki/App-Logins.md). init.sh then writes WRANGLARR_GATE_SECRET.".into(),
+        line("AUTH_QBITTORRENT_LOGIN", get(&ae, "AUTH_QBITTORRENT_LOGIN"))?,
         String::new(),
     ]);
     let v = &a.vpn;

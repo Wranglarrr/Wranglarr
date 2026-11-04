@@ -128,6 +128,9 @@ pub struct Answers {
     pub apps_auth_required: String,
     pub auth_cookie_domain: String,
     pub auth_login_url: String,
+    /// AuthTunnel: qBittorrent's apps sign in with its own login (AUTH_QBITTORRENT_LOGIN)
+    #[serde(deserialize_with = "input::flag")]
+    pub auth_qbittorrent_login: bool,
     pub vpn: VpnCheck,
     pub vpn_per_app: Vec<String>,
     pub backup_cron: String,
@@ -165,6 +168,7 @@ impl Default for Answers {
             apps_auth_required: "enabled".into(),
             auth_cookie_domain: String::new(),
             auth_login_url: String::new(),
+            auth_qbittorrent_login: false,
             vpn: VpnCheck::default(),
             vpn_per_app: vec![],
             backup_cron: "30 3 * * *".into(),

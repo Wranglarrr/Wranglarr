@@ -16,10 +16,12 @@ use url::Url;
 
 use super::{Body, Ctx, Page, Q, Who, header_str, page, render, rp_id};
 use crate::app::App;
-use crate::auth::{Auth, SESSION_COOKIE, SignIn};
+use crate::auth::{Auth, GateAnswer, SESSION_COOKIE, SignIn};
+use crate::config::AppConfig;
 use crate::deployment::TrustedProxies;
 use crate::error::{Error, Result};
 use crate::format::{quote, quote_path};
+use crate::service::{AppConfigExt, Credentials};
 use crate::web::{ApiError, ApiResult};
 
 pub const MFA_COOKIE: &str = "wranglarr_mfa";
@@ -306,6 +308,11 @@ pub async fn guard(State(app): State<App>, mut req: Request, next: Next) -> Resp
     if req.method() == Method::POST && path.starts_with("/api/hooks/") {
         return next.run(req).await;
     }
+    // AuthTunnel: an app's own login, sent on by the gate (checked by the handler, and
+    // counted against the sign-in limit)
+    if req.method() == Method::POST && path.starts_with("/api/auth/gate/") {
+        return next.run(req).await;
+    }
     let token = cookie(h, SESSION_COOKIE);
     let api_key = header_str(h, "x-api-key").to_string();
     // SQLite (and its busy timeout) off the async workers
@@ -362,6 +369,8 @@ pub fn routes() -> Router<App> {
         .route("/login", get(login_page))
         .route("/account", get(account_page))
         .route("/api/auth/gate", get(api_gate))
+        .route("/api/auth/gate/{app}/login", post(api_gate_login))
+        .route("/api/auth/gate/{app}/logout", post(api_gate_logout))
         .route("/api/auth/setup", post(api_setup))
         .route("/api/auth/login", post(api_login))
         .route("/api/auth/login/totp", post(api_login_totp))
@@ -489,6 +498,132 @@ pub async fn gate_key(app: &App, name: &str) -> String {
     }
 }
 
+/// The cookie the gate's app sessions travel in: qBittorrent's own name for its session.
+const GATE_SID: &str = "SID";
+
+/// qBittorrent endpoints a session from its login through the gate can't use: they run
+/// programs (the "run external program" setting, search plugins, which are Python) or
+/// stop qBittorrent. Change them signed in to wranglarr.
+const GATE_BLOCKED: &[&str] = &[
+    "/api/v2/app/setpreferences",
+    "/api/v2/app/shutdown",
+    "/api/v2/search/installplugin",
+    "/api/v2/search/uninstallplugin",
+    "/api/v2/search/enableplugin",
+    "/api/v2/search/updateplugins",
+];
+
+/// `path` (nginx's normalised `$uri`) is one of [`GATE_BLOCKED`]: matched without case,
+/// repeated or trailing slashes. No path counts as blocked.
+fn gate_blocked(path: &str) -> bool {
+    let p = path.trim();
+    if p.is_empty() {
+        return true;
+    }
+    let norm: Vec<&str> = p.split('/').filter(|s| !s.is_empty()).collect();
+    let norm = format!("/{}", norm.join("/")).to_lowercase();
+    GATE_BLOCKED.contains(&norm.as_str())
+}
+
+/// The app wranglarr-gate fronts as `name` (by name, else by kind) when it signs in with a
+/// login and a session cookie through the gate: qBittorrent, the only one.
+fn login_app(app: &App, name: &str) -> Option<AppConfig> {
+    let cfg = app.cfg();
+    let a = cfg.all_apps().find(|a| a.name == name).or_else(|| cfg.all_apps().find(|a| a.kind == name))?;
+    (a.kind == crate::service::qbittorrent::DEF.id
+        && matches!(a.def()?.credentials, Credentials::UserPassword { basic_auth: false, .. }))
+    .then(|| a.clone())
+}
+
+/// The request came from wranglarr-gate: it carries WRANGLARR_GATE_SECRET (refused while
+/// that's empty). Only then is X-Wranglarr-Client the client's address.
+fn from_gate(r: &AuthReq, secret: &str) -> bool {
+    !secret.is_empty() && crate::auth::ct_eq_str(r.header("x-wranglarr-gate"), secret)
+}
+
+/// A browser posting from another site (a page that makes your browser sign in, or guess,
+/// through the gate): its Origin or Referer isn't the address the gate was opened on. Apps
+/// and scripts send neither.
+fn cross_site(r: &AuthReq) -> bool {
+    let origin = r.header("origin");
+    let src = if origin.is_empty() { r.header("referer") } else { origin };
+    if src.is_empty() {
+        return false;
+    }
+    let first = |k: &str| r.header(k).split(',').next().unwrap_or("").trim().to_lowercase();
+    let proto = if first("x-original-proto") == "https" { "https" } else { "http" };
+    let here = authority(&format!("{proto}://{}/", first("x-original-host")));
+    authority(src).map(|a| a.to_lowercase()) != here
+}
+
+/// A plain-text answer, the way qBittorrent's API gives them.
+fn text(status: StatusCode, body: &'static str) -> Response {
+    (status, [(header::CONTENT_TYPE, "text/plain; charset=UTF-8")], body).into_response()
+}
+
+/// AuthTunnel with AUTH_QBITTORRENT_LOGIN=on: qBittorrent's own login (`POST
+/// /api/v2/auth/login`, form fields `username` and `password`), sent on by the gate and
+/// checked here against wranglarr's copy of the app's login. Answers as qBittorrent does:
+/// `Ok.` with a SID cookie (a session of wranglarr's, which the gate then lets through),
+/// `Fails.`, or 403 when the address is locked out. 404 unless it came from the gate.
+async fn api_gate_login(
+    State(app): State<App>,
+    Path(name): Path<String>,
+    r: AuthReq,
+    body: axum::body::Bytes,
+) -> ApiResult<Response> {
+    let o = app.auth().options();
+    if !o.tunnel || !o.qbittorrent_login || !from_gate(&r, &o.gate_secret) {
+        return Err(Error::not_found("no app sign-ins here (AUTH_QBITTORRENT_LOGIN is off)").into());
+    }
+    let Some(a) = login_app(&app, &name) else {
+        return Err(Error::not_found(format!("{name} doesn't sign in through the gate")).into());
+    };
+    if cross_site(&r) {
+        return Ok(text(StatusCode::FORBIDDEN, "Forbidden"));
+    }
+    let form: std::collections::HashMap<String, String> = url::form_urlencoded::parse(&body).into_owned().collect();
+    let field = |k: &str| form.get(k).cloned().unwrap_or_default();
+    let (user, pass) = (field("username"), field("password"));
+    let real = crate::service::credentials(&a).await;
+    let sent_ip = r.header("x-wranglarr-client").trim().parse::<IpAddr>().ok();
+    let ip = sent_ip.map_or_else(|| r.ip(), |i| i.to_canonical().to_string());
+    let who = a.name.clone();
+    let weak_ok = o.qbittorrent_allow_weak;
+    let res =
+        blocking(&app, move |ap| ap.auth().gate_login(&ip, &who, (&user, &pass), (&real.0, &real.1), weak_ok)).await;
+    match res {
+        Ok(GateAnswer::Session(token)) => {
+            let secure =
+                if r.header("x-original-proto").trim().eq_ignore_ascii_case("https") { "; Secure" } else { "" };
+            let mut resp = text(StatusCode::OK, "Ok.");
+            add_cookie(&mut resp, &format!("{GATE_SID}={token}; HttpOnly; SameSite=Strict; Path=/{secure}"));
+            Ok(resp)
+        }
+        Ok(GateAnswer::Wrong | GateAnswer::Weak) => Ok(text(StatusCode::OK, "Fails.")),
+        Err(Error::TooMany(_)) => Ok(text(
+            StatusCode::FORBIDDEN,
+            "Your IP address has been banned after too many failed authentication attempts.",
+        )),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// AuthTunnel: the app logged out (`POST /api/v2/auth/logout`); its session ends.
+async fn api_gate_logout(State(app): State<App>, Path(name): Path<String>, r: AuthReq) -> Response {
+    let o = app.auth().options();
+    if !o.tunnel || !o.qbittorrent_login || !from_gate(&r, &o.gate_secret) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    if cross_site(&r) {
+        return text(StatusCode::FORBIDDEN, "Forbidden");
+    }
+    if let Some(a) = login_app(&app, &name) {
+        app.auth().gate_logout(&a.name, &cookie(&r.headers, GATE_SID));
+    }
+    text(StatusCode::OK, "")
+}
+
 /// 204: let the request through to the app. 401: not signed in; X-Wranglarr-Login
 /// says where to send the browser (the gate answers with a redirect there).
 async fn api_gate(State(app): State<App>, r: AuthReq) -> ApiResult<Response> {
@@ -506,6 +641,21 @@ async fn api_gate(State(app): State<App>, r: AuthReq) -> ApiResult<Response> {
     if !sent.is_empty() {
         let real = gate_key(&app, r.header("x-wranglarr-app")).await;
         if !real.is_empty() && sent.iter().any(|s| crate::auth::ct_eq_str(s, &real)) {
+            return Ok(StatusCode::NO_CONTENT.into_response());
+        }
+    }
+    // qBittorrent (AUTH_QBITTORRENT_LOGIN): the session its login through the gate got,
+    // but not for the endpoints that run programs
+    let sid = r.header("x-wranglarr-sid");
+    if o.qbittorrent_login
+        && !sid.is_empty()
+        && let Some(a) = login_app(&app, r.header("x-wranglarr-app"))
+    {
+        let real = crate::service::credentials(&a).await;
+        if app.auth().gate_session(&a.name, sid, (&real.0, &real.1)) {
+            if gate_blocked(r.header("x-wranglarr-path")) {
+                return Ok(text(StatusCode::FORBIDDEN, "Forbidden: sign in to wranglarr to change this"));
+            }
             return Ok(StatusCode::NO_CONTENT.into_response());
         }
     }

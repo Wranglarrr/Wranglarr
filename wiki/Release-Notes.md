@@ -22,6 +22,18 @@ How to write an entry:
   do, not how the code changed.
 -->
 
+## 1.1.2 — not released yet
+
+### New
+
+- **qBittorrent's apps can work through AuthTunnel, if you turn it on.** With
+  `AUTH_QBITTORRENT_LOGIN=on` and `./scripts/init.sh --auth`, nzb360,
+  qBitController and the like sign in with qBittorrent's own login, which
+  wranglarr checks for the gate. It's off by default: that login skips
+  wranglarr's two-factor. It needs a strong qBittorrent password, and it can't
+  change qBittorrent's settings or search plugins
+  ([App Logins](App-Logins.md#qbittorrents-apps-auth_qbittorrent_login)).
+
 ## 1.1.1 — 2026-10-30
 
 ### Before you update

@@ -326,7 +326,7 @@ async fn auth_only() {
     assert_eq!(r["written"][1], json!("./.env (app login keys only)"));
     let new = std::fs::read_to_string(w.stack.join(".env")).expect(".env");
     assert!(new.starts_with("# mine\nCOMPOSE_PROFILES=radarr,qbittorrent\nAPPS_AUTH=apps\nQBITTORRENT_PASSWORD=Correct-Horse-9\nOTHER=1\n\n# App logins"), "{new}");
-    assert!(new.ends_with("\nAPPS_LOGIN_USER=me\nAPPS_LOGIN_PASSWORD=Correct-Horse-9\nAPPS_AUTH_REQUIRED=enabled\nAUTH_COOKIE_DOMAIN=\nAUTH_LOGIN_URL=\nQBITTORRENT_USER=me\nNZBGET_USER=me\nNZBGET_PASS=Correct-Horse-9\n"), "{new}");
+    assert!(new.ends_with("\nAPPS_LOGIN_USER=me\nAPPS_LOGIN_PASSWORD=Correct-Horse-9\nAPPS_AUTH_REQUIRED=enabled\nAUTH_COOKIE_DOMAIN=\nAUTH_LOGIN_URL=\nQBITTORRENT_USER=me\nNZBGET_USER=me\nNZBGET_PASS=Correct-Horse-9\nAUTH_QBITTORRENT_LOGIN=off\n"), "{new}");
     std::fs::remove_file(w.stack.join(".env")).expect("rm");
     let (s, r) = post(&c, &format!("{}/api/setup/preview-auth", w.url), a).await;
     assert_eq!(

@@ -57,10 +57,97 @@ browser ──> :7878 ──> wranglarr-gate (nginx) ──> radarr:7878   (Auth
   wranglarr check the key against that app's real one first. So the arrs' mobile
   apps (nzb360, LunaSea…), Prowlarr's download links and scripts keep working,
   while a wrong or made-up key is sent to the sign-in page like any visitor.
-- **qBittorrent's mobile apps can't get past the gate**: qBittorrent's API has no
-  key, only its login.
+- **qBittorrent's phone and desktop apps can't get past the gate** unless you
+  turn on [their login](#qbittorrents-apps-auth_qbittorrent_login): qBittorrent's
+  API has no key, only its login.
 - The apps are still reachable inside the Docker network (that's how wranglarr,
   the arrs and Prowlarr reach each other). Don't publish their ports another way.
+
+### qBittorrent's apps (`AUTH_QBITTORRENT_LOGIN`)
+
+Off by default. With `AUTH_QBITTORRENT_LOGIN=on` in `.env` (or the box in
+`wranglarr-setup --auth`), then `./scripts/init.sh --auth`, nzb360,
+qBitController and the other qBittorrent apps sign in through the gate with
+qBittorrent's own login: `QBITTORRENT_USER` and `QBITTORRENT_PASSWORD` from
+`.env`.
+
+qBittorrent lets the gate in without a login, so its own check can't be used.
+The gate sends the app's sign-in (`/api/v2/auth/login`) to wranglarr instead.
+wranglarr checks it against that login and answers the way qBittorrent would,
+with a session of its own that the gate then lets through.
+
+The defaults:
+
+| | Default | Change it with |
+| --- | --- | --- |
+| qBittorrent's apps through the gate | off | `AUTH_QBITTORRENT_LOGIN=on` |
+| qBittorrent's password | 16 characters or more, not a common one, not containing the username | `AUTH_QBITTORRENT_ALLOW_WEAK=on` |
+| Settings, search plugins, shutdown | blocked for the apps ([below](#what-the-apps-cant-do)) | your browser, signed in to wranglarr |
+| Wrong logins | five in 15 minutes lock that address out for 15 minutes | restarting wranglarr clears it |
+| A session | an hour from its last use, a day at most | |
+
+Before you turn it on:
+
+- **It skips wranglarr's two-factor and passkeys.** Whoever has qBittorrent's
+  password gets into qBittorrent's API from anywhere that reaches the gate.
+- **Some of qBittorrent's API stays off for the apps**
+  ([below](#what-the-apps-cant-do)).
+- **The password needs 16 characters or more**, not a common one, and not
+  containing the username. With a weaker one, every app sign-in fails, and
+  wranglarr's log says why. The wizard replaces a weak one with a random one
+  when you turn this on. `AUTH_QBITTORRENT_ALLOW_WEAK=on` takes a weak one
+  anyway.
+- **Wrong logins have a limit of their own**: five different wrong ones in
+  15 minutes lock that address out of qBittorrent sign-ins for 15 minutes, and
+  you get a notification. An app retrying the same old password counts once.
+  They never lock you out of wranglarr, and the right one doesn't reset
+  wranglarr's own count. The address is the one the gate sees. Under rootless
+  Podman, and behind a reverse proxy, every client has the same one, so one
+  phone with a wrong password can lock out the others until it's fixed or
+  wranglarr restarts.
+- **Sessions** last an hour from their last use and a day at most. They end
+  when the app logs out, when qBittorrent's login in `.env` changes (after
+  `./scripts/init.sh --auth`), when you sign out everywhere or change
+  wranglarr's password, and when wranglarr restarts. The apps sign in again
+  by themselves.
+- A browser on another site can't use it: a sign-in whose `Origin` or
+  `Referer` isn't the gate's own address is refused.
+- `init.sh` writes `WRANGLARR_GATE_SECRET` into `.env` the first time. The gate
+  sends it with each sign-in, so a sign-in sent straight to wranglarr's own
+  port gets `404`. Don't share it.
+
+Tested with qBittorrent 5.
+
+#### What the apps can't do
+
+A session from qBittorrent's app login gets `403` on these:
+
+| Endpoint | What it does |
+| --- | --- |
+| `app/setPreferences` | changes any of qBittorrent's settings |
+| `app/shutdown` | stops qBittorrent |
+| `search/installPlugin`, `uninstallPlugin`, `enablePlugin`, `updatePlugins` | manages search plugins |
+
+**Why.** That login is a password and nothing else, used from anywhere that
+reaches the gate, with no two-factor. These endpoints turn a leaked password
+into a program running on your machine:
+
+- qBittorrent's settings include "Run external program" on torrent added or
+  finished, so `setPreferences` can run any command qBittorrent can;
+- search plugins are Python files qBittorrent runs, and `installPlugin` takes
+  one from any URL;
+- `shutdown` stops your downloads until someone starts the container again.
+
+Everything else works: adding, pausing and removing torrents, categories and
+tags, reading the settings, speed limits and the alternative speed toggle, and
+searching with the plugins you have.
+
+**To use them,** open qBittorrent's web UI in a browser signed in to wranglarr,
+for example `http://192.168.1.10:8090` at home. Your wranglarr sign-in, with its
+two-factor, lets the web UI do everything, settings and plugins included. The
+same works over your VPN or reverse proxy. An app that changes settings
+(some let you set speed limits through the settings screen) shows an error for
+that one change; the rest of the app keeps working.
 
 ### Where you sign in: the cookie
 
