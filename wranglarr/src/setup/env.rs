@@ -63,6 +63,7 @@ pub const ENV_KEYS_SECRET: &[&str] = &[
     "NZBGET_PASS",
     "VPN_PIA_PASS",
     "APPS_LOGIN_PASSWORD",
+    "WRANGLARR_GATE_SECRET",
 ];
 
 /// Secrets already in .env never go back to the browser: it gets KEEP instead, and KEEP coming back
@@ -81,6 +82,7 @@ pub const AUTH_KEYS: &[&str] = &[
     "QBITTORRENT_PASSWORD",
     "NZBGET_USER",
     "NZBGET_PASS",
+    "AUTH_QBITTORRENT_LOGIN",
 ];
 
 static HEAD_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*\[").expect("static regex"));

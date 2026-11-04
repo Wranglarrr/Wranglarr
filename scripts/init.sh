@@ -109,6 +109,9 @@ check_auth() {
     echo "init: (one login in every app); after that, manual leaves them as they are." >&2
     exit 1
   fi
+  if qb_login && [[ "$APPS_AUTH" != tunnel ]]; then
+    echo "init: note: AUTH_QBITTORRENT_LOGIN works only with APPS_AUTH=tunnel; qBittorrent's own login is used as it is" >&2
+  fi
   if [[ "$APPS_AUTH" == apps ]]; then
     local u; u="$(envget APPS_LOGIN_USER)"; u="${u:-admin}"
     [[ ",$PROFILES," == *",qbittorrent,"* && ( "$(envget QBITTORRENT_USER)" != "$u" || "$(envget QBITTORRENT_PASSWORD)" != "$(envget APPS_LOGIN_PASSWORD)" ) ]] \
@@ -119,6 +122,15 @@ check_auth() {
   return 0
 }
 
+# AUTH_QBITTORRENT_LOGIN: the secret wranglarr-gate sends with qBittorrent's logins, so
+# wranglarr knows they came through it (written once, never printed)
+gate_secret() {
+  qb_login || return 0
+  [[ -n "$(envget WRANGLARR_GATE_SECRET)" ]] && return 0
+  envset WRANGLARR_GATE_SECRET "$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
+  echo "init: WRANGLARR_GATE_SECRET written to .env (AUTH_QBITTORRENT_LOGIN)"
+}
+
 # compose.authtunnel.yaml in COMPOSE_FILE exactly when APPS_AUTH=tunnel
 tunnel_files() {
   local cf; cf="$(envget COMPOSE_FILE)"
@@ -126,6 +138,7 @@ tunnel_files() {
   IFS=: read -r -a parts <<< "${cf:-compose.yaml}"
   for p in "${parts[@]}"; do [[ -n "$p" && "$p" != compose.authtunnel.yaml ]] && out+=("$p"); done
   if [[ "$APPS_AUTH" == tunnel ]]; then
+    gate_secret
     tunnel_write; out+=(compose.authtunnel.yaml)
   else
     tunnel_remove

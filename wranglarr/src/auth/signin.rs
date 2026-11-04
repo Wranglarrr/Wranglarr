@@ -160,6 +160,12 @@ impl Auth {
     /// A failed sign-in from `ip`: the fifth within the window locks it out.
     /// Sleeps 0.4 s (call it from a blocking thread).
     pub fn failed(&self, ip: &str) {
+        self.record_failure(ip);
+        std::thread::sleep(Duration::from_millis(400));
+    }
+
+    /// [`Auth::failed`] without the wait (the caller waits).
+    pub(super) fn record_failure(&self, ip: &str) {
         let now = unix_now();
         let locked = {
             let mut m = guard(&self.mem);
@@ -183,7 +189,6 @@ impl Auth {
                 hook(ip, minutes);
             }
         }
-        std::thread::sleep(Duration::from_millis(400));
     }
 
     pub fn succeeded(&self, ip: &str) {

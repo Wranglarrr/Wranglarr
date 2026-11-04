@@ -18,6 +18,7 @@
     apps_auth: E.APPS_AUTH || (D.env_exists ? 'manual' : 'apps'), apps_login_user: E.APPS_LOGIN_USER || 'admin',
     apps_login_password: E.APPS_LOGIN_PASSWORD || '', apps_auth_required: E.APPS_AUTH_REQUIRED || 'enabled',
     auth_cookie_domain: E.AUTH_COOKIE_DOMAIN || '', auth_login_url: E.AUTH_LOGIN_URL || '',
+    auth_qbittorrent_login: /^(1|t|true|y|yes|on)$/i.test((E.AUTH_QBITTORRENT_LOGIN || '').trim()),
     vpn: { mode: (E.COMPOSE_FILE || '').includes('per-app') ? 'per-app' : (E.COMPOSE_FILE || '').includes('vpn') ? 'shared' : 'none',
       scope: !(E.COMPOSE_FILE || '').includes('compose.vpn.yaml') || (E.COMPOSE_FILE || '').includes('vpn-all') ? 'all'
         : (E.COMPOSE_FILE || '').includes('vpn-prowlarr') ? 'prowlarr' : 'downloads',
@@ -172,7 +173,11 @@
         'By this machine\'s IP and port always works, and needs nothing here. Pick the second only if you have a reverse proxy with a name for each app: its sign-in is a cookie for your whole domain, so it gets the two settings below.');
       if (proxy) h += field('Cookie domain', inp('auth_cookie_domain', S.auth_cookie_domain, 'placeholder="example.com" spellcheck="false"'), 'your domain, not an IP: the apps and wranglarr all have names under it on the proxy, and the cookie reaches every *.example.com') +
         field('wranglarr on the proxy', inp('auth_login_url', S.auth_login_url, 'placeholder="https://wranglarr.example.com" spellcheck="false"'), 'wranglarr\'s full address on your reverse proxy, including its URL base (e.g. https://example.com/wranglarr), not this machine\'s IP. The gate sends you there to sign in when you came through the proxy; by IP and port you sign in at wranglarr on that address.');
-      h += chk({ cls: 'warn', msg: 'qBittorrent\'s web UI has no API key, so its mobile apps can\'t get past the gate. The arrs, Prowlarr, Bazarr and SABnzbd apps use API keys and keep working.' });
+      if (S.services.includes('qbittorrent')) {
+        h += field('qBittorrent\'s apps', `<label class="check-line"><input type="checkbox" data-k="auth_qbittorrent_login" ${S.auth_qbittorrent_login ? 'checked' : ''}> let qBittorrent\'s phone and desktop apps sign in with qBittorrent\'s own login</label>`,
+          'qBittorrent has no API key, so without this its apps can\'t get past the gate (the arrs\', Prowlarr\'s, Bazarr\'s and SABnzbd\'s apps use API keys and keep working). Off by default.');
+        if (S.auth_qbittorrent_login) h += chk({ cls: 'warn', msg: 'That login skips wranglarr\'s two-factor and passkeys, and qBittorrent can be made to run programs, so its password needs 16 characters or more: a shorter one is replaced with a random one. Type QBITTORRENT_USER and QBITTORRENT_PASSWORD from .env into the app. Changing its settings, search plugins and shutting it down still need your wranglarr sign-in.' });
+      }
     } else {
       if (S.services.includes('nzbget')) h += field('NZBGet login', `${inp('nzbget_user', S.nzbget_user, 'placeholder="user"')} ${inp('nzbget_pass', S.nzbget_pass, 'placeholder="password"')} <button class="btn small" data-gen="password:nzbget_pass">generate</button>`, 'the image applies it at every start');
       if (S.services.includes('qbittorrent')) h += field('qBittorrent login', `${inp('qbittorrent_user', S.qbittorrent_user, 'placeholder="user"')} ${inp('qbittorrent_password', S.qbittorrent_password, 'placeholder="blank: set it later"')}`,
@@ -187,6 +192,7 @@
       }
       renderLogins();
     }));
+    body.querySelector('[data-k=auth_qbittorrent_login]')?.addEventListener('change', renderLogins);
     body.querySelectorAll('[name=access]').forEach(el => el.addEventListener('change', () => {
       if (el.value === 'lan') { S.auth_cookie_domain = ''; S.auth_login_url = ''; renderLogins(); }
       else { S.auth_login_url = S.auth_login_url || 'https://'; renderLogins(); }

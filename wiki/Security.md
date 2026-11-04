@@ -41,7 +41,10 @@ Keep it off the internet even so:
 
 **With AuthTunnel, wranglarr's login guards every app too** ([App logins](App-Logins.md)).
 The apps have no login of their own then; wranglarr-gate lets a request through
-only with a wranglarr session or the app's own API key. So:
+only with a wranglarr session, the app's own API key, NZBGet's login, or, with
+`AUTH_QBITTORRENT_LOGIN` on (off by default), qBittorrent's login, which skips
+wranglarr's two-factor and can't change qBittorrent's settings
+([qBittorrent's apps](App-Logins.md#qbittorrents-apps-auth_qbittorrent_login)). So:
 
 - the same advice applies twice over: two-factor or a passkey;
 - `init.sh` refuses AuthTunnel with `WRANGLARR_AUTH=off`;
@@ -69,6 +72,26 @@ Treat `appdata/backups` like a password store: keep it off shared folders, and e
 write anywhere it's mounted, including all of `/data`. Your media also fills
 up with root-owned files. Every app should run as a normal user (next
 section). The setup wizard and `init.sh` warn about `0`.
+
+## What wranglarr secures, and what it doesn't
+
+wranglarr is opinionated about the apps it ships with: the arrs, Prowlarr,
+Bazarr, Seerr, the download clients, Postgres, the VPN and the gate. It picks
+safe defaults for them, refuses settings that would open them up, and keeps
+the ways around its own login narrow. qBittorrent's app login above is one
+example: off by default, a strong password, and no access to the settings
+that run programs.
+
+It doesn't secure the apps themselves. A hole in Radarr or qBittorrent is
+theirs to fix; wranglarr can only keep the way to them guarded and the
+images up to date ([Updates](Updates.md)).
+
+The same goes for lariats (apps beyond the official stack, coming in 1.2),
+more so. A lariat is someone else's app and someone else's package. wranglarr
+limits what its compose and script may ask for, and shows what it gets before
+you turn it on. It can't make a careless image, a weak default login or an app
+that exposes too much safe, and it doesn't try. Turn on only the lariats you'd
+trust as a Compose file you copied yourself.
 
 ## What the stack does
 

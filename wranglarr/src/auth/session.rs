@@ -12,7 +12,7 @@ use super::account::read_account;
 use super::signin::Confirmed;
 use chrono::Utc;
 
-use super::support::{ct_eq, sha};
+use super::support::{ct_eq, guard, sha};
 use crate::error::{Error, Result};
 use crate::ids::{random_token, token_hex};
 use crate::time::iso_z;
@@ -139,7 +139,9 @@ impl Auth {
             .collect())
     }
 
+    /// End every session but `current`, the apps' sessions through the gate too.
     pub fn end_other_sessions(&self, current: &str) -> Result<usize> {
+        guard(&self.mem).gate.clear();
         let keep = sha(current);
         self.sql(move |c| c.execute("DELETE FROM sessions WHERE token_hash != ?", [keep]))
     }

@@ -903,6 +903,8 @@ need the current password; a wrong one is `403`.
 | DELETE | `/api/auth/sessions/{id}` | | signs that session out: `{"ok": true}`; `404` for an unknown id |
 | POST | `/api/auth/sessions/end-others` | none | signs out every other session: `{"ended": 3}` |
 | GET | `/api/auth/gate` | | AuthTunnel only (below) |
+| POST | `/api/auth/gate/{app}/login` | form: `username`, `password` | the gate only: qBittorrent's own login (below) |
+| POST | `/api/auth/gate/{app}/logout` | none; cookie `SID` | the gate only: ends that session, `200` |
 
 Passwords need 12 characters or more, can't be a common one, and can't
 contain the username.
@@ -919,6 +921,21 @@ for a signed-in browser session (or when wranglarr's login is off), and `401`
 otherwise, with an
 `X-Wranglarr-Login` header that says where to sign in. An API key is not
 enough here. Without AuthTunnel it answers `404`.
+
+`POST /api/auth/gate/{app}/login` is where the gate sends qBittorrent's
+`/api/v2/auth/login` when `AUTH_QBITTORRENT_LOGIN` is on
+([App Logins](App-Logins.md#qbittorrents-apps-auth_qbittorrent_login)).
+qBittorrent's API has no key, and it lets the gate in without a login. The
+form's `username` and `password` are checked against `QBITTORRENT_USER` /
+`QBITTORRENT_PASSWORD`. It answers the way qBittorrent does: `Ok.` with a `SID`
+cookie, `Fails.`, or `403` when the address is locked out. The gate then sends
+that `SID` with every request (`X-Wranglarr-Sid`, with the path as
+`X-Wranglarr-Path`), and `/api/auth/gate` answers `204` for a live one, or
+`403` for the endpoints such a session can't use. Both endpoints need the
+gate's `X-Wranglarr-Gate: <WRANGLARR_GATE_SECRET>`, and only then is
+`X-Wranglarr-Client` taken as the client's address. Without it, without
+AuthTunnel, with `AUTH_QBITTORRENT_LOGIN` off, or for another app, they answer
+`404`. A browser sign-in from another site is `403`.
 
 ## Setup wizard API (port 8788)
 

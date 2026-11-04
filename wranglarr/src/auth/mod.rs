@@ -31,12 +31,14 @@
 //! The parts: [`Auth`] and its options here; the account (`account`), its
 //! password (`password`), signing in and its limits (`signin`), TOTP and recovery
 //! codes (`totp`), sessions and API keys (`session`), passkeys ([`passkey`]) and
-//! the shell commands ([`cli`]).
+//! the shell commands ([`cli`]), and AuthTunnel sign-ins for apps that only have a
+//! login (`gate`).
 
 pub mod cli;
 pub mod passkey;
 
 mod account;
+mod gate;
 mod password;
 mod session;
 mod signin;
@@ -55,6 +57,7 @@ use crate::error::Result;
 use crate::state::{State, Tx};
 
 pub use account::{Account, Totp};
+pub use gate::{GateAnswer, MIN_APP_PASSWORD, weak_app_password};
 pub use password::{password_problem, valid_username};
 pub use session::{Identity, SESSION_COOKIE, SessionRow};
 pub use signin::{Attempt, Confirmed, SignIn};
@@ -88,6 +91,14 @@ pub struct Options {
     pub login_url: String,
     /// WRANGLARR_PORT (8787): where the gate sends browsers without AUTH_LOGIN_URL.
     pub port: String,
+    /// AUTH_QBITTORRENT_LOGIN=on (tunnel mode only, off by default): qBittorrent's
+    /// own login opens the gate for its API, so its phone apps work (`gate`).
+    pub qbittorrent_login: bool,
+    /// AUTH_QBITTORRENT_ALLOW_WEAK=on: that login works with a weak qBittorrent password.
+    pub qbittorrent_allow_weak: bool,
+    /// WRANGLARR_GATE_SECRET: what wranglarr-gate proves itself with on the gate-only
+    /// endpoints (the app sign-ins); they're refused while it's empty.
+    pub gate_secret: String,
 }
 
 impl Default for Options {
@@ -98,6 +109,9 @@ impl Default for Options {
             cookie_domain: String::new(),
             login_url: String::new(),
             port: "8787".into(),
+            qbittorrent_login: false,
+            qbittorrent_allow_weak: false,
+            gate_secret: String::new(),
         }
     }
 }
@@ -112,12 +126,16 @@ impl Options {
         let cookie_domain =
             if tunnel { env("AUTH_COOKIE_DOMAIN").trim_start_matches('.').to_lowercase() } else { String::new() };
         let port = env("WRANGLARR_PORT");
+        let on = |k: &str| crate::value::flag_word(&env(k)) == Some(true);
         Options {
             enabled,
             tunnel,
             cookie_domain,
             login_url: env("AUTH_LOGIN_URL").trim_end_matches('/').to_string(),
             port: if port.is_empty() { "8787".into() } else { port },
+            qbittorrent_login: tunnel && on("AUTH_QBITTORRENT_LOGIN"),
+            qbittorrent_allow_weak: on("AUTH_QBITTORRENT_ALLOW_WEAK"),
+            gate_secret: if tunnel { env("WRANGLARR_GATE_SECRET") } else { String::new() },
         }
     }
 }
@@ -136,6 +154,12 @@ struct Mem {
     pending: HashMap<String, Pending>,
     /// passkey ceremonies
     challenges: HashMap<String, passkey::Challenge>,
+    /// AuthTunnel sessions for apps that only have a login: app + token hash -> session
+    gate: HashMap<String, gate::GateSession>,
+    /// app sign-in bucket -> the wrong logins it sent lately (hash, when): each counts once
+    gate_wrong: HashMap<String, Vec<(String, f64)>>,
+    /// when the weak app password warning was last logged
+    gate_weak_warned: f64,
     setup_code: String,
 }
 
@@ -207,11 +231,14 @@ impl Auth {
         *guard(&self.on_lockout) = Some(Box::new(f));
     }
 
-    /// Drop every sign-in waiting for its code and every passkey ceremony.
+    /// Drop every sign-in waiting for its code, every passkey ceremony and every app
+    /// session through the gate.
     fn forget_flows(&self) {
         let mut m = guard(&self.mem);
         m.pending.clear();
         m.challenges.clear();
+        m.gate.clear();
+        m.gate_wrong.clear();
     }
 }
 

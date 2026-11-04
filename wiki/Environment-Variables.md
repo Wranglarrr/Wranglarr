@@ -79,6 +79,9 @@ Set by the setup wizard (`wranglarr-setup --auth` to change them) and applied by
 | `APPS_AUTH_REQUIRED` | `enabled` | init | `apps`: the arrs ask `enabled` (everywhere) or `disabledForLocalAddresses` |
 | `AUTH_COOKIE_DOMAIN` | empty | wranglarr | `tunnel`: the sign-in cookie's domain, e.g. `example.com`, so it reaches `radarr.example.com` … |
 | `AUTH_LOGIN_URL` | empty | wranglarr | `tunnel`: wranglarr's name on your reverse proxy for the gate's login redirect, e.g. `https://wranglarr.example.com` or `https://myhouse.com/wranglarr` (including `WRANGLARR_URL_BASE`, not this machine's IP), used for apps opened under `AUTH_COOKIE_DOMAIN`; otherwise, and when empty, the app's address on `WRANGLARR_PORT` |
+| `AUTH_QBITTORRENT_LOGIN` | `off` | init, wranglarr, wranglarr-gate | `tunnel`: `on` lets qBittorrent's apps sign in through the gate with `QBITTORRENT_USER` / `QBITTORRENT_PASSWORD`, without wranglarr's two-factor ([qBittorrent's apps](App-Logins.md#qbittorrents-apps-auth_qbittorrent_login)) |
+| `AUTH_QBITTORRENT_ALLOW_WEAK` | `off` | wranglarr | `on`: that login works with a qBittorrent password under 16 characters, a common one, or one containing the username |
+| `WRANGLARR_GATE_SECRET` | written by init | wranglarr, wranglarr-gate | with `AUTH_QBITTORRENT_LOGIN`: proves to wranglarr that a qBittorrent sign-in came through the gate. Keep it secret |
 | `GATE_IMAGE` | `docker.io/nginxinc/nginx-unprivileged:1.27-alpine` | wranglarr-gate | `tunnel`: the gate's image |
 
 ## VPN, shared tunnel (`compose.vpn.yaml`) → [VPN: Shared Tunnel](VPN-Shared-Tunnel.md)
@@ -139,7 +142,7 @@ so you know they exist.
 | postgres | `ARR_APPS` | `${COMPOSE_PROFILES}` |
 | bazarr | `POSTGRES_ENABLED`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DATABASE`, `POSTGRES_USERNAME`, `POSTGRES_PASSWORD`, `PGSSLCERT` | `true`, `postgres`, `5432`, `bazarr`, `${POSTGRES_USER}`, `${POSTGRES_PASSWORD}`, `/tmp/postgresql.crt` |
 | qbittorrent | `WEBUI_PORT`, `TORRENTING_PORT` | `8090`, `6881` |
-| wranglarr | `WRANGLARR_ENABLED_APPS`, `WRANGLARR_CONFIG`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `GLUETUN_API_KEY`, `QBITTORRENT_USER`, `QBITTORRENT_PASSWORD`, `NZBGET_USER`, `NZBGET_PASS`, `APPS_AUTH`, `APPS_LOGIN_USER`, `APPS_AUTH_REQUIRED`, `AUTH_COOKIE_DOMAIN`, `AUTH_LOGIN_URL`, `WRANGLARR_PORT`, `WRANGLARR_URL_BASE`, `HOST_IP` | `${COMPOSE_PROFILES}` (+`,vpn` with the VPN override), `/config/wranglarr.toml`, … |
+| wranglarr | `WRANGLARR_ENABLED_APPS`, `WRANGLARR_CONFIG`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `GLUETUN_API_KEY`, `QBITTORRENT_USER`, `QBITTORRENT_PASSWORD`, `NZBGET_USER`, `NZBGET_PASS`, `APPS_AUTH`, `APPS_LOGIN_USER`, `APPS_AUTH_REQUIRED`, `AUTH_COOKIE_DOMAIN`, `AUTH_LOGIN_URL`, `AUTH_QBITTORRENT_LOGIN`, `AUTH_QBITTORRENT_ALLOW_WEAK`, `WRANGLARR_GATE_SECRET`, `WRANGLARR_PORT`, `WRANGLARR_URL_BASE`, `HOST_IP` | `${COMPOSE_PROFILES}` (+`,vpn` with the VPN override), `/config/wranglarr.toml`, … |
 | vpn | `HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE` | `{"auth":"apikey","apikey":"${GLUETUN_API_KEY}"}` |
 | patch-config | `ARR_APPS`, `DL_APPS` | the enabled config.xml apps and download clients, set by `init.sh` |
 | patch-config | `APPS_AUTH`, `QBITTORRENT_USER`, `QBITTORRENT_PASSWORD` | from `.env`: qBittorrent's login (and, for `tunnel`, the whitelist that lets the gate in) |

@@ -21,7 +21,7 @@ struct Map {
 /// The `map $a $b { default …; "~re" value; … }` lines that build `$wr_cookie`.
 fn cookie_maps() -> Vec<Map> {
     let line = Regex::new(r"^map \$(\S+) \$(wr_cookie\S*) \{ default \$(\S+); (.*) \}$").unwrap();
-    let rule = Regex::new(r#""~((?:[^"\\]|\\.)*)" ("[^"]*"|\$\w+);"#).unwrap();
+    let rule = Regex::new(r#""~(\*?)((?:[^"\\]|\\.)*)" ("[^"]*"|\$\w+);"#).unwrap();
     SCRIPT
         .lines()
         .filter_map(|l| line.captures(l.trim()))
@@ -29,7 +29,11 @@ fn cookie_maps() -> Vec<Map> {
             assert_eq!(c[1], c[3], "a map's default is its own source");
             let rules = rule
                 .captures_iter(&c[4])
-                .map(|r| (Regex::new(&r[1]).expect("nginx regex is valid"), r[2].trim_matches('"').to_string()))
+                .map(|r| {
+                    // `~*` matches without case
+                    let re = if r[1].is_empty() { r[2].to_string() } else { format!("(?i){}", &r[2]) };
+                    (Regex::new(&re).expect("nginx regex is valid"), r[3].trim_matches('"').to_string())
+                })
                 .collect::<Vec<_>>();
             assert!(!rules.is_empty(), "{}", &c[0]);
             Map { source: c[1].to_string(), target: c[2].to_string(), default: c[3].to_string(), rules }
@@ -50,6 +54,11 @@ fn expand(value: &str, caps: &regex::Captures, re: &Regex) -> String {
 
 /// What `$wr_cookie` is for a request whose Cookie header is `cookie`.
 fn forwarded(cookie: &str) -> String {
+    forwarded_as(cookie, "wr_cookie")
+}
+
+/// What the map chain sets `$var` to for a request whose Cookie header is `cookie`.
+fn forwarded_as(cookie: &str, var: &str) -> String {
     let maps = cookie_maps();
     let mut vars: HashMap<String, String> = HashMap::from([("http_cookie".to_string(), cookie.to_string())]);
     // each map reads a variable an earlier one set (nginx evaluates them lazily, in this order)
@@ -62,15 +71,17 @@ fn forwarded(cookie: &str) -> String {
             .unwrap_or_else(|| vars[&m.default].clone());
         vars.insert(m.target.clone(), out);
     }
-    vars.get("wr_cookie").cloned().expect("the chain ends in $wr_cookie")
+    vars.get(var).cloned().unwrap_or_else(|| panic!("the chain sets ${var}"))
 }
 
 #[test]
 fn the_gate_forwards_the_filtered_cookie() {
-    assert_eq!(cookie_maps().len(), 4);
+    assert_eq!(cookie_maps().len(), 5);
     assert!(
-        SCRIPT.contains("proxy_set_header Cookie \\$wr_cookie;"),
-        "location / must forward $wr_cookie, not the browser's Cookie header"
+        SCRIPT.contains("proxy_set_header Cookie $cookies;")
+            && SCRIPT.contains("cookies='$wr_cookie'")
+            && SCRIPT.contains("cookies='$wr_cookie_qb'"),
+        "location / must forward $wr_cookie (or qBittorrent's $wr_cookie_qb), not the browser's Cookie header"
     );
 }
 
@@ -104,4 +115,18 @@ fn too_many_copies_drop_every_cookie() {
     assert_eq!(forwarded(cookie), "");
     let cookie = "a=1; wranglarr_mfa=1; wranglarr_mfa=2; wranglarr_mfa=3; b=2; wranglarr_session=real";
     assert_eq!(forwarded(cookie), "");
+}
+
+#[test]
+fn qbittorrent_never_gets_the_gates_sid() {
+    // the session wranglarr hands qBittorrent's apps stays with the gate (and wranglarr's own still go)
+    for (cookie, want) in [
+        ("a=1", "a=1"),
+        ("SID=tok", ""),
+        ("a=1; sid=tok", ""),
+        ("wranglarr_session=w; a=1", "a=1"),
+        ("QBT_SID_8090=x; a=1", "QBT_SID_8090=x; a=1"),
+    ] {
+        assert_eq!(forwarded_as(cookie, "wr_cookie_qb"), want, "Cookie: {cookie}");
+    }
 }
