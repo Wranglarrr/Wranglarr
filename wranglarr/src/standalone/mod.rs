@@ -299,7 +299,7 @@ mod tests {
             assert_eq!(mount, stock_mount, "stock and restore must mount the same cache");
             assert!(compose.contains("\n    tmpfs:\n"));
             assert!(compose.contains("user: \"${PUID}:${PGID}\""));
-            assert!(mount.contains("uid=${PUID:-1000},gid=${PGID:-1000},mode=0700"));
+            assert!(mount.ends_with(",mode=1777"), "writable by any user, and no uid=, which Podman refuses: {mount}");
             let env = std::fs::read_to_string(t.path().join(".env")).expect("read");
             assert!(env.contains(&format!("\nPUID={uid}\nPGID={gid}\n")), "{env}");
             assert!(compose.contains("- ./requests/config:/app/config"));

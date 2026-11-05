@@ -55,8 +55,8 @@ How to write an entry:
 - **Seerr could restart when loading Plex user avatars or posters** if your
   `PUID:PGID` differed from the image's default user. That could interrupt a Plex
   user import, send you back to login and produce a 502 through the reverse proxy.
-  Its image cache now has a temporary writable mount owned by your configured
-  user. Newly generated standalone restore stacks include the same mount.
+  Its image cache now has a temporary mount your configured user can write
+  to. Newly generated standalone restore stacks include the same mount.
 
 ## 1.1.1 — 2026-10-30
 

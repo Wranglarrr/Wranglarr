@@ -133,8 +133,9 @@ services:
       DB_NAME: seerr
     # Next.js caches optimized posters and Plex avatars outside /app/config.
     # The image owns /app/.next as UID 1000; our configured user needs its own cache.
+    # mode=1777, not uid=/gid=: Podman refuses those for a tmpfs.
     tmpfs:
-      - /app/.next/cache:rw,noexec,nosuid,nodev,uid=${PUID:-1000},gid=${PGID:-1000},mode=0700
+      - /app/.next/cache:rw,noexec,nosuid,nodev,mode=1777
     ports:
       - ${SEERR_PORT:-5055}:5055
     volumes:
