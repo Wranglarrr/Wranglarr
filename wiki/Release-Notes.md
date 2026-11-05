@@ -34,6 +34,19 @@ How to write an entry:
   change qBittorrent's settings or search plugins
   ([App Logins](App-Logins.md#qbittorrents-apps-auth_qbittorrent_login)).
 
+### Changed
+
+- **Passkeys run on a newer library** (webauthn-rs 0.6). The passkeys you
+  already added keep working, with nothing to do. wranglarr no longer
+  includes OpenSSL, so an OpenSSL security fix no longer needs a new
+  wranglarr image.
+
+### Fixed
+
+- **A backup manifest keeps a long decimal number exactly as it was.** A
+  number like that, written by another version, changed slightly each time
+  wranglarr read the manifest and wrote it back.
+
 ## 1.1.1 — 2026-10-30
 
 ### Before you update
