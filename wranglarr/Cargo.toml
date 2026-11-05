@@ -49,8 +49,8 @@ toml = "1.1.8"
 tempfile = "3.27.0"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-webauthn-rs = { version = "0.5.5", features = ["conditional-ui", "danger-credential-internals"] }
-webauthn-rs-proto = "0.5.5"
+webauthn-rs = { version = "0.6.2", features = ["conditional-ui", "danger-credential-internals"] }
+webauthn-rs-proto = "0.6.2"
 zip = { version = "9", default-features = false, features = ["deflate"] }
 async-trait = "0.1"
 url = "2.5.8"

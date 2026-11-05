@@ -6,6 +6,12 @@ all-features = false
 [advisories]
 version = 2
 yanked = "deny"
+ignore = [
+  # Marvin Attack: timing leaks the private key in RSA decryption and signing. The rsa crate
+  # comes in through webauthn-rs, which only verifies passkey signatures with public keys
+  # (RS256), so there's no private key to leak. No fixed version exists yet.
+  { id = "RUSTSEC-2023-0071", reason = "rsa only verifies with public keys here (webauthn-rs)" },
+]
 
 [licenses]
 version = 2
