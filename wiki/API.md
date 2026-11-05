@@ -904,7 +904,7 @@ need the current password; a wrong one is `403`.
 | POST | `/api/auth/sessions/end-others` | none | signs out every other session: `{"ended": 3}` |
 | GET | `/api/auth/gate` | | AuthTunnel only (below) |
 | POST | `/api/auth/gate/{app}/login` | form: `username`, `password` | the gate only: qBittorrent's own login (below) |
-| POST | `/api/auth/gate/{app}/logout` | none; cookie `SID` | the gate only: ends that session, `200` |
+| POST | `/api/auth/gate/{app}/logout` | none; qBittorrent's session cookie | the gate only: ends that session, in qBittorrent too, `200` |
 
 Passwords need 12 characters or more, can't be a common one, and can't
 contain the username.
@@ -927,11 +927,14 @@ enough here. Without AuthTunnel it answers `404`.
 ([App Logins](App-Logins.md#qbittorrents-apps-auth_qbittorrent_login)).
 qBittorrent's API has no key, and it lets the gate in without a login. The
 form's `username` and `password` are checked against `QBITTORRENT_USER` /
-`QBITTORRENT_PASSWORD`. It answers the way qBittorrent does: `Ok.` with a `SID`
-cookie, `Fails.`, or `403` when the address is locked out. The gate then sends
-that `SID` with every request (`X-Wranglarr-Sid`, with the path as
-`X-Wranglarr-Path`), and `/api/auth/gate` answers `204` for a live one, or
-`403` for the endpoints such a session can't use. Both endpoints need the
+`QBITTORRENT_PASSWORD`. When they're right, wranglarr signs in to qBittorrent
+and passes on its session cookie (`SID`, or `QBT_SID_<port>` from 5.1). It
+answers the way qBittorrent does: `Ok.` with that cookie (`204` from 5.1),
+`Fails.`, or `403` when the address is locked out, and `502` when qBittorrent
+doesn't open a session. The client sends the cookie with every request, the
+gate passes it on to `/api/auth/gate` with the path as `X-Wranglarr-Path`, and
+that answers `204` for a session wranglarr opened this way and that is still
+live, or `403` for the endpoints such a session can't use. Both endpoints need the
 gate's `X-Wranglarr-Gate: <WRANGLARR_GATE_SECRET>`, and only then is
 `X-Wranglarr-Client` taken as the client's address. Without it, without
 AuthTunnel, with `AUTH_QBITTORRENT_LOGIN` off, or for another app, they answer

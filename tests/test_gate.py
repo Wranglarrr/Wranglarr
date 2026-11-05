@@ -5,9 +5,10 @@ own login checked by wranglarr when AUTH_QBITTORRENT_LOGIN is on (its API has no
 from http.cookies import SimpleCookie
 from urllib.parse import quote
 
+import httpx
 import pytest
 
-from harness import Server, base_toml, suite_toml
+from harness import Server, base_toml, free_port, port_open, start_mock, suite_toml
 
 PW = "correct horse battery"
 QB = {"username": "admin", "password": "a-long-qbittorrent-secret"}
@@ -23,14 +24,36 @@ def srv(tmp_path_factory):
     s.stop()
 
 
-def tunnel_server(tmp, qb=None, **env):
+def tunnel_server(tmp, qb=None, style="sid", qb_password=None, **env):
+    """wranglarr in tunnel mode, with a mock qBittorrent (mocks/mock_qb_gate.py) whose login
+    is `qb` (or `qb_password`, when it should differ from wranglarr's copy) in `style`."""
     tmp.mkdir(parents=True, exist_ok=True)
+    login = qb or QB
+    port = free_port()
+    mock = start_mock(tmp, "mock-qb", "mock_qb_gate.py", port, qb_password or login["password"], style,
+                      ready=lambda: port_open(port))
     toml = base_toml(tmp) + suite_toml("media", [
         dict(name="radarr", kind="radarr", url="http://127.0.0.1:1", api_key="x"),
-        dict(name="qbittorrent", kind="qbittorrent", url="http://127.0.0.1:1", **(qb or QB))])
+        dict(name="qbittorrent", kind="qbittorrent", url=f"http://127.0.0.1:{port}", **login)])
     env = {**dict(APPS_AUTH="tunnel", AUTH_COOKIE_DOMAIN="example.com", AUTH_LOGIN_URL=f"https://{HOST}",
                   AUTH_QBITTORRENT_LOGIN="on", WRANGLARR_GATE_SECRET=GATE_SECRET), **env}
-    return Server(tmp, toml, auth=True, env=env).start()
+    try:
+        s = Server(tmp, toml, auth=True, env=env).start()
+    except Exception:
+        mock.stop()
+        raise
+    stop = s.stop
+
+    def stop_both():
+        stop()
+        mock.stop()
+    s.stop, s.qb_port, s.qb_mock = stop_both, port, mock
+    return s
+
+
+def qb_sessions(s):
+    """The mock qBittorrent's live sessions and the ones logged out."""
+    return httpx.get(f"http://127.0.0.1:{s.qb_port}/__sessions", timeout=5).json()
 
 
 def make_account(s):
@@ -57,11 +80,14 @@ def session(srv):
 G = {"X-Original-Proto": "https", "X-Original-Host": "radarr.example.com", "X-Original-URI": "/movie/1?a=b"}
 
 
-def gate(srv, headers, token=None):
+def gate(srv, headers, token=None, cookie=""):
     with srv.client() as c:              # a fresh client each time: cookies only when given
         h = dict(G, **headers)
-        if token:
-            h["Cookie"] = f"wranglarr_session={token}"
+        cookies = [f"wranglarr_session={token}"] if token else []
+        if cookie:
+            cookies.append(cookie)
+        if cookies:
+            h["Cookie"] = "; ".join(cookies)
         return c.get("/api/auth/gate", headers=h)
 
 
@@ -137,9 +163,11 @@ def test_links_follow_the_tunnels_domain(srv, session):
 
 # ---- qBittorrent: its own login, checked by wranglarr ------------------------------------------
 # AUTH_QBITTORRENT_LOGIN=on. What a phone app does through the gate: POST /api/v2/auth/login,
-# keep the SID cookie, send it with every API call. The gate sends the login to
-# /api/auth/gate/qbittorrent/login with WRANGLARR_GATE_SECRET and the client's address, and the
-# SID and path to /api/auth/gate as X-Wranglarr-Sid and X-Wranglarr-Path.
+# keep the session cookie, send it with every API call. The gate sends the login to
+# /api/auth/gate/qbittorrent/login with WRANGLARR_GATE_SECRET and the client's address;
+# wranglarr checks it, opens a session in qBittorrent (the mock here) and hands its cookie on.
+# Every request then goes to /api/auth/gate with the client's cookies, and the path as
+# X-Wranglarr-Path.
 
 FROM_GATE = {"X-Wranglarr-Gate": GATE_SECRET, "X-Wranglarr-Client": "198.51.100.7",
              "X-Original-Proto": "http", "X-Original-Host": "nas:8090"}
@@ -157,11 +185,11 @@ def qb_sid(srv, form=QB, headers=None):
     return SimpleCookie(raw)["SID"].value
 
 
-def qb_gate(srv, sid, app="qbittorrent", path="/api/v2/torrents/info", token=None):
-    h = {"X-Wranglarr-App": app, "X-Wranglarr-Sid": sid, "X-Original-Host": "nas:8090", "X-Original-URI": path or "/"}
+def qb_gate(srv, sid, app="qbittorrent", path="/api/v2/torrents/info", token=None, name="SID"):
+    h = {"X-Wranglarr-App": app, "X-Original-Host": "nas:8090", "X-Original-URI": path or "/"}
     if path is not None:
         h["X-Wranglarr-Path"] = path
-    return gate(srv, h, token)
+    return gate(srv, h, token, f"{name}={sid}" if sid else "")
 
 
 def admin_login(s, password):
@@ -175,9 +203,11 @@ def test_qbittorrent_login_opens_a_session_the_gate_accepts(srv):
     raw = next(h for h in r.headers.get_list("set-cookie") if h.startswith("SID="))
     assert "httponly" in raw.lower() and "secure" not in raw.lower(), raw
     sid = SimpleCookie(raw)["SID"].value
+    assert sid in qb_sessions(srv)["live"], "the session is qBittorrent's own"
     assert qb_gate(srv, sid).status_code == 204, "an API call with the session goes through"
     assert qb_gate(srv, "made-up").status_code == 401, "a made-up session doesn't"
     assert qb_gate(srv, sid, app="radarr").status_code == 401, "nor does it open another app"
+    assert qb_gate(srv, sid, name="QBT_SID_8090").status_code == 204, "5.1's name for it"
     with srv.client() as c:
         assert c.post("/api/auth/gate/qbittorrent/logout", headers={"Cookie": f"SID={sid}"}).status_code == 404, \
             "a logout not from the gate"
@@ -185,6 +215,53 @@ def test_qbittorrent_login_opens_a_session_the_gate_accepts(srv):
         r = c.post("/api/auth/gate/qbittorrent/logout", headers=dict(FROM_GATE, Cookie=f"SID={sid}"))
         assert r.status_code == 200
     assert qb_gate(srv, sid).status_code == 401, "logged out"
+    assert sid in qb_sessions(srv)["ended"], "and ended in qBittorrent too"
+
+
+def test_a_session_qbittorrent_handed_out_itself_doesnt_open_the_gate(srv):
+    # qBittorrent lets the gate's network in without a login, so a session it opened for anyone
+    # who asked it directly mustn't count: only one wranglarr opened after checking the login
+    r = httpx.post(f"http://127.0.0.1:{srv.qb_port}/api/v2/auth/login", data=QB, timeout=5)
+    own = SimpleCookie(r.headers["set-cookie"])["SID"].value
+    assert qb_gate(srv, own).status_code == 401
+    with srv.client() as c:              # nor can its logout end someone else's session
+        sid = qb_sid(srv)
+        c.post("/api/auth/gate/qbittorrent/logout", headers=dict(FROM_GATE, Cookie=f"SID={own}"))
+        assert qb_gate(srv, sid).status_code == 204
+        assert own in qb_sessions(srv)["live"], "a logout leaves sessions the gate never took to qBittorrent"
+
+
+def test_qbittorrent_5_1_answers_204_with_its_own_cookie_name(tmp_path):
+    s = tunnel_server(tmp_path, style="qbt")
+    try:
+        r = qb_login(s, QB)
+        name = f"QBT_SID_{s.qb_port}"
+        assert r.status_code == 204, (r.status_code, r.text)
+        raw = next(h for h in r.headers.get_list("set-cookie") if h.startswith(f"{name}="))
+        sid = SimpleCookie(raw)[name].value
+        assert qb_gate(s, sid, name=name).status_code == 204
+        assert qb_gate(s, sid, name="SID").status_code == 204, "the value is what counts"
+    finally:
+        s.stop()
+
+
+def test_when_qbittorrent_opens_no_session_the_app_is_told(tmp_path):
+    # .env's qBittorrent login doesn't match qBittorrent's: the client's login was right, but
+    # there's no session to give it
+    s = tunnel_server(tmp_path / "a", qb_password="what-qbittorrent-really-has")
+    try:
+        r = qb_login(s, QB)
+        assert r.status_code == 502 and "set-cookie" not in r.headers, (r.status_code, r.text)
+        assert "qBittorrent refused the login in .env" in s.log()
+    finally:
+        s.stop()
+    s = tunnel_server(tmp_path / "b")
+    try:
+        s.qb_mock.stop()                 # qBittorrent is down
+        r = qb_login(s, QB)
+        assert r.status_code == 502 and "set-cookie" not in r.headers, (r.status_code, r.text)
+    finally:
+        s.stop()
 
 
 def test_over_https_the_sid_is_secure(srv):

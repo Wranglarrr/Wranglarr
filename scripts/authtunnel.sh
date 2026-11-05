@@ -107,11 +107,6 @@ map $wr_cookie_1 $wr_cookie_2 { default $wr_cookie_1; "~^(?<wr_pre>.*?)(?:^|;\s*
 map $wr_cookie_2 $wr_cookie_3 { default $wr_cookie_2; "~^(?<wr_pre>.*?)(?:^|;\s*)wranglarr_(?:session|mfa)\s*=[^;]*(?<wr_post>.*)$" "$wr_pre$wr_post"; }
 map $wr_cookie_3 $wr_cookie { default $wr_cookie_3; "~(?:^|;\s*)wranglarr_(?:session|mfa)\s*=" ""; "~^[;\s]+(?<wr_rest>.*)$" $wr_rest; }
 EOF
-  # qBittorrent's apps (AUTH_QBITTORRENT_LOGIN): the session wranglarr gave them travels in a SID
-  # cookie, which stays with the gate too (qBittorrent needs no cookie of its own behind it)
-  qb_login && cat <<'EOF'
-map $wr_cookie $wr_cookie_qb { default $wr_cookie; "~*(?:^|;\s*)SID\s*=" ""; }
-EOF
   for a in $(gate_apps); do
     port="${GATE_PORT[$a]}"
     case $a in
@@ -124,23 +119,21 @@ EOF
     if [[ $a == sabnzbd ]]; then host='$proxy_host'; else host='$http_host'; fi
     case $a in nzbget) skip='$wr_has_basic' ;; *) skip='0' ;; esac
     # qBittorrent's API has no key, only its login, and qBittorrent lets the gate in without
-    # one, so its own check can't be used: wranglarr checks the login against the real one
-    # and hands out a session of its own, which the gate then accepts like a key. An API call
-    # without a live session gets 403, the answer that makes an app sign in again.
+    # one, so its own check can't be used: wranglarr checks the login against the real one,
+    # opens a session in qBittorrent and hands its cookie (SID, or QBT_SID_<port> from 5.1)
+    # to the app. The gate takes only a session opened that way, and passes the cookie on to
+    # qBittorrent. An API call without a live session gets 403, the answer that makes an app
+    # sign in again.
     # Only with AUTH_QBITTORRENT_LOGIN=on: that login skips wranglarr's two-factor.
     qb=no; [[ $a == qbittorrent ]] && qb_login && qb=yes
     login='        if ($wr_login = "") { return 401; }'
-    cookies='$wr_cookie'
-    # headers only the gate sets: a client's own never reach wranglarr
-    sid='        proxy_set_header X-Wranglarr-Sid "";
-        proxy_set_header X-Wranglarr-Path "";'
+    # a header only the gate sets: a client's own never reaches wranglarr
+    wpath='        proxy_set_header X-Wranglarr-Path "";'
     if [[ $qb == yes ]]; then
       # the path, for the qBittorrent endpoints a session from an app's login can't use
-      sid='        proxy_set_header X-Wranglarr-Sid $cookie_SID;
-        proxy_set_header X-Wranglarr-Path $wr_path;'
+      wpath='        proxy_set_header X-Wranglarr-Path $wr_path;'
       login='        if ($uri ~* "^/+api/v2/") { return 403; }
         if ($wr_login = "") { return 401; }'
-      cookies='$wr_cookie_qb'
     fi
     if [[ $a == qbittorrent || $a == nzbget ]]; then
       key+='
@@ -159,7 +152,7 @@ server {
     location = /__wranglarr/auth {
         internal;
 $key
-$sid
+$wpath
         proxy_set_header X-Wranglarr-Gate "";
         proxy_pass \$wr_gate;
         proxy_pass_request_body off;
@@ -210,7 +203,8 @@ EOF
         proxy_set_header X-Wranglarr-Client \$remote_addr;
         proxy_set_header X-Original-Proto \$wr_proto;
         proxy_set_header X-Original-Host \$wr_host;
-        proxy_set_header Cookie "SID=\$cookie_SID";
+        # qBittorrent's session cookie, to end it there too (wranglarr's own stay behind)
+        proxy_set_header Cookie \$wr_cookie;
         proxy_set_header Authorization "";
         proxy_set_header X-Api-Key "";
         proxy_set_header X-Forwarded-For "";
@@ -237,7 +231,7 @@ EOF
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$wr_proto;
         proxy_set_header X-Forwarded-Host \$wr_host;
-        proxy_set_header Cookie $cookies;
+        proxy_set_header Cookie \$wr_cookie;
 EOF
     [[ $a == nzbget ]] && printf '        proxy_set_header Authorization $wr_nzbget_auth;\n'
     cat <<'EOF'

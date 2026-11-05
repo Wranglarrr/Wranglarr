@@ -73,8 +73,11 @@ qBittorrent's own login: `QBITTORRENT_USER` and `QBITTORRENT_PASSWORD` from
 
 qBittorrent lets the gate in without a login, so its own check can't be used.
 The gate sends the app's sign-in (`/api/v2/auth/login`) to wranglarr instead.
-wranglarr checks it against that login and answers the way qBittorrent would,
-with a session of its own that the gate then lets through.
+wranglarr checks it against that login, then signs in to qBittorrent itself and
+hands the app qBittorrent's own session cookie. The gate lets a request through
+only with a session wranglarr opened this way: one qBittorrent gave anyone else
+doesn't count. The app keeps a real qBittorrent session, so its live updates
+work, and qBittorrent 4's `SID` cookie never clashes with another.
 
 The defaults:
 
@@ -108,15 +111,16 @@ Before you turn it on:
 - **Sessions** last an hour from their last use and a day at most. They end
   when the app logs out, when qBittorrent's login in `.env` changes (after
   `./scripts/init.sh --auth`), when you sign out everywhere or change
-  wranglarr's password, and when wranglarr restarts. The apps sign in again
-  by themselves.
+  wranglarr's password, when wranglarr restarts, and when qBittorrent ends
+  them (a restart, or its own session timeout, an hour by default). The apps
+  sign in again by themselves.
 - A browser on another site can't use it: a sign-in whose `Origin` or
   `Referer` isn't the gate's own address is refused.
 - `init.sh` writes `WRANGLARR_GATE_SECRET` into `.env` the first time. The gate
   sends it with each sign-in, so a sign-in sent straight to wranglarr's own
   port gets `404`. Don't share it.
 
-Tested with qBittorrent 5.
+Tested with qBittorrent 4.6 and 5.3.
 
 #### What the apps can't do
 

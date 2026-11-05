@@ -76,13 +76,15 @@ fn forwarded_as(cookie: &str, var: &str) -> String {
 
 #[test]
 fn the_gate_forwards_the_filtered_cookie() {
-    assert_eq!(cookie_maps().len(), 5);
-    assert!(
-        SCRIPT.contains("proxy_set_header Cookie $cookies;")
-            && SCRIPT.contains("cookies='$wr_cookie'")
-            && SCRIPT.contains("cookies='$wr_cookie_qb'"),
-        "location / must forward $wr_cookie (or qBittorrent's $wr_cookie_qb), not the browser's Cookie header"
-    );
+    assert_eq!(cookie_maps().len(), 4);
+    let sets: Vec<&str> = SCRIPT.lines().map(str::trim).filter(|l| l.starts_with("proxy_set_header Cookie ")).collect();
+    assert!(sets.contains(&r"proxy_set_header Cookie \$wr_cookie;"), "location / forwards $wr_cookie: {sets:?}");
+    for l in &sets {
+        assert!(
+            *l == r"proxy_set_header Cookie \$wr_cookie;" || *l == r#"proxy_set_header Cookie "";"#,
+            "a Cookie header that isn't filtered: {l}"
+        );
+    }
 }
 
 #[test]
@@ -118,15 +120,15 @@ fn too_many_copies_drop_every_cookie() {
 }
 
 #[test]
-fn qbittorrent_never_gets_the_gates_sid() {
-    // the session wranglarr hands qBittorrent's apps stays with the gate (and wranglarr's own still go)
+fn qbittorrent_gets_its_own_session_cookie() {
+    // the session an app got through the gate is qBittorrent's own: it goes on to qBittorrent,
+    // so the app keeps its state there (and wranglarr's own cookies still don't)
+    assert!(!SCRIPT.contains("wr_cookie_qb"), "no map takes qBittorrent's session away");
     for (cookie, want) in [
-        ("a=1", "a=1"),
-        ("SID=tok", ""),
-        ("a=1; sid=tok", ""),
-        ("wranglarr_session=w; a=1", "a=1"),
-        ("QBT_SID_8090=x; a=1", "QBT_SID_8090=x; a=1"),
+        ("SID=tok", "SID=tok"),
+        ("wranglarr_session=w; SID=tok", "SID=tok"),
+        ("QBT_SID_8090=x; wranglarr_session=w; a=1", "QBT_SID_8090=x; a=1"),
     ] {
-        assert_eq!(forwarded_as(cookie, "wr_cookie_qb"), want, "Cookie: {cookie}");
+        assert_eq!(forwarded(cookie), want, "Cookie: {cookie}");
     }
 }
