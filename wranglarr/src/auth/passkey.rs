@@ -16,7 +16,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use webauthn_rs::prelude::{
-    Credential, DiscoverableAuthentication, DiscoverableKey, Passkey, PasskeyRegistration, PublicKeyCredential,
+    Credential, DiscoverableAuthentication, Passkey, PasskeyRegistration, PublicKeyCredential,
     RegisterPublicKeyCredential, Url, Uuid, Webauthn, WebauthnBuilder,
 };
 use webauthn_rs_proto::{AuthenticatorSelectionCriteria, ResidentKeyRequirement, UserVerificationPolicy};
@@ -316,7 +316,7 @@ impl Auth {
             let cred: PublicKeyCredential = serde_json::from_value(credential.clone()).map_err(|e| e.to_string())?;
             webauthn(&c.rp_id, &origin)
                 .map_err(|e| e.to_string())?
-                .finish_discoverable_authentication(&cred, *state, &[DiscoverableKey::from(&row.passkey)])
+                .finish_discoverable_authentication_v2(&cred, *state, &row.passkey)
                 .map_err(|e| e.to_string())
         };
         let res = match verify() {

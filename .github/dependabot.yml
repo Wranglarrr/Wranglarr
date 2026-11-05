@@ -28,6 +28,10 @@ updates:
     schedule:
       interval: weekly
     groups:
+      # webauthn-rs and webauthn-rs-proto share types, so they only build on the same
+      # version: one pull request for them, whatever the update type
+      webauthn:
+        patterns: ["webauthn-rs*"]
       # one pull request for the routine minor and patch updates
       minor-and-patch:
         update-types: [minor, patch]
