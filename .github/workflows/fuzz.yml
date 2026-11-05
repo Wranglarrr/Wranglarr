@@ -3,6 +3,9 @@
 # fifteen. A failure uploads the input that broke it (see wranglarr/fuzz/README.md
 # for what to do).
 # Runs on stable Rust with the coverage flags cargo-fuzz uses, so no nightly.
+# No --locked: Dependabot bumps wranglarr/Cargo.toml but not wranglarr/fuzz/Cargo.lock,
+# so cargo moves only what the bump needs and builds with the new version. The fuzz
+# crate never ships; refresh its lock with `cargo update` in wranglarr/fuzz now and then.
 name: fuzz
 
 on:
@@ -42,8 +45,8 @@ jobs:
           workspaces: wranglarr/fuzz
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo fmt --check
-      - run: cargo clippy --all-targets --locked -- -D warnings
-      - run: cargo test --locked
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
 
   fuzz:
     needs: targets
@@ -66,7 +69,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       # one build for every target; --target keeps the coverage flags off build
       # scripts and proc macros
-      - run: cargo build --release --locked --target x86_64-unknown-linux-gnu --bins
+      - run: cargo build --release --target x86_64-unknown-linux-gnu --bins
       - name: Fuzz every target at once
         run: |
           out="$RUNNER_TEMP/fuzz"
