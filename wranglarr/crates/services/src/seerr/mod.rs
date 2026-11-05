@@ -43,7 +43,7 @@ pub static DEF: ServiceDef = ServiceDef {
         env: &[],
         // no PUID of its own
         run_as_user: true,
-        tmpfs: &["/app/.next/cache:rw,noexec,nosuid,nodev,uid=${PUID:-1000},gid=${PGID:-1000},mode=0700"],
+        tmpfs: &["/app/.next/cache:rw,noexec,nosuid,nodev,mode=1777"],
         data: false,
         vpn: false,
     },
