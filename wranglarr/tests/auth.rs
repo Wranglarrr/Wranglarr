@@ -501,8 +501,8 @@ async fn tunnel_gate() {
 // ---- a software authenticator, for a whole passkey ceremony ------------------------------------
 
 mod soft {
-    use openssl::bn::BigNumContext;
-    use openssl::ec::{EcGroup, EcKey, PointConversionForm};
+    use openssl::bn::{BigNum, BigNumContext};
+    use openssl::ec::{EcGroup, EcKey, EcPoint, PointConversionForm};
     use openssl::nid::Nid;
     use openssl::pkey::{PKey, Private};
     use openssl::sha::sha256;
@@ -542,7 +542,22 @@ mod soft {
     impl Key {
         pub fn new() -> Key {
             let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
-            let ec = EcKey::generate(&group).unwrap();
+            Key::from_ec(EcKey::generate(&group).unwrap())
+        }
+
+        /// The P-256 key with private scalar `d` (hex), for a user handle already stored.
+        pub fn fixed(d: &str, user: &str) -> Key {
+            let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
+            let d = BigNum::from_hex_str(d).unwrap();
+            let mut pt = EcPoint::new(&group).unwrap();
+            pt.mul_generator2(&group, &d, &mut BigNumContext::new().unwrap()).unwrap();
+            let mut k = Key::from_ec(EcKey::from_private_components(&group, &d, &pt).unwrap());
+            k.user = user.into();
+            k
+        }
+
+        fn from_ec(ec: EcKey<Private>) -> Key {
+            let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
             let mut ctx = BigNumContext::new().unwrap();
             let pt = ec.public_key().to_bytes(&group, PointConversionForm::UNCOMPRESSED, &mut ctx).unwrap();
             Key {
@@ -685,6 +700,42 @@ async fn passkey_register_and_sign_in() {
     assert_eq!(t.call("GET", "/api/auth/me", None, &site).await.json()["passkeys"][0]["name"], "phone");
     assert_eq!(t.call("DELETE", &format!("/api/auth/passkeys/{id}"), None, &site).await.status, 200);
     assert_eq!(t.call("GET", "/api/auth/me", None, &site).await.json()["passkeys"], json!([]));
+}
+
+#[tokio::test]
+async fn a_passkey_saved_by_webauthn_rs_0_5_still_signs_in() {
+    // the account as webauthn-rs 0.5.5 stored it, after registering soft::Key::fixed (a
+    // test-only key): a library upgrade must keep reading the passkeys people already saved
+    let mut t = setup(Options::default()).await;
+    let user = "YaoDYGLb91fqzPvvGCPIhnO9N6nLnTBA7u086bKbC0Q";
+    let handle = "YaoDYGLb91fqzPvvGCPIhg"; // the WebAuthn user handle: its first 16 bytes
+    let acct = json!({"username": "admin", "created": "2026-11-05T00:40:00Z",
+        "password": "scrypt$32768$8$1$OiUhnTIA37q9IpqL-b8ysg$Mab_PH8so_FZMWUC3p3f2j0tqJ97Vo35-73jX2ZLzwg",
+        "user_handle": user, "totp": {"enabled": false, "secret": "", "last": 0}, "recovery": [],
+        "passkeys": [{"id": "AAcOFRwjKjE4P0ZNVFtiaXB3foWMk5qhqK-2vcTL0tk", "name": "laptop",
+            "created": "2026-11-05T00:40:00Z", "last_used": null, "rp_id": "wranglarr.lan", "backed_up": false,
+            "transports": ["internal", "hybrid"],
+            "passkey": {"cred": {"cred_id": "AAcOFRwjKjE4P0ZNVFtiaXB3foWMk5qhqK-2vcTL0tk",
+                "cred": {"type_": "ES256", "key": {"EC_EC2": {"curve": "SECP256R1",
+                    "x": "kOxtYtIEChuSdAonGHno7jatFVY70wnprFTSX9Q4Z74",
+                    "y": "SyzbK00Z2TicGS0eHW-f2HVaefyXQ0H2NgdUnb0J1bg"}}},
+                "counter": 0, "transports": null, "user_verified": true, "backup_eligible": false,
+                "backup_state": false, "registration_policy": "required",
+                "extensions": {"cred_protect": "Ignored", "hmac_create_secret": "NotRequested",
+                    "appid": "NotRequested", "cred_props": "Ignored"},
+                "attestation": {"data": "None", "metadata": "None"}, "attestation_format": "none"}}}]});
+    t.app.state().put("auth:account", &acct).await.unwrap();
+    let site = [("host", "wranglarr.lan"), ("origin", "https://wranglarr.lan"), ("x-forwarded-proto", "https")];
+    assert_eq!(t.call("GET", "/api/auth/me", None, &site).await.status, 401);
+    let mut key = soft::Key::fixed("6f1c3b2a9d8e7f60514233241506f7e8d9cabbac9d8e7f605142332415069988", handle);
+    let o = t.call("GET", "/api/auth/passkey/login-options", None, &site).await.json();
+    let cred = key.get(&o["options"], "https://wranglarr.lan");
+    let r =
+        t.call("POST", "/api/auth/passkey/login", Some(json!({"flow": o["flow"], "credential": cred})), &site).await;
+    assert_eq!(r.status, 200, "{}", r.text);
+    let me = t.call("GET", "/api/auth/me", None, &site).await.json();
+    assert_eq!(me["sessions"][0]["method"], "passkey");
+    assert_eq!(me["passkeys"][0]["name"], "laptop", "{me}");
 }
 
 #[tokio::test]
