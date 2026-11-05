@@ -127,6 +127,57 @@ async fn preferences(c: &reqwest::Client, a: &AppConfig, timeout: Duration) -> R
     json_of(rq.send().await.map_err(http_err)?).await.map(Some)
 }
 
+/// A session qBittorrent opened for an app that AuthTunnel let through, and how its login
+/// answered, so the app gets the same answer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppSession {
+    /// 200 with `Ok.` before 5.1, 204 from 5.1
+    pub status: u16,
+    pub body: String,
+    /// `SID` before 5.1, `QBT_SID_<port>` from 5.1
+    pub cookie: String,
+    pub value: String,
+}
+
+/// The session cookie's name: `SID` before qBittorrent 5.1, `QBT_SID_<port>` from 5.1.
+pub fn is_session_cookie(name: &str) -> bool {
+    name == "SID" || name.starts_with("QBT_SID_")
+}
+
+/// Open a qBittorrent session of its own for an app, signed in with .env's login. None
+/// when qBittorrent refuses that login or sets no session cookie.
+pub async fn open_app_session(a: &AppConfig) -> Result<Option<AppSession>, String> {
+    let (u, p) = crate::credentials(a).await;
+    let b = base(a);
+    let r = wranglarr_core::http::http(READ_TIMEOUT)
+        .post(format!("{b}/api/v2/auth/login"))
+        .header("Referer", b)
+        .form(&[("username", u.as_str()), ("password", p.as_str())])
+        .send()
+        .await
+        .map_err(http_err)?;
+    let status = r.status().as_u16();
+    let cookie = set_cookies(&r).into_iter().find(|(k, v)| is_session_cookie(k) && !v.is_empty());
+    let body = wranglarr_core::http::response_text(r).await.map_err(|e| e.describe(wranglarr_core::http::reason))?;
+    let ok = (status == 200 && body.trim() == "Ok.") || status == 204;
+    Ok(cookie.filter(|_| ok).map(|(cookie, value)| AppSession { status, body, cookie, value }))
+}
+
+/// End an app's qBittorrent session (`name=value`). Best effort: the gate has already
+/// stopped taking it.
+pub async fn close_app_session(a: &AppConfig, cookie: &str) {
+    let b = base(a);
+    let r = wranglarr_core::http::http(READ_TIMEOUT)
+        .post(format!("{b}/api/v2/auth/logout"))
+        .header("Referer", b)
+        .header(reqwest::header::COOKIE, cookie)
+        .send()
+        .await;
+    if let Err(e) = r {
+        tracing::debug!("{}: logout: {}", a.name, http_err(e));
+    }
+}
+
 #[async_trait]
 impl LoginApi for QbittorrentLogin {
     async fn read(&self, a: &AppConfig) -> Result<LoginState, String> {

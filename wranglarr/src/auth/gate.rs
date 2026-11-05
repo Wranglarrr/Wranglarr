@@ -4,15 +4,18 @@
 //!
 //! The app's own login can't be passed through the gate: the app lets the gate's
 //! network in without one. So wranglarr checks the username and password against
-//! wranglarr's copy of the app's login itself, and hands out a session of its own,
-//! which the gate then accepts like an API key.
+//! wranglarr's copy of the app's login itself, then opens a session in the app
+//! (qBittorrent's own `SID` or `QBT_SID_<port>` cookie) and hands that to the client.
+//! The gate lets a request through only with a session opened this way, and passes the
+//! cookie on, so the app keeps per-session state (`sync/maindata`) and an older
+//! qBittorrent's `SID` never clashes with a cookie of wranglarr's.
 //!
 //! - Wrong logins have a limit of their own per address (the same five in 15
 //!   minutes as wranglarr's sign-in), kept apart from wranglarr's own sign-in, so an
 //!   app can't lock you out of wranglarr nor reset its count. A wrong password sent
 //!   again counts once: a phone retrying an old one doesn't use up the limit.
 //! - A weak app password is refused unless `AUTH_QBITTORRENT_ALLOW_WEAK` allows it.
-//! - Sessions live in memory, only their SHA-256 is kept. Each lasts an hour from its
+//! - Sessions live in memory, only the SHA-256 of their cookie is kept. Each lasts an hour from its
 //!   last use and a day at most, ends when the app's login in wranglarr changes, and
 //!   when wranglarr's own sessions are ended (sign out everywhere, a new password, a
 //!   reset).
@@ -24,7 +27,6 @@ use super::password::password_problem;
 use super::support::{ct_eq_str, guard, sha, trim};
 use super::{Auth, Mem};
 use crate::error::Result;
-use crate::ids::random_token;
 use crate::time::unix_now;
 
 /// How long an app session lasts after its last request ...
@@ -53,8 +55,8 @@ pub(super) struct GateSession {
 /// What a sign-in through the gate came to.
 #[derive(Debug, PartialEq, Eq)]
 pub enum GateAnswer {
-    /// The right login: a new session token.
-    Session(String),
+    /// The right login: open a session in the app, then [`Auth::gate_open`] it.
+    Right,
     /// A wrong login (counted against the address once per password).
     Wrong,
     /// The app's own password is empty or too weak to open the gate with; nothing was counted.
@@ -144,13 +146,21 @@ impl Auth {
             return GateAnswer::Wrong;
         }
         self.succeeded(b);
-        let token = random_token(24);
+        guard(&self.mem).gate_wrong.remove(b);
+        GateAnswer::Right
+    }
+
+    /// Let the gate take `token`, the session `app` opened after a [`GateAnswer::Right`]
+    /// sign-in with its login `real`.
+    pub fn gate_open(&self, app: &str, token: &str, real: (&str, &str)) {
+        if token.is_empty() {
+            return;
+        }
+        let now = unix_now();
         let mut m = guard(&self.mem);
         sweep(&mut m, now);
-        m.gate_wrong.remove(b);
         let login = fingerprint(real);
-        m.gate.insert(key(app, &token), GateSession { idle_until: now + IDLE_SECONDS, ends: now + MAX_SECONDS, login });
-        GateAnswer::Session(token)
+        m.gate.insert(key(app, token), GateSession { idle_until: now + IDLE_SECONDS, ends: now + MAX_SECONDS, login });
     }
 
     /// `token` is a live session for `app`, opened with the app's current login
@@ -177,39 +187,51 @@ impl Auth {
         }
     }
 
-    /// End `token`'s session for `app` (the app logged out).
-    pub fn gate_logout(&self, app: &str, token: &str) {
-        guard(&self.mem).gate.remove(&key(app, token));
+    /// End `token`'s session for `app` (the app logged out); whether the gate had it.
+    pub fn gate_logout(&self, app: &str, token: &str) -> bool {
+        guard(&self.mem).gate.remove(&key(app, token)).is_some()
     }
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use super::{GateAnswer, GateSession};
+    use super::{Auth, GateAnswer, GateSession};
     use crate::auth::support::guard;
     use crate::auth::testing::{auth, with_account};
+    use crate::ids::random_token;
 
     const REAL: (&str, &str) = ("admin", "a-long-qbittorrent-secret");
     const APP: &str = "qbittorrent";
 
-    fn token(a: GateAnswer) -> String {
-        match a {
-            GateAnswer::Session(t) => t,
-            other => panic!("no session: {other:?}"),
-        }
+    /// A right sign-in from `ip`, and the session the app opened for it.
+    fn signed_in(a: &Auth, ip: &str) -> String {
+        assert_eq!(a.gate_login(ip, APP, REAL, REAL, false).unwrap(), GateAnswer::Right);
+        let t = random_token(24);
+        a.gate_open(APP, &t, REAL);
+        t
     }
 
     #[test]
     fn the_right_login_opens_a_session_for_that_app_only() {
         let a = auth();
-        let t = token(a.gate_login("10.0.0.5", APP, REAL, REAL, false).unwrap());
+        let t = signed_in(&a, "10.0.0.5");
         assert!(a.gate_session(APP, &t, REAL));
         assert!(!a.gate_session("qb2", &t, REAL), "another app's gate doesn't take it");
         assert!(!a.gate_session(APP, "made-up", REAL));
         assert!(!a.gate_session(APP, "", REAL));
-        a.gate_logout(APP, &t);
+        assert!(a.gate_logout(APP, &t));
         assert!(!a.gate_session(APP, &t, REAL), "logged out");
+        assert!(!a.gate_logout(APP, &t), "and gone");
+        assert!(!a.gate_logout(APP, "one-the-gate-never-took"));
+    }
+
+    #[test]
+    fn only_a_session_opened_after_a_right_sign_in_counts() {
+        let a = auth();
+        assert!(!a.gate_session(APP, "one-the-app-handed-out-itself", REAL));
+        a.gate_open(APP, "", REAL);
+        assert!(!a.gate_session(APP, "", REAL), "an empty cookie is never a session");
     }
 
     #[test]
@@ -221,7 +243,7 @@ mod tests {
         }
         assert!(a.gate_login("10.0.0.6", APP, REAL, REAL, false).is_err(), "locked out, even with the right one");
         assert!(a.check_throttle("10.0.0.6").is_ok(), "wranglarr's own sign-in isn't");
-        assert!(matches!(a.gate_login("10.0.0.7", APP, REAL, REAL, false).unwrap(), GateAnswer::Session(_)));
+        assert!(matches!(a.gate_login("10.0.0.7", APP, REAL, REAL, false).unwrap(), GateAnswer::Right));
     }
 
     #[test]
@@ -231,7 +253,7 @@ mod tests {
             let old = ("admin", "an-old-password");
             assert_eq!(a.gate_login("10.0.0.8", APP, old, REAL, false).unwrap(), GateAnswer::Wrong);
         }
-        assert!(matches!(a.gate_login("10.0.0.8", APP, REAL, REAL, false).unwrap(), GateAnswer::Session(_)));
+        assert!(matches!(a.gate_login("10.0.0.8", APP, REAL, REAL, false).unwrap(), GateAnswer::Right));
     }
 
     #[test]
@@ -240,7 +262,7 @@ mod tests {
         for _ in 0..4 {
             assert!(a.login_password("10.0.0.9", "admin", "wrong", false).is_err());
         }
-        assert!(matches!(a.gate_login("10.0.0.9", APP, REAL, REAL, false).unwrap(), GateAnswer::Session(_)));
+        assert!(matches!(a.gate_login("10.0.0.9", APP, REAL, REAL, false).unwrap(), GateAnswer::Right));
         assert!(a.login_password("10.0.0.9", "admin", "wrong", false).is_err());
         assert!(a.check_throttle("10.0.0.9").is_err(), "the fifth wrong admin password still locks it");
     }
@@ -250,7 +272,7 @@ mod tests {
         let a = auth();
         let weak = ("admin", "short-one");
         assert_eq!(a.gate_login("10.0.0.10", APP, weak, weak, false).unwrap(), GateAnswer::Weak);
-        assert!(matches!(a.gate_login("10.0.0.10", APP, weak, weak, true).unwrap(), GateAnswer::Session(_)));
+        assert!(matches!(a.gate_login("10.0.0.10", APP, weak, weak, true).unwrap(), GateAnswer::Right));
         let empty = ("admin", "");
         assert_eq!(a.gate_login("10.0.0.10", APP, empty, empty, true).unwrap(), GateAnswer::Weak);
         let common = ("admin", "aaaaaaaaaaaaaaaaaaaa");
@@ -260,7 +282,7 @@ mod tests {
     #[test]
     fn a_session_ends_when_the_login_changes() {
         let a = auth();
-        let t = token(a.gate_login("10.0.0.11", APP, REAL, REAL, false).unwrap());
+        let t = signed_in(&a, "10.0.0.11");
         assert!(!a.gate_session(APP, &t, ("admin", "the-new-long-password")), "the old login's session");
         assert!(!a.gate_session(APP, &t, REAL), "and it's gone");
     }
@@ -270,7 +292,7 @@ mod tests {
         let a = auth();
         let now = crate::time::unix_now();
         for (idle_until, ends) in [(now - 1.0, now + 100.0), (now + 100.0, now - 1.0)] {
-            let t = token(a.gate_login("10.0.0.12", APP, REAL, REAL, false).unwrap());
+            let t = signed_in(&a, "10.0.0.12");
             let k = super::key(APP, &t);
             let s = GateSession { idle_until, ends, login: super::fingerprint(REAL) };
             guard(&a.mem).gate.insert(k.clone(), s);
@@ -282,10 +304,10 @@ mod tests {
     #[test]
     fn ending_wranglarrs_sessions_ends_the_apps_too() {
         let a = with_account();
-        let t = token(a.gate_login("10.0.0.13", APP, REAL, REAL, false).unwrap());
+        let t = signed_in(&a, "10.0.0.13");
         a.end_other_sessions("").unwrap();
         assert!(!a.gate_session(APP, &t, REAL), "sign out everywhere");
-        let t = token(a.gate_login("10.0.0.13", APP, REAL, REAL, false).unwrap());
+        let t = signed_in(&a, "10.0.0.13");
         a.set_password("another correct horse").unwrap();
         assert!(!a.gate_session(APP, &t, REAL), "a new password");
     }
