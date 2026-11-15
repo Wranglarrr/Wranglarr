@@ -52,6 +52,7 @@ pub static DEF: ServiceDef = ServiceDef {
         skip_dirs: &["logs", "cache"],
         skip_files: &["*.sqlite3", "*.sqlite3-shm", "*.sqlite3-wal"],
         skip_sqlite: true,
+        sqlite_online: &[],
         skip_files_in: &[],
         zip_layout: &[],
     },

@@ -54,6 +54,7 @@ pub static DEF: ServiceDef = ServiceDef {
         skip_dirs: &["log", "backup", "cache", "restore"],
         skip_files: &[],
         skip_sqlite: true,
+        sqlite_online: &[],
         skip_files_in: &[],
         zip_layout: &[("config.yaml", "config/config.yaml"), ("bazarr.db", "db/bazarr.db")],
     },

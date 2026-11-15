@@ -62,6 +62,7 @@ pub static DEF: ServiceDef = ServiceDef {
         skip_dirs: &["logs", "GeoDB"],
         skip_files: &["lockfile"],
         skip_sqlite: false,
+        sqlite_online: &[],
         skip_files_in: &[],
         zip_layout: &[],
     },
