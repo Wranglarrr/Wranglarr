@@ -225,9 +225,13 @@ async fn defaults_and_checks() {
     assert_eq!(d["existing_env"], json!({"POSTGRES_PASSWORD": env::KEEP, "TZ": "UTC", "NZBGET_PASS": ""}));
     assert_eq!(d["env_exists"], json!(true));
     assert_eq!(d["host"]["compose_files"], json!(["compose.vpn.yaml", "compose.yaml"]));
-    assert_eq!(d["services"].as_array().map(Vec::len), Some(9));
+    assert_eq!(d["services"].as_array().map(Vec::len), Some(10));
     assert_eq!(
         d["services"][8],
+        json!({"id": "weaver", "name": "Weaver", "group": "download", "desc": "Usenet client", "port": 9090, "db": false, "vpn": false})
+    );
+    assert_eq!(
+        d["services"][9],
         json!({"id": "seerr", "name": "Seerr", "group": "requests",
         "desc": "Requests for Radarr / Sonarr (Plex, Jellyfin, Emby)", "port": 5055, "db": true, "vpn": false})
     );
@@ -326,7 +330,7 @@ async fn auth_only() {
     assert_eq!(r["written"][1], json!("./.env (app login keys only)"));
     let new = std::fs::read_to_string(w.stack.join(".env")).expect(".env");
     assert!(new.starts_with("# mine\nCOMPOSE_PROFILES=radarr,qbittorrent\nAPPS_AUTH=apps\nQBITTORRENT_PASSWORD=Correct-Horse-9\nOTHER=1\n\n# App logins"), "{new}");
-    assert!(new.ends_with("\nAPPS_LOGIN_USER=me\nAPPS_LOGIN_PASSWORD=Correct-Horse-9\nAPPS_AUTH_REQUIRED=enabled\nAUTH_COOKIE_DOMAIN=\nAUTH_LOGIN_URL=\nQBITTORRENT_USER=me\nNZBGET_USER=me\nNZBGET_PASS=Correct-Horse-9\nAUTH_QBITTORRENT_LOGIN=off\n"), "{new}");
+    assert!(new.ends_with("\nAPPS_LOGIN_USER=me\nAPPS_LOGIN_PASSWORD=Correct-Horse-9\nAPPS_AUTH_REQUIRED=enabled\nAUTH_COOKIE_DOMAIN=\nAUTH_LOGIN_URL=\nQBITTORRENT_USER=me\nNZBGET_USER=me\nNZBGET_PASS=Correct-Horse-9\nWEAVER_USER=me\nWEAVER_PASS=Correct-Horse-9\nAUTH_QBITTORRENT_LOGIN=off\n"), "{new}");
     std::fs::remove_file(w.stack.join(".env")).expect("rm");
     let (s, r) = post(&c, &format!("{}/api/setup/preview-auth", w.url), a).await;
     assert_eq!(

@@ -21,6 +21,7 @@
 | `GLUETUN_API_KEY` | from `.env` | same, for `[vpn]` |
 | `QBITTORRENT_USER`, `QBITTORRENT_PASSWORD` | from `.env` | same, for the `qbittorrent` app |
 | `NZBGET_USER`, `NZBGET_PASS` | from `.env` | same, for the `nzbget` app (the NZBGet image applies them at launch, `nzbget.conf` keeps its default) |
+| `WEAVER_USER`, `WEAVER_PASS` | from `.env` | same, for the `weaver` app: wranglarr signs in with them to create its API key in Weaver |
 | `DOCKER_SOCKET` (host side) | `/var/run/docker.sock` | which host socket is mounted; Podman: `init.sh` sets it to Podman's own socket (rootless: `$XDG_RUNTIME_DIR/podman/podman.sock`) |
 | `WRANGLARR_ENABLED_APPS` | `${COMPOSE_PROFILES}` (+`,vpn` under `compose.vpn.yaml`) | apps not listed are dropped from the suites; `vpn` enables the VPN status panel |
 | `WRANGLARR_VPN_APPS` | set by `compose.vpn*.yaml` | the services in the shared tunnel: App Connections uses `localhost` only between those (without the Docker socket), and the dashboard warns about indexer traffic around the tunnel |
@@ -65,6 +66,7 @@ rejected at startup instead of silently falling back to defaults.
 | `qbittorrent` | `username` / `password` | none | **required** | **required** for restore |
 | `sabnzbd` | `api_key_file` = sabnzbd.ini (`api_key =`) | none | **required** | **required** for restore |
 | `nzbget` | `username` / `password`, or `api_key_file` = nzbget.conf | none | **required** | **required** for restore |
+| `weaver` | `username` / `password` (its login), and `api_key_file` = the JSON file where wranglarr keeps the key it creates (`api_key`) | none | **required** | **required** for restore |
 | `seerr` | `api_key_file` = settings.json (`main.apiKey`) | `seerr` | **required** (plain copy) | optional |
 
 ## HTTP API

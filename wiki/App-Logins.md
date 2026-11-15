@@ -26,6 +26,7 @@ with it to check it took:
 | SABnzbd | its API: the login page |
 | qBittorrent | written into `qBittorrent.conf` while it's stopped (a new install only has a temporary password, so there's no API to log in to yet) |
 | NZBGet | the image applies `NZBGET_USER` / `NZBGET_PASS` at every start; the wizard sets them to the same login |
+| Weaver | takes `WEAVER_USER` / `WEAVER_PASS` on its **first start only**; the wizard sets them to the same login. Later, change it in Weaver to match ([Weaver](Service-Weaver.md)) |
 | Seerr | not set: its users are your Plex / Jellyfin / Emby accounts, and you sign in with those. Left out of AuthTunnel too, since the people requesting things have no wranglarr account |
 
 Things to know:
@@ -52,7 +53,8 @@ browser ──> :7878 ──> wranglarr-gate (nginx) ──> radarr:7878   (Auth
 - The arrs and Prowlarr are set to **External** authentication; Bazarr and SABnzbd
   to no login. qBittorrent keeps its login (wranglarr and the arrs use it) but lets
   the gate's network in without it. The gate signs you in to NZBGet with its
-  login from `.env`.
+  login from `.env`, and to Weaver with the API key wranglarr created in it
+  (Weaver's login can't be turned off).
 - **Requests that carry the app's API key go straight through**: the gate has
   wranglarr check the key against that app's real one first. So the arrs' mobile
   apps (nzb360, LunaSea…), Prowlarr's download links and scripts keep working,

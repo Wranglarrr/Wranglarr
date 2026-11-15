@@ -15,7 +15,7 @@
     <div class="form-row"><label class="l">Proxy</label>
       <div><select name="kind" style="width:auto">{% for k, v in kinds|items %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div></div>
     <p class="small" data-only="npm">Nginx Proxy Manager uses one access list per hostname. wranglarr and apps under its paths must share the same local-only setting; use separate subdomains for different access rules.</p>
-    <p class="small" data-only="cloudflared">Cloudflare Tunnel requires public routes. Choose Direct IP for local-only apps, and subdomains for qBittorrent and NZBGet (the tunnel cannot strip their paths).</p>
+    <p class="small" data-only="cloudflared">Cloudflare Tunnel requires public routes. Choose Direct IP for local-only apps, and subdomains for qBittorrent, NZBGet and Weaver (the tunnel cannot strip their paths).</p>
     <div class="form-row"><label class="l">The proxy reaches them</label>
       <div>
         <label class="check-line"><input type="radio" name="upstream" value="host"> at this machine's address and the published ports

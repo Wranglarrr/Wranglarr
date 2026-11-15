@@ -2,12 +2,13 @@
 
 ```
                   LAN / host ports
-   7878 8989 8686 9696 6767 8090 8085 6789 5055 8787
-     │    │    │    │    │    │    │    │    │    │
- ┌───┴────┴────┴────┴────┴────┴────┴────┴────┴────┴──────────────────────┐
+   7878 8989 8686 9696 6767 8090 8085 6789 9090 5055 8787
+     │    │    │    │    │    │    │    │    │    │    │
+ ┌───┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴─────────────────┐
  │ docker network "arrs"                                                 │
  │                                                                       │
  │  radarr  sonarr  lidarr  prowlarr  bazarr  qbittorrent sabnzbd nzbget │
+ │                                                                weaver │
  │     │       │       │       │         │    seerr ──▶ radarr, sonarr   │
  │     └───────┴───────┴───────┴─────────┴──────┴── postgres:5432        │
  │                                                                       │
@@ -20,6 +21,7 @@
  with compose.vpn.yaml + compose.vpn-all.yaml (compose.vpn.yaml alone: only the download clients):
  ┌─ vpn (gluetun) ── WireGuard/OpenVPN ──▶ internet ─────────────────────┐
  │  radarr sonarr lidarr prowlarr bazarr qbittorrent sabnzbd nzbget      │
+ │  weaver                                                               │
  │  (network_mode: service:vpn — share its stack, ports published on it) │
  └── aliases radarr/sonarr/… so wranglarr still reaches them by name ────┘
 ```
@@ -35,6 +37,7 @@
 | `qbittorrent` | `lscr.io/linuxserver/qbittorrent:latest` | `qbittorrent` | torrent client (web UI on 8090 inside the container) |
 | `sabnzbd` | `lscr.io/linuxserver/sabnzbd:latest` | `sabnzbd` | usenet client |
 | `nzbget` | `lscr.io/linuxserver/nzbget:latest` | `nzbget` | usenet client |
+| `weaver` | `ghcr.io/scryer-media/weaver:latest` | `weaver` | usenet client; the arrs use it as an NZBGet client ([Service: Weaver](Service-Weaver.md)) |
 | `seerr` | `ghcr.io/seerr-team/seerr:latest` | `seerr` | requests (Plex / Jellyfin / Emby users ask, Radarr / Sonarr get it); database `seerr`; never inside the VPN ([Service: Seerr](Service-Seerr.md)) |
 | `wranglarr-init` | `${WRANGLARR_IMAGE}` | always | one-shot before wranglarr: hands `appdata/wranglarr` and `appdata/backups` to `PUID:PGID`, then exits. The only root part, with only the chown capabilities ([Security](Security.md)) |
 | `wranglarr` | `${WRANGLARR_IMAGE}`: the published `ghcr.io/wranglarrr/wranglarr`, or one you built ([The wranglarr image](Setup.md#the-wranglarr-image)) | always | backup / version / restore UI + API; wires the apps together ([App Connections](App-Connections.md)). Runs as `PUID:PGID`, read-only, no capabilities |

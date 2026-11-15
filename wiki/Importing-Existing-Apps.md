@@ -284,7 +284,7 @@ Every app in the stack sees your data at `/data` (`DATA_ROOT` in `.env`):
 /data/media/tv        Sonarr's
 /data/media/music     Lidarr's
 /data/torrents/<arr>  qBittorrent's downloads, one folder per arr
-/data/usenet/...      SABnzbd's and NZBGet's
+/data/usenet/...      SABnzbd's, NZBGet's and Weaver's
 ```
 
 The old install probably used other paths: `/movies`, `/tv`, `/downloads`, or
@@ -370,6 +370,9 @@ The clients themselves are quicker to set up again than to move:
 - **SABnzbd, NZBGet**: add your usenet servers again. An old config file
   brings its old folders with it, and `init.sh` only sets folders that are
   still at the image's default.
+- **Weaver**: an existing `weaver.db` keeps its own login and folders. Set
+  `WEAVER_USER` / `WEAVER_PASS` in `.env` to its login, since wranglarr signs
+  in with it to create its API key ([Weaver](Service-Weaver.md)).
 
 ## 5. Check, then back up
 

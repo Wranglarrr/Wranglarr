@@ -85,6 +85,23 @@ services:
     volumes:
       - ${APPDATA:-./appdata}/nzbget:/config
 
+  # creates weaver.db with its first login and its folders under /data
+  weaver:
+    <<: *arr-init
+    profiles: [weaver]
+    image: ${WEAVER_IMAGE:-ghcr.io/scryer-media/weaver:latest}
+    container_name: weaver-init
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-UTC}
+      WEAVER_BOOTSTRAP_LOGIN_USERNAME: ${WEAVER_USER:-admin}
+      WEAVER_BOOTSTRAP_LOGIN_PASSWORD: ${WEAVER_PASS:-}
+      WEAVER_INTERMEDIATE_DIR: ${USENET_DIR:-/data/usenet}/incomplete
+      WEAVER_COMPLETE_DIR: ${USENET_DIR:-/data/usenet}/complete
+    volumes:
+      - ${APPDATA:-./appdata}/weaver:/config
+
   # One-shot: insert/update the Postgres* elements in each config.xml, and
   # point the download clients' save paths at /data (only where still default).
   # Idempotent. Run by scripts/init.sh, which sets ARR_APPS and stops the apps first.

@@ -45,6 +45,10 @@ pub fn catalog(reference: &str) -> Catalog {
     if repo == "ghcr.io/seerr-team/seerr" || repo == "seerr/seerr" || repo == "docker.io/seerr/seerr" {
         return Catalog { choices: &[STABLE, DEVELOP], docs: "https://docs.seerr.dev/getting-started/docker/".into() };
     }
+    if repo == "ghcr.io/scryer-media/weaver" {
+        // releases move `latest`; the other tags are versions and commits
+        return Catalog { choices: &[STABLE], docs: "https://www.scryer.media/weaver/docs/installation/".into() };
+    }
     if repo == "qmcgaw/gluetun" || repo == "docker.io/qmcgaw/gluetun" {
         return Catalog {
             choices: &[GLUETUN_DEV],
@@ -92,6 +96,7 @@ mod tests {
         assert_eq!(tags("lscr.io/linuxserver/qbittorrent:latest"), ["latest", "libtorrentv1"]);
         assert_eq!(tags("ghcr.io/wranglarrr/wranglarr:latest"), ["latest", "edge"]);
         assert_eq!(tags("qmcgaw/gluetun:v3.41.3"), ["latest"]);
+        assert_eq!(tags("ghcr.io/scryer-media/weaver:0.16.15"), ["latest"]);
         assert!(tags("private.example/sonarr:latest").is_empty());
         assert!(tags("postgres:17").is_empty(), "do not suggest an unbounded major upgrade");
     }

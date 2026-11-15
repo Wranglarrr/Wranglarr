@@ -100,9 +100,10 @@ services:
       - ${QBITTORRENT_PORT:-8090}:8090
       - ${SABNZBD_PORT:-8085}:8080
       - ${NZBGET_PORT:-6789}:6789
+      - ${WEAVER_PORT:-9090}:9090
     networks:
       arrs:
-        aliases: [qbittorrent, sabnzbd, nzbget]
+        aliases: [qbittorrent, sabnzbd, nzbget, weaver]
 
   qbittorrent:
     network_mode: "service:vpn"
@@ -127,9 +128,16 @@ services:
     depends_on:
       vpn:
         condition: service_healthy
+  weaver:
+    network_mode: "service:vpn"
+    networks: !reset []
+    ports: !reset []
+    depends_on:
+      vpn:
+        condition: service_healthy
 
   # tell wranglarr the VPN exists (enables its [vpn] section) and what is in it
   wranglarr:
     environment:
       WRANGLARR_ENABLED_APPS: ${COMPOSE_PROFILES:-radarr,sonarr,lidarr},vpn
-      WRANGLARR_VPN_APPS: qbittorrent,sabnzbd,nzbget
+      WRANGLARR_VPN_APPS: qbittorrent,sabnzbd,nzbget,weaver

@@ -10,11 +10,11 @@
 
 # app -> port inside its container (= the port the gate listens on), and its .env port variable
 declare -A GATE_PORT=([radarr]=7878 [sonarr]=8989 [lidarr]=8686 [prowlarr]=9696 [bazarr]=6767
-                      [qbittorrent]=8090 [sabnzbd]=8080 [nzbget]=6789)
+                      [qbittorrent]=8090 [sabnzbd]=8080 [nzbget]=6789 [weaver]=9090)
 declare -A GATE_VAR=([radarr]="RADARR_PORT:-7878" [sonarr]="SONARR_PORT:-8989" [lidarr]="LIDARR_PORT:-8686"
                      [prowlarr]="PROWLARR_PORT:-9696" [bazarr]="BAZARR_PORT:-6767" [qbittorrent]="QBITTORRENT_PORT:-8090"
-                     [sabnzbd]="SABNZBD_PORT:-8085" [nzbget]="NZBGET_PORT:-6789")
-GATE_ORDER=(radarr sonarr lidarr prowlarr bazarr qbittorrent sabnzbd nzbget)
+                     [sabnzbd]="SABNZBD_PORT:-8085" [nzbget]="NZBGET_PORT:-6789" [weaver]="WEAVER_PORT:-9090")
+GATE_ORDER=(radarr sonarr lidarr prowlarr bazarr qbittorrent sabnzbd nzbget weaver)
 
 # AUTH_QBITTORRENT_LOGIN=on: qBittorrent's own login opens the gate for its apps
 qb_login() {
@@ -32,7 +32,7 @@ gate_apps() {
 vpn_apps() {
   local cf=":$(envget COMPOSE_FILE):"
   [[ $cf == *":compose.vpn.yaml:"* ]] || return 0
-  local out="qbittorrent sabnzbd nzbget"
+  local out="qbittorrent sabnzbd nzbget weaver"
   if [[ $cf == *":compose.vpn-all.yaml:"* ]]; then out+=" prowlarr radarr sonarr lidarr bazarr"
   elif [[ $cf == *":compose.vpn-prowlarr.yaml:"* ]]; then out+=" prowlarr"; fi
   echo "$out"
@@ -99,6 +99,10 @@ map $http_x_forwarded_host $wr_host { default $http_x_forwarded_host; "" $http_h
 # against that app's real key, so a made-up key gets nowhere. NZBGet checks its Basic login itself.
 map $http_authorization $wr_has_basic { default 0; "~*^basic " 1; }
 map $http_authorization $wr_nzbget_auth { default $http_authorization; "" "Basic ${WR_NZBGET_AUTH}"; }
+# Weaver: a request with credentials of its own goes to Weaver, which checks them; a signed-in
+# browser's gets the key wranglarr created (its login can't be turned off), from the auth answer
+map "$http_authorization$http_x_api_key" $wr_has_cred { default 1; "" 0; }
+map $http_authorization $wr_weaver_auth { default $http_authorization; "" $wr_upstream_auth; }
 # wranglarr's own cookies (the session, the sign-in's code step) never reach an app: the gate has
 # checked them already, and an app that kept one could replay it against wranglarr. Each map drops
 # one; a header that still has one after three (a browser can send several) goes without cookies.
@@ -111,13 +115,13 @@ EOF
     port="${GATE_PORT[$a]}"
     case $a in
       qbittorrent) key='' ;;                                      # logs in with a cookie: no key to check
-      nzbget)      key='        if ($wr_skip) { return 204; }' ;;
+      nzbget|weaver) key='        if ($wr_skip) { return 204; }' ;;
       *)           key='        proxy_set_header X-Wranglarr-Key $http_x_api_key;
         proxy_set_header X-Wranglarr-Key-Arg $wr_key_arg;' ;;
     esac
     # SABnzbd refuses host names it doesn't know; it knows its own service name
     if [[ $a == sabnzbd ]]; then host='$proxy_host'; else host='$http_host'; fi
-    case $a in nzbget) skip='$wr_has_basic' ;; *) skip='0' ;; esac
+    case $a in nzbget) skip='$wr_has_basic' ;; weaver) skip='$wr_has_cred' ;; *) skip='0' ;; esac
     # qBittorrent's API has no key, only its login, and qBittorrent lets the gate in without
     # one, so its own check can't be used: wranglarr checks the login against the real one,
     # opens a session in qBittorrent and hands its cookie (SID, or QBT_SID_<port> from 5.1)
@@ -135,7 +139,7 @@ EOF
       login='        if ($uri ~* "^/+api/v2/") { return 403; }
         if ($wr_login = "") { return 401; }'
     fi
-    if [[ $a == qbittorrent || $a == nzbget ]]; then
+    if [[ $a == qbittorrent || $a == nzbget || $a == weaver ]]; then
       key+='
         proxy_set_header X-Wranglarr-Key "";
         proxy_set_header X-Wranglarr-Key-Arg "";'
@@ -220,6 +224,7 @@ EOF
         set \$wr_path \$uri;
         auth_request /__wranglarr/auth;
         auth_request_set \$wr_login \$upstream_http_x_wranglarr_login;
+        auth_request_set \$wr_upstream_auth \$upstream_http_x_wranglarr_upstream_auth;
         error_page 401 = @wr_login;
 
         proxy_pass \$wr_up;
@@ -234,6 +239,7 @@ EOF
         proxy_set_header Cookie \$wr_cookie;
 EOF
     [[ $a == nzbget ]] && printf '        proxy_set_header Authorization $wr_nzbget_auth;\n'
+    [[ $a == weaver ]] && printf '        proxy_set_header Authorization $wr_weaver_auth;\n'
     cat <<'EOF'
         client_max_body_size 0;
         proxy_buffering off;

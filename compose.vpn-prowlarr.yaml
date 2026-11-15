@@ -35,4 +35,4 @@ services:
 
   wranglarr:
     environment:
-      WRANGLARR_VPN_APPS: qbittorrent,sabnzbd,nzbget,prowlarr
+      WRANGLARR_VPN_APPS: qbittorrent,sabnzbd,nzbget,weaver,prowlarr

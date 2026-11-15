@@ -22,6 +22,20 @@ How to write an entry:
   do, not how the code changed.
 -->
 
+## 1.1.3 — not released yet
+
+### New
+
+- **Weaver as a usenet client.** [Weaver](https://github.com/scryer-media/weaver)
+  is a third choice beside SABnzbd and NZBGet in the setup wizard. The arrs add it
+  as an NZBGet client. wranglarr signs in with `WEAVER_USER` / `WEAVER_PASS`,
+  creates its own API key in Weaver, sets up a category per arr, and backs Weaver
+  up with a consistent copy of its database. With AuthTunnel, the gate signs you
+  in to Weaver. On an existing install, add `weaver` to `COMPOSE_PROFILES`, set
+  `WEAVER_USER` / `WEAVER_PASS` (8 characters or more), add its entry to
+  `wranglarr.toml` and run `./scripts/init.sh`
+  ([Service: Weaver](Service-Weaver.md#wranglarr-integration)).
+
 ## 1.1.2 — 2026-11-04
 
 ### Before you update

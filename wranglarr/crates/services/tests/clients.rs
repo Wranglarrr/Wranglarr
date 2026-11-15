@@ -581,3 +581,192 @@ async fn malformed_nzbget_config_cannot_overwrite_existing_settings() {
         assert_eq!(*calls.lock().expect("calls"), ["loadconfig"]);
     }
 }
+
+// ---- Weaver ------------------------------------------------------------------------
+
+/// A Weaver with a login (admin / weaver-pass), its API keys, its categories and its
+/// NZBGet API, which takes a key as the password.
+#[derive(Default)]
+struct Wv {
+    keys: Vec<(i64, String, String)>,
+    next: i64,
+    logins: usize,
+    logouts: usize,
+    categories: Vec<String>,
+}
+
+fn wv_key(st: &Wv, h: &HeaderMap) -> bool {
+    let auth = h.get("authorization").and_then(|v| v.to_str().ok()).unwrap_or("");
+    st.keys.iter().any(|(_, _, k)| {
+        auth == format!("Bearer {k}") || auth == format!("Basic {}", b64(&format!("{}:{k}", service::MINTED_KEY_USER)))
+    })
+}
+
+/// Standard base64, padded (Basic auth).
+fn b64(s: &str) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for c in s.as_bytes().chunks(3) {
+        let n =
+            (u32::from(c[0]) << 16) | (u32::from(*c.get(1).unwrap_or(&0)) << 8) | u32::from(*c.get(2).unwrap_or(&0));
+        for i in 0..4 {
+            out.push(if i <= c.len() { A[((n >> (18 - 6 * i)) & 63) as usize] as char } else { '=' });
+        }
+    }
+    out
+}
+
+async fn wv_graphql(State(st): State<Arc<Mutex<Wv>>>, h: HeaderMap, axum::Json(req): axum::Json<Value>) -> Response {
+    let mut s = st.lock().expect("lock");
+    let session = h.get("cookie").and_then(|v| v.to_str().ok()) == Some("weaver_session=sess")
+        && h.get("x-weaver-csrf").and_then(|v| v.to_str().ok()) == Some("tok");
+    if !session && !wv_key(&s, &h) {
+        return (StatusCode::UNAUTHORIZED, axum::Json(json!({"error": "authentication required"}))).into_response();
+    }
+    let q = req["query"].as_str().unwrap_or("");
+    let v = &req["variables"];
+    let data = if q.contains("createApiKey") {
+        s.next += 1;
+        let (id, raw) = (s.next, format!("wvr_key{}", s.next));
+        s.keys.push((id, text(&v["name"]), raw.clone()));
+        json!({"createApiKey": {"key": {"id": id}, "rawKey": raw}})
+    } else if q.contains("deleteApiKey") {
+        let id = v["id"].as_i64().unwrap_or(-1);
+        s.keys.retain(|(i, _, _)| *i != id);
+        json!({"deleteApiKey": []})
+    } else if q.contains("apiKeys") {
+        json!({"apiKeys": s.keys.iter().map(|(id, n, _)| json!({"id": id, "name": n})).collect::<Vec<_>>()})
+    } else if q.contains("addCategory") {
+        s.categories.push(text(&v["input"]["name"]));
+        json!({"addCategory": {"id": s.categories.len()}})
+    } else if q.contains("categories") {
+        json!({"categories": s.categories.iter().map(|n| json!({"name": n})).collect::<Vec<_>>()})
+    } else if q.contains("version") {
+        json!({"version": "0.16.15"})
+    } else {
+        return axum::Json(json!({"data": null, "errors": [{"message": "unknown"}]})).into_response();
+    };
+    axum::Json(json!({"data": data})).into_response()
+}
+
+fn text(v: &Value) -> String {
+    v.as_str().unwrap_or_default().to_string()
+}
+
+fn weaver_mock(st: Arc<Mutex<Wv>>) -> Router {
+    Router::new()
+        .route(
+            "/api/login",
+            post(|State(st): State<Arc<Mutex<Wv>>>, h: HeaderMap, axum::Json(b): axum::Json<Value>| async move {
+                if h.get("origin").is_none() {
+                    return (StatusCode::BAD_REQUEST, "a single valid Origin is required").into_response();
+                }
+                if b["username"] != "admin" || b["password"] != "weaver-pass" {
+                    return (StatusCode::UNAUTHORIZED, axum::Json(json!({"error": "invalid credentials"})))
+                        .into_response();
+                }
+                st.lock().expect("lock").logins += 1;
+                (
+                    [("set-cookie", "weaver_session=sess; HttpOnly; Path=/")],
+                    axum::Json(json!({"ok": true, "csrfToken": "tok"})),
+                )
+                    .into_response()
+            }),
+        )
+        .route(
+            "/api/logout",
+            post(|State(st): State<Arc<Mutex<Wv>>>| async move {
+                st.lock().expect("lock").logouts += 1;
+                StatusCode::OK
+            }),
+        )
+        .route("/graphql", post(wv_graphql))
+        .route(
+            "/jsonrpc",
+            post(|State(st): State<Arc<Mutex<Wv>>>, h: HeaderMap, axum::Json(req): axum::Json<Value>| async move {
+                let s = st.lock().expect("lock");
+                if !wv_key(&s, &h) {
+                    return (StatusCode::UNAUTHORIZED, "").into_response();
+                }
+                let result = match req["method"].as_str().unwrap_or("") {
+                    "config" => json!([{"Name": "DestDir", "Value": "/data/usenet/complete"}]),
+                    "listgroups" => json!([{"NZBID": 1}]),
+                    "history" => json!([{"NZBID": 2}, {"NZBID": 3}]),
+                    "status" => json!({"DownloadPaused": false, "DownloadedSizeMB": 1}),
+                    _ => Value::Null,
+                };
+                axum::Json(json!({"result": result, "error": null})).into_response()
+            }),
+        )
+        .route("/readyz", get(|| async { "ready" }))
+        .with_state(st)
+}
+
+#[tokio::test]
+async fn weaver_creates_its_key_and_categories() {
+    let st: Arc<Mutex<Wv>> = Arc::default();
+    // someone's own key, which wranglarr leaves alone
+    st.lock().expect("lock").keys.push((100, "phone".into(), "wvr_phone".into()));
+    let url = serve(weaver_mock(st.clone())).await;
+    let dir = tempfile::tempdir().expect("tmp");
+    let key_file = dir.path().join("wranglarr-api-key.json");
+    let mut a = app("weaver", "weaver", &url);
+    a.username = "admin".into();
+    a.password = "weaver-pass".into();
+    a.api_key_file = key_file.to_string_lossy().into_owned();
+
+    // first use: signs in, creates the key, keeps it beside Weaver's database
+    let c = service::client(&a).await.expect("client");
+    assert_eq!(c.status().await.expect("status")["version"], "0.16.15");
+    let kept: Value = serde_json::from_str(&std::fs::read_to_string(&key_file).expect("key file")).expect("json");
+    assert_eq!(kept["api_key"], "wvr_key1");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&key_file).expect("meta").permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
+    assert_eq!(service::api_key(&a).await.expect("key"), "wvr_key1");
+    {
+        let s = st.lock().expect("lock");
+        assert_eq!((s.logins, s.logouts), (1, 1), "the session is closed again");
+    }
+
+    // its NZBGet API, with the key as the password
+    assert_eq!(c.download_root().await.expect("root"), "/data/usenet/complete");
+    assert_eq!(c.collection().await.expect("collection")["history"], 2);
+
+    // categories through GraphQL (its NZBGet API can't save them)
+    let added = c.ensure_categories(&["radarr".into(), "sonarr".into()]).await.expect("categories");
+    assert_eq!(added, ["radarr", "sonarr"]);
+    assert!(c.ensure_categories(&["Radarr".into()]).await.expect("again").is_empty());
+
+    // the key was deleted in Weaver: refused once, replaced, the call goes through
+    st.lock().expect("lock").keys.retain(|(_, n, _)| n != "wranglarr");
+    let c = service::client(&a).await.expect("client");
+    assert_eq!(c.collection().await.expect("after a new key")["queue"], 1);
+    let kept: Value = serde_json::from_str(&std::fs::read_to_string(&key_file).expect("key file")).expect("json");
+    assert_eq!(kept["api_key"], "wvr_key2");
+    {
+        let s = st.lock().expect("lock");
+        let names: Vec<&str> = s.keys.iter().map(|(_, n, _)| n.as_str()).collect();
+        assert_eq!(names, ["phone", "wranglarr"], "one key of its own, the others kept");
+    }
+}
+
+#[tokio::test]
+async fn weaver_without_its_login_says_so() {
+    let st: Arc<Mutex<Wv>> = Arc::default();
+    let url = serve(weaver_mock(st.clone())).await;
+    let dir = tempfile::tempdir().expect("tmp");
+    let mut a = app("weaver2", "weaver", &url);
+    a.username = "admin".into();
+    a.password = "wrong-pass".into();
+    a.api_key_file = dir.path().join("k.json").to_string_lossy().into_owned();
+    let e = service::api_key(&a).await.expect_err("no key without the login");
+    assert!(e.to_string().contains("WEAVER_USER / WEAVER_PASS don't log in"), "{e}");
+    // and it doesn't try again at once (each try is a failed login in Weaver)
+    let e2 = service::api_key(&a).await.expect_err("still none");
+    assert_eq!(e.to_string(), e2.to_string());
+    assert_eq!(st.lock().expect("lock").logins, 0);
+}

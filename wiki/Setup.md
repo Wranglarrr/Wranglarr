@@ -34,7 +34,7 @@ It walks through:
 2. **System** – timezone, the PUID/PGID to run as (on Linux: `id` on the host; the Storage step shows who owns the mounted drive), UMASK.
 3. **Storage** – `APPDATA`, `DATA_ROOT`, `DATA_ROOT_2`; each is checked (through its mount) for existence, owner, mode, whether PUID/PGID can write it and free space; a relative `APPDATA` can be created from the page, anything else tells you the `mkdir` or the `-v` to add.
 4. **Credentials** – Postgres user/password, gluetun API key, default backup schedule and retention.
-5. **App logins** – one login for every app (generated password), AuthTunnel (and whether you reach the apps through a reverse proxy, with its domain), or leave them to you; for the last, the NZBGet and qBittorrent logins. See [App logins](App-Logins.md).
+5. **App logins** – one login for every app (generated password), AuthTunnel (and whether you reach the apps through a reverse proxy, with its domain), or leave them to you; for the last, the NZBGet, Weaver and qBittorrent logins. See [App logins](App-Logins.md).
 6. **Network & VPN** – published ports; optional wranglarr URL base (`WRANGLARR_URL_BASE`, e.g. `/wranglarr`, blank at the root; see [path hosting](Reverse-Proxy.md#wranglarr-at-a-path-on-the-domain)); this machine's IP (`HOST_IP`: filled in when you opened the wizard by IP, else `./scripts/init.sh` finds it; change it only if this `.env` goes to another machine); VPN mode none / shared / per app; provider, protocol and keys. WireGuard keys must be valid 32-byte base64, the endpoint an IP, networks valid CIDRs.
 7. **Existing backups** – scans `APPDATA` for wranglarr versions (tick to restore after install) and app-native backup zips (choose one to reuse its config file). Also flags SQLite databases that will need pgloader.
 8. **Review & write** – shows the `.env` (secrets masked), writes it with mode 600 (an existing one is kept as `.env.bak-<timestamp>`), seeds `appdata/wranglarr/wranglarr.toml`, writes `restore-plan.json`, copies chosen legacy config files, then lists the manual steps left.
@@ -50,12 +50,12 @@ $EDITOR .env        # at least: DATA_ROOT, POSTGRES_PASSWORD, TZ, PUID/PGID, COM
 
 What it does, in order (re-running is safe):
 
-1. Reads `COMPOSE_PROFILES` and decides which config.xml apps (radarr/sonarr/lidarr/prowlarr) and download clients (qbittorrent/sabnzbd/nzbget) are enabled.
-2. For each config.xml app **without** an `appdata/<app>/config.xml`: starts it alone via `compose.init.yaml` (no Postgres), waits until `/ping` answers and `<ApiKey>` is in the file, stops it. Each download client without its config file (`qBittorrent.conf`, `sabnzbd.ini`, `nzbget.conf`) is started once the same way so it writes its defaults.
-3. Creates the download folders under `DATA_ROOT`: `torrents/`, `torrents/incomplete/` and `torrents/<arr>` for qBittorrent; `usenet/incomplete/`, `usenet/complete/` and `usenet/complete/<arr>` for SABnzbd/NZBGet, one `<arr>` folder per enabled arr and Prowlarr (paths from `TORRENTS_DIR` / `USENET_DIR`).
+1. Reads `COMPOSE_PROFILES` and decides which config.xml apps (radarr/sonarr/lidarr/prowlarr) and download clients (qbittorrent/sabnzbd/nzbget/weaver) are enabled.
+2. For each config.xml app **without** an `appdata/<app>/config.xml`: starts it alone via `compose.init.yaml` (no Postgres), waits until `/ping` answers and `<ApiKey>` is in the file, stops it. Each download client without its config file (`qBittorrent.conf`, `sabnzbd.ini`, `nzbget.conf`, `weaver.db`) is started once the same way so it writes its defaults; Weaver takes its login and folders from `.env` then.
+3. Creates the download folders under `DATA_ROOT`: `torrents/`, `torrents/incomplete/` and `torrents/<arr>` for qBittorrent; `usenet/incomplete/`, `usenet/complete/` and `usenet/complete/<arr>` for SABnzbd/NZBGet/Weaver, one `<arr>` folder per enabled arr and Prowlarr (paths from `TORRENTS_DIR` / `USENET_DIR`).
 4. Stops the enabled apps (they rewrite their config on shutdown and would undo the patch), then runs `patch-config` (a python:alpine one-shot):
    - inserts `PostgresHost`, `PostgresPort`, `PostgresUser`, `PostgresPassword`, `PostgresMainDb`, `PostgresLogDb` into every config.xml. The arrs never write these keys themselves, so this step is what moves them onto Postgres.
-   - points the download clients' save paths at the shared `/data` mount, only where they are still at the image's defaults: qBittorrent `/data/torrents/` with automatic torrent management, SABnzbd and NZBGet `/data/usenet/incomplete` and `/data/usenet/complete`. SABnzbd also gets `nzb_backup_dir` and `sabnzbd` in its `host_whitelist`. Details on [qBittorrent](Service-qBittorrent.md), [SABnzbd](Service-SABnzbd.md), [NZBGet](Service-NZBGet.md).
+   - points the download clients' save paths at the shared `/data` mount, only where they are still at the image's defaults: qBittorrent `/data/torrents/` with automatic torrent management, SABnzbd and NZBGet `/data/usenet/incomplete` and `/data/usenet/complete`. SABnzbd also gets `nzb_backup_dir` and `sabnzbd` in its `host_whitelist`. Details on [qBittorrent](Service-qBittorrent.md), [SABnzbd](Service-SABnzbd.md), [NZBGet](Service-NZBGet.md), [Weaver](Service-Weaver.md).
 
    - with `APPS_AUTH` `apps` or `tunnel`: writes qBittorrent's web login from `QBITTORRENT_USER` / `QBITTORRENT_PASSWORD` into `qBittorrent.conf` (tunnel: plus the whitelist that lets wranglarr-gate in).
 
@@ -130,7 +130,7 @@ expose: [Security](Security.md).
 `COMPOSE_PROFILES` is the single list that decides what exists:
 
 ```
-COMPOSE_PROFILES=radarr,sonarr,lidarr,prowlarr,bazarr,qbittorrent,sabnzbd,nzbget
+COMPOSE_PROFILES=radarr,sonarr,lidarr,prowlarr,bazarr,qbittorrent,sabnzbd,nzbget,weaver
 ```
 
 It is also passed to Postgres (which databases to create) and to wranglarr

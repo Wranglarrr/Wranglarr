@@ -60,6 +60,9 @@ pub fn next_steps(a: &Answers, env: &Env, target: &Path, scan: &Value, restore_c
     if has(service::nzbget::DEF.id) && a.apps_auth == "manual" {
         steps.push("NZBGet login is NZBGET_USER / NZBGET_PASS from .env.".into());
     }
+    if has(service::weaver::DEF.id) && a.apps_auth != "tunnel" {
+        steps.push("Weaver login is WEAVER_USER / WEAVER_PASS from .env.".into());
+    }
     let picked = |r: Roles| a.services.iter().any(|s| service::has(s, r));
     let mut wired = vec![];
     if picked(Roles::DOWNLOADS) {
@@ -86,10 +89,11 @@ pub fn next_steps(a: &Answers, env: &Env, target: &Path, scan: &Value, restore_c
 }
 
 /// A login service's default username (the wizard has fields for qBittorrent's
-/// and NZBGet's logins).
+/// NZBGet's and Weaver's logins).
 pub(super) fn default_user(d: &ServiceDef) -> &'static str {
     match d.credentials {
-        service::Credentials::UserPassword { default_user, .. } => default_user,
+        service::Credentials::UserPassword { default_user, .. }
+        | service::Credentials::MintedKey { default_user, .. } => default_user,
         service::Credentials::ApiKey { .. } => "",
     }
 }

@@ -148,7 +148,7 @@ Each app has to know its path:
   `appdata/wranglarr/wranglarr.toml`, `url = "http://radarr:7878/radarr"`.
 
 qBittorrent and NZBGet have no URL Base; the config strips the path for them.
-Seerr and the media servers always get a name of their own
+Seerr, Weaver and the media servers always get a name of their own
 (`seerr.example.com`): they don't work under a path. Settings saved before the
 apps had a place each, with "a path each", now put the paths under wranglarr's
 name rather than the bare domain.

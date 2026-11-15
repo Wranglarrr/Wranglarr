@@ -10,4 +10,8 @@ The app logos (`radarr.svg` … `seerr.svg`) and the media servers' (`plex.svg`,
 `kodi.svg`) come from the same set, taken 2026-10-26. wranglarr shows an app's own logo, asked from the app,
 and falls back to these when it can't get one.
 
+`weaver.svg` is Weaver's own mark (`packaging/brand/weaver-mark-color.svg` in
+[scryer-media/weaver](https://github.com/scryer-media/weaver), GPL-3.0-or-later), taken 2026-11-14 from release
+v0.16.15: dashboard-icons has none for it.
+
 `email.svg` is Lucide's `mail` icon ([lucide.dev](https://lucide.dev), ISC license), coloured.

@@ -377,10 +377,18 @@ impl Connector {
     /// The entry for this link in the app: same implementation, and same name or host.
     async fn find(&self, c: &ArrClient, ln: &Link, host: &str) -> Result<Option<Value>> {
         let hosts = [Some(host.to_string()), host_of(&ln.dst.url), Some("localhost".to_string())];
-        for r in c.list(ln.resource()).await? {
-            if r["implementation"].as_str() != Some(ln.implementation()) {
-                continue;
-            }
+        let ours: Vec<Value> = c
+            .list(ln.resource())
+            .await?
+            .into_iter()
+            .filter(|r| r["implementation"].as_str() == Some(ln.implementation()))
+            .collect();
+        // by name first: two clients can share an implementation and, in one network, "localhost"
+        if let Some(r) = ours.iter().find(|r| r["name"].as_str() == Some(ln.display().as_str())) {
+            return Ok(Some(r.clone()));
+        }
+        let port = self.endpoint(&ln.src, &ln.dst).await.1;
+        for r in ours {
             let target = if ln.resource() == "applications" {
                 host_of(field(&r, "baseUrl").as_str().unwrap_or(""))
             } else {
@@ -389,7 +397,9 @@ impl Connector {
                     v => Some(text(v)),
                 }
             };
-            if r["name"].as_str() == Some(ln.display().as_str()) || (target.is_some() && hosts.contains(&target)) {
+            let port_ok =
+                ln.resource() == "applications" || field(&r, "port").as_u64().is_none_or(|p| p == u64::from(port));
+            if target.is_some() && hosts.contains(&target) && port_ok {
                 return Ok(Some(r));
             }
         }
@@ -416,8 +426,13 @@ impl Connector {
             ("useSsl", json!(ssl)),
             ("urlBase", if base.is_empty() { Value::Null } else { json!(base) }),
         ]);
-        if ln.dst.def().is_some_and(|d| matches!(d.credentials, Credentials::ApiKey { .. })) {
+        let creds = ln.dst.def().map(|d| d.credentials);
+        if matches!(creds, Some(Credentials::ApiKey { .. })) {
             ours.insert("apiKey".into(), json!(crate::service::api_key(&ln.dst).await?));
+        } else if matches!(creds, Some(Credentials::MintedKey { .. })) {
+            // its NZBGet-style API: any username, the key as the password
+            ours.insert("username".into(), json!(crate::service::MINTED_KEY_USER));
+            ours.insert("password".into(), json!(crate::service::api_key(&ln.dst).await?));
         } else {
             let (u, p) = crate::service::credentials(&ln.dst).await;
             ours.insert("username".into(), json!(u));

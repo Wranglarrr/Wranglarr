@@ -28,6 +28,7 @@ use std::time::Duration;
 
 use crate::config::{self, AppConfig};
 use crate::service::AppConfigExt;
+use crate::service::Credentials;
 use crate::service::Roles;
 use crate::service::arr::ArrClient;
 use crate::service::login::{LoginSource, Managed, Wanted, base, get, key, required_text, set_http};
@@ -53,10 +54,12 @@ fn managed(a: &AppConfig) -> Option<&'static Managed> {
     a.def()?.login.as_ref()?.managed()
 }
 
-/// Its implementation name in the arrs, when it's a download client whose login comes from .env.
+/// Its implementation name in the arrs, when it's a download client whose login comes from
+/// .env and the arrs log in with that login (not a key wranglarr created).
 fn env_client(a: &AppConfig) -> Option<&'static str> {
     let d = a.def()?;
-    (managed(a)?.source == LoginSource::Env).then_some(d.downloads?.arr_impl)
+    (managed(a)?.source == LoginSource::Env && matches!(d.credentials, Credentials::UserPassword { .. }))
+        .then_some(d.downloads?.arr_impl)
 }
 
 async fn arr_client(a: &AppConfig) -> R<ArrClient> {
@@ -93,6 +96,11 @@ enum Stop {
 /// qBittorrent's or NZBGet's login changed: update its entry in every arr and Prowlarr (they log in with it).
 pub async fn fix_client_entries(cfg_apps: &[AppConfig], client: &AppConfig, wait: f64) -> R<Vec<String>> {
     let imp = env_client(client).unwrap_or("");
+    // two clients can share an implementation (Weaver is an NZBGet to the arrs): only this one's
+    // entries, by its address (localhost when the arr shares its network)
+    let at = url::Url::parse(&client.url).ok();
+    let host = at.as_ref().and_then(|u| u.host_str().map(str::to_lowercase)).unwrap_or_default();
+    let port = at.as_ref().and_then(url::Url::port_or_known_default);
     let (u, p) = crate::service::credentials(client).await;
     let mut out = vec![];
     for a in cfg_apps {
@@ -118,6 +126,9 @@ pub async fn fix_client_entries(cfg_apps: &[AppConfig], client: &AppConfig, wait
                 };
                 let (fu, fp) = (f("username")?, f("password")?);
                 if dc.get("implementation").and_then(Value::as_str) != Some(imp) {
+                    continue;
+                }
+                if !ours_at(&f("host")?, &f("port")?, &host, port) {
                     continue;
                 }
                 if fu.as_str() == Some(u.as_str()) && !(fp.is_null() || fp.as_str() == Some("")) {
@@ -153,6 +164,18 @@ pub async fn fix_client_entries(cfg_apps: &[AppConfig], client: &AppConfig, wait
         say(line);
     }
     Ok(out)
+}
+
+/// Whether an arr's download-client entry at `entry_host:entry_port` can be the client at
+/// `host:port`: the same host or the same port (a port it doesn't show doesn't rule it out).
+/// Clients sharing an implementation listen on different ports.
+fn ours_at(entry_host: &Value, entry_port: &Value, host: &str, port: Option<u16>) -> bool {
+    let same_host = entry_host.as_str().is_some_and(|h| !host.is_empty() && h.eq_ignore_ascii_case(host));
+    let same_port = match (entry_port.as_u64(), port) {
+        (Some(e), Some(p)) => e == u64::from(p),
+        _ => true,
+    };
+    same_host || same_port
 }
 
 // ---- main ---------------------------------------------------------------------------------
@@ -352,5 +375,24 @@ impl Run {
             say(&format!("{failed} app(s) failed; fix the cause and re-run: ./scripts/init.sh --auth"));
         }
         i32::from(failed > 0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tells_clients_with_one_implementation_apart() {
+        let h = |s: &str| json!(s);
+        let p = |n: u16| json!(n);
+        // NZBGet's own entry, by name or (sharing the arr's network) by localhost
+        assert!(ours_at(&h("nzbget"), &p(6789), "nzbget", Some(6789)));
+        assert!(ours_at(&h("localhost"), &p(6789), "nzbget", Some(6789)));
+        // Weaver's entry is an "Nzbget" too, on its own port: never NZBGet's login
+        assert!(!ours_at(&h("weaver"), &p(9090), "nzbget", Some(6789)));
+        assert!(!ours_at(&h("localhost"), &p(9090), "nzbget", Some(6789)));
+        // an entry that shows no port isn't ruled out
+        assert!(ours_at(&h("qbittorrent"), &Value::Null, "127.0.0.1", Some(8090)));
     }
 }
