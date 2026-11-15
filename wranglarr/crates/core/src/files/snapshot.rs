@@ -34,6 +34,20 @@ fn io_reason(e: &std::io::Error) -> String {
     }
 }
 
+/// A consistent copy of the SQLite database `src`, made by SQLite while the app
+/// may be writing to it: what its `-wal` holds is in the copy, which needs none.
+fn sqlite_copy(src: &Path, dst: &Path) -> Result<()> {
+    use rusqlite::{Connection, OpenFlags};
+    let target = dst.to_str().ok_or_else(|| Error::invalid("the backup path isn't UTF-8"))?;
+    // read-write: SQLite needs the -shm of a database in WAL mode
+    let c = Connection::open_with_flags(src, OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX)?;
+    c.busy_timeout(std::time::Duration::from_secs(30))?;
+    c.execute("VACUUM INTO ?1", [target])?;
+    drop(c);
+    fs::set_permissions(dst, fs::metadata(src)?.permissions())?;
+    Ok(())
+}
+
 /// Copy `src` -> `app_dir/config` (natural layout) and write `app_dir/config.sha256`.
 pub fn snapshot_config(
     name: &str,
@@ -98,6 +112,13 @@ pub fn snapshot_config(
             let admin_only = under(&rs, &rules.admin_only).is_some() && !rs.split('/').any(|p| p == "__ADMIN__");
             if ft.is_symlink() || !ft.is_file() || skipped(&rel, false, &spec.rules) || admin_only {
                 skipped_n += 1;
+                continue;
+            }
+            if rroot.as_os_str().is_empty() && spec.rules.sqlite_online.contains(&rs.as_str()) {
+                if let Err(e) = sqlite_copy(&sp, &dest.join(&rel)) {
+                    tracing::warn!("{name}: couldn't copy the database {rs}: {e}");
+                    unreadable.push(format!("{rs} ({e})"));
+                }
                 continue;
             }
             match copy_file(&sp, &dest.join(&rel)) {
@@ -245,6 +266,34 @@ mod tests {
         assert!(snap.unreadable.iter().any(|u| u.starts_with("secret.xml")), "{snap:?}");
         assert!(snap.unreadable.iter().any(|u| u.starts_with("sub/")), "{snap:?}");
         verify_snapshot(&t.path().join("snap/radarr")).expect("verifies");
+    }
+
+    #[test]
+    fn a_database_in_use_is_copied_by_sqlite() {
+        let t = tempfile::tempdir().expect("tmp");
+        let src = t.path().join("cfg");
+        fs::create_dir_all(&src).expect("mkdir");
+        // the app: WAL mode, its last write still only in the -wal, connection open
+        let live = rusqlite::Connection::open(src.join("app.db")).expect("open");
+        live.pragma_update(None, "journal_mode", "WAL").expect("wal");
+        live.pragma_update(None, "wal_autocheckpoint", 0).expect("no checkpoint");
+        live.execute_batch("CREATE TABLE q(n TEXT); INSERT INTO q VALUES ('job');").expect("write");
+        assert!(fs::metadata(src.join("app.db-wal")).is_ok_and(|m| m.len() > 0), "the write is in the -wal");
+        fs::write(src.join("other.db"), "not copied by SQLite").expect("w");
+        let spec = CopySpec {
+            rules: super::super::CopyRules { sqlite_online: &["app.db"], skip_sqlite: false, ..ARR_SPEC.rules },
+            payload: None,
+        };
+        let snap = snapshot_config("app", &spec, &src, &t.path().join("snap/app"), None).expect("snapshot");
+        assert!(snap.unreadable.is_empty(), "{snap:?}");
+        let dest = t.path().join("snap/app/config");
+        assert!(!dest.join("app.db-wal").exists() && !dest.join("app.db-shm").exists());
+        assert_eq!(fs::read_to_string(dest.join("other.db")).expect("plain copy"), "not copied by SQLite");
+        let copy = rusqlite::Connection::open(dest.join("app.db")).expect("open copy");
+        let n: String = copy.query_row("SELECT n FROM q", [], |r| r.get(0)).expect("row");
+        assert_eq!(n, "job");
+        verify_snapshot(&t.path().join("snap/app")).expect("verifies");
+        drop(live);
     }
 
     #[test]

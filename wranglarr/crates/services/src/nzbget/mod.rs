@@ -63,6 +63,7 @@ pub static DEF: ServiceDef = ServiceDef {
         skip_dirs: &[],
         skip_files: &["nzbget.log*"],
         skip_sqlite: false,
+        sqlite_online: &[],
         skip_files_in: &[],
         zip_layout: &[],
     },

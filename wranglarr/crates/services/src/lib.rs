@@ -289,6 +289,7 @@ pub const ARR_COPY: CopyRules = CopyRules {
     skip_dirs: &["logs", "Backups", "MediaCover", "UpdateLogs", "Sentry", "xdg"],
     skip_files: &[],
     skip_sqlite: true,
+    sqlite_online: &[],
     skip_files_in: &[],
     zip_layout: &[],
 };

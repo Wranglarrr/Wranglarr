@@ -40,6 +40,10 @@ pub struct CopyRules {
     pub skip_files: &'static [&'static str],
     /// Live SQLite files (`*.db`, its `-shm`/`-wal`) are left out too.
     pub skip_sqlite: bool,
+    /// SQLite databases directly in the folder that are copied by SQLite itself
+    /// (`VACUUM INTO`), consistent while the app writes; their `-wal` / `-shm`
+    /// are left out.
+    pub sqlite_online: &'static [&'static str],
     /// Files directly in these folders (not their subfolders) are downloaded caches.
     pub skip_files_in: &'static [&'static str],
     /// Backup-zip member -> where it lives in the config folder.
@@ -169,6 +173,11 @@ fn skipped(rel: &Path, is_dir: bool, r: &CopyRules) -> bool {
         return true;
     }
     if !is_dir {
+        if let [name] = &parts[..]
+            && r.sqlite_online.iter().any(|db| [format!("{db}-wal"), format!("{db}-shm")].contains(name))
+        {
+            return true;
+        }
         let parent = rel.parent().map(rel_str).unwrap_or_default();
         if r.skip_files_in.contains(&parent.as_str()) {
             return true;
@@ -274,6 +283,7 @@ mod tests {
         skip_dirs: &["logs", "Backups", "MediaCover"],
         skip_files: &[],
         skip_sqlite: true,
+        sqlite_online: &[],
         skip_files_in: &[],
         zip_layout: &[],
     };
