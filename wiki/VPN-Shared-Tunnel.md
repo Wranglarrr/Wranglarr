@@ -14,7 +14,7 @@ none leaves if it drops. You still open their UIs the way you did before.
 | **download clients and Prowlarr** | `compose.yaml:compose.vpn.yaml:compose.vpn-prowlarr.yaml` | every indexer is in Prowlarr. The arrs then talk only to Prowlarr, the download clients and metadata servers (TMDB, TheTVDB, MusicBrainz), so they can use your own connection |
 | **download clients only** | `compose.yaml:compose.vpn.yaml` | only the swarm and news-server traffic needs hiding; searching indexers from your own address is fine with you |
 
-The download clients are qBittorrent, SABnzbd and NZBGet. Seerr is never in the
+The download clients are qBittorrent, SABnzbd, NZBGet and Weaver. Seerr is never in the
 tunnel: it only talks to your own apps, your media server and metadata servers.
 The wizard asks under **Network & VPN → In the tunnel**.
 
@@ -29,7 +29,7 @@ through Prowlarr:
   the `.torrent` from there, outside the tunnel. Usenet indexers are the
   exception: Prowlarr always redirects their grabs and won't save Redirect off
   for them, so the arrs fetch each `.nzb` from your own address. The download
-  itself still goes through the tunnel, from SABnzbd or NZBGet.
+  itself still goes through the tunnel, from SABnzbd, NZBGet or Weaver.
 
 wranglarr checks both on every dashboard refresh. Anything that goes around the
 tunnel shows up as a health warning on that app's card, starting with "VPN:".
@@ -119,7 +119,7 @@ tunnel, so keep the key out of anything you don't trust. Routes used:
 
 ## Caveats
 
-- If the `vpn` **container** is recreated by hand (`docker compose up` after editing it), the apps in it lose their network and must be restarted: `docker compose restart qbittorrent sabnzbd nzbget` (plus `prowlarr`, and `radarr sonarr lidarr bazarr` with every app in the tunnel). wranglarr's [Updates](Updates.md) do that for you. A dropped **tunnel** is different: gluetun reconnects by itself.
+- If the `vpn` **container** is recreated by hand (`docker compose up` after editing it), the apps in it lose their network and must be restarted: `docker compose restart qbittorrent sabnzbd nzbget weaver` (plus `prowlarr`, and `radarr sonarr lidarr bazarr` with every app in the tunnel). wranglarr's [Updates](Updates.md) do that for you. A dropped **tunnel** is different: gluetun reconnects by itself.
 - Podman ignores the health check built into the gluetun image, so `compose.vpn.yaml` spells it out. The apps wait for it.
 - Two apps cannot listen on the same port inside the namespace; that's why qBittorrent uses 8090.
 - `VPN_LAN_NETWORK` must not overlap the tunnel's own range.

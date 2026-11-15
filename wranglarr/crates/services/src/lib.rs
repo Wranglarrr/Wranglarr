@@ -29,6 +29,7 @@ pub mod nzbget;
 pub mod qbittorrent;
 pub mod sabnzbd;
 pub mod seerr;
+pub mod weaver;
 
 pub use apps::{AppConfigExt, api_key, credentials};
 pub use arr::ArrDef;
@@ -57,6 +58,7 @@ pub static ALL: &[&ServiceDef] = &[
     &qbittorrent::DEF,
     &sabnzbd::DEF,
     &nzbget::DEF,
+    &weaver::DEF,
     &seerr::DEF,
 ];
 
@@ -178,7 +180,7 @@ pub enum BackupMode {
 }
 
 /// How wranglarr signs in to a service's API.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 pub enum Credentials {
     /// An API key: given, or read from its config file (`api_key_file`), where
     /// it is kept as `file` says.
@@ -196,7 +198,30 @@ pub enum Credentials {
         /// HTTP basic auth on every request, its images too (NZBGet).
         basic_auth: bool,
     },
+    /// An API key wranglarr creates itself, for an app with no setting that fixes
+    /// one: `mint` signs in with the app's login (`env_user` / `env_pass` from
+    /// `.env`, in wranglarr.toml's `username` / `password`), creates the key and
+    /// keeps it in `api_key_file`, where `file` says. The arrs and wranglarr send it
+    /// as the password of an NZBGet-style login (Weaver).
+    MintedKey {
+        file: KeyFile,
+        env_user: &'static str,
+        env_pass: &'static str,
+        default_user: &'static str,
+        mint: MintKey,
+    },
 }
+
+/// The username sent with a [`Credentials::MintedKey`] key (the app ignores it).
+pub const MINTED_KEY_USER: &str = "wranglarr";
+
+/// A boxed future, for the function pointers in a [`ServiceDef`].
+pub type BoxFuture<'a, T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
+
+/// Creates an app's API key ([`Credentials::MintedKey`]), keeps it in its
+/// `api_key_file` and returns it. `stale`: the key that file holds now, which the
+/// app refused (it is replaced).
+pub type MintKey = for<'a> fn(&'a AppConfig, Option<&'a str>) -> BoxFuture<'a, Result<String>>;
 
 /// How the restore stack points a service at Postgres: the environment it sets
 /// on the service's container.
@@ -572,7 +597,7 @@ mod tests {
         }
         assert_eq!(with(Roles::ARR).count(), 6);
         assert_eq!(with(Roles::LIBRARY).count(), 5);
-        assert_eq!(with(Roles::DOWNLOADS).count(), 3);
+        assert_eq!(with(Roles::DOWNLOADS).count(), 4);
     }
 
     #[test]

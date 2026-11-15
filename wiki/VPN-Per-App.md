@@ -4,7 +4,8 @@ The alternative to the shared tunnel: each app gets hotio's image, which has
 a WireGuard client built in, and its own tunnel. Use it when apps need
 different exit servers. (To put only some apps on the VPN, the shared tunnel
 can do that too, with one connection: see [which apps go in the
-tunnel](VPN-Shared-Tunnel.md#which-apps-go-in-the-tunnel).)
+tunnel](VPN-Shared-Tunnel.md#which-apps-go-in-the-tunnel).) Weaver has no
+hotio image, so it can only use the shared tunnel.
 
 ```
 COMPOSE_FILE=compose.yaml:compose.vpn-per-app.yaml      # .env

@@ -61,6 +61,7 @@ pub const ENV_KEYS_SECRET: &[&str] = &[
     "WIREGUARD_PRESHARED_KEY",
     "VPN_PASSWORD",
     "NZBGET_PASS",
+    "WEAVER_PASS",
     "VPN_PIA_PASS",
     "APPS_LOGIN_PASSWORD",
     "WRANGLARR_GATE_SECRET",
@@ -82,6 +83,8 @@ pub const AUTH_KEYS: &[&str] = &[
     "QBITTORRENT_PASSWORD",
     "NZBGET_USER",
     "NZBGET_PASS",
+    "WEAVER_USER",
+    "WEAVER_PASS",
     "AUTH_QBITTORRENT_LOGIN",
 ];
 

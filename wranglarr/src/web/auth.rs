@@ -498,6 +498,23 @@ pub async fn gate_key(app: &App, name: &str) -> String {
     }
 }
 
+/// What wranglarr-gate sends on to the app it fronts as `name` as the request's
+/// Authorization, for a signed-in browser: the key wranglarr created, for an app whose
+/// own login can't be turned off (Weaver). None for the others.
+async fn gate_signs_in(app: &App, name: &str) -> Option<HeaderValue> {
+    let a = {
+        let cfg = app.cfg();
+        cfg.all_apps().find(|a| a.name == name).or_else(|| cfg.all_apps().find(|a| a.kind == name))?.clone()
+    };
+    if !matches!(a.def()?.credentials, Credentials::MintedKey { .. }) {
+        return None;
+    }
+    let key = crate::service::api_key(&a).await.ok().filter(|k| !k.is_empty())?;
+    let mut v = HeaderValue::from_str(&format!("Bearer {key}")).ok()?;
+    v.set_sensitive(true);
+    Some(v)
+}
+
 /// qBittorrent's session cookies a request carries (`SID`, or `QBT_SID_<port>` from 5.1),
 /// as (name, value). The gate's app sessions are qBittorrent's own.
 fn app_sessions(h: &HeaderMap) -> Vec<(String, String)> {
@@ -672,7 +689,11 @@ async fn api_gate(State(app): State<App>, r: AuthReq) -> ApiResult<Response> {
         return Err(Error::not_found("AuthTunnel is off (APPS_AUTH isn't tunnel)").into());
     }
     if !o.enabled || r.who.via == "session" {
-        return Ok(StatusCode::NO_CONTENT.into_response());
+        let mut resp = StatusCode::NO_CONTENT.into_response();
+        if let Some(v) = gate_signs_in(&app, r.header("x-wranglarr-app")).await {
+            resp.headers_mut().insert("x-wranglarr-upstream-auth", v);
+        }
+        return Ok(resp);
     }
     // an API client (mobile app, script) with that app's own API key: through, but only if the
     // key is the real one, or anyone could walk past the gate with apikey=x

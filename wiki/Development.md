@@ -85,9 +85,9 @@ compiler reports dead code instead of hiding it.
 
 ## Services
 
-wranglarr manages eleven kinds of app: six arrs (Radarr, Sonarr, Lidarr, Readarr,
-Prowlarr, Whisparr), Bazarr, Seerr, and three download clients (qBittorrent,
-SABnzbd, NZBGet). Everything it knows about a kind lives in that kind's folder in
+wranglarr manages twelve kinds of app: six arrs (Radarr, Sonarr, Lidarr, Readarr,
+Prowlarr, Whisparr), Bazarr, Seerr, and four download clients (qBittorrent,
+SABnzbd, NZBGet, Weaver). Everything it knows about a kind lives in that kind's folder in
 `crates/services/src/`. The rest of the code asks what an app **can do**, never
 which kind it is. `wranglarr/tests/kinds.rs` fails the build if a kind's id is
 written as a string anywhere in `src/` or `crates/core/`.
@@ -107,7 +107,7 @@ crates/services/src/
   arr/            the one arr implementation (client.rs, login.rs, shared.rs: the
                   [[shared]] resources' API bodies), driven by ArrDef
     radarr.rs  sonarr.rs  lidarr.rs  readarr.rs  prowlarr.rs  whisparr.rs   (data only)
-  bazarr/  seerr/  qbittorrent/  sabnzbd/  nzbget/
+  bazarr/  seerr/  qbittorrent/  sabnzbd/  nzbget/  weaver/
     mod.rs        the descriptor, and its login, link and backup-payload code
     client.rs     its API client
 crates/services/tests/

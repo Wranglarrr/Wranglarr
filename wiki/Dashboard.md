@@ -6,7 +6,7 @@ under each one what it's working on:
 | Group | Apps | Shown as | Underneath |
 | --- | --- | --- | --- |
 | Media | Radarr, Sonarr, Lidarr (Readarr, Whisparr) | a poster | coming up and recently missing, in one table |
-| Downloads | qBittorrent, SABnzbd, NZBGet | a card | the client's queue |
+| Downloads | qBittorrent, SABnzbd, NZBGet, Weaver | a card | the client's queue |
 | Requests | Seerr | a card | the latest requests |
 | Indexers & subtitles | Prowlarr, Bazarr | a card | Prowlarr's indexers, Bazarr's wanted subtitles |
 

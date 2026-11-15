@@ -104,6 +104,10 @@ pub fn render_env(a: &Answers, image: &str) -> Result<String> {
         line("NZBGET_USER", get(&ae, "NZBGET_USER"))?,
         line("NZBGET_PASS", get(&ae, "NZBGET_PASS"))?,
         String::new(),
+        "# Weaver web login (created on its first start only; wranglarr signs in with it to make its API key)".into(),
+        line("WEAVER_USER", get(&ae, "WEAVER_USER"))?,
+        line("WEAVER_PASS", get(&ae, "WEAVER_PASS"))?,
+        String::new(),
     ]);
     let qb_note = if a.apps_auth != "manual" {
         ": init writes it into qBittorrent.conf"

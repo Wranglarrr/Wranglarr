@@ -36,11 +36,13 @@ can be mounted back as `/config` as-is. Left out:
 | qBittorrent | `logs/`, `GeoDB/` (re-downloaded), `lockfile` |
 | SABnzbd | `logs/` |
 | NZBGet | `nzbget.log*` |
+| Weaver | `disk-probe.json`; `weaver.db-wal` / `-shm` (the database is copied by SQLite, below) |
 | Seerr | `logs/`, `cache/`, live SQLite files |
 
 On every app, `*.pid`, `*.lock` and `*.log` files are skipped too. Live
-SQLite files are never copied, because copying one while the app writes to
-it can tear it. On Postgres they're unused leftovers from the first start. An
+SQLite files are never copied file by file, because copying one while the app
+writes to it can tear it. Weaver's `weaver.db` is copied by SQLite itself
+(`VACUUM INTO`), which gives a consistent copy while Weaver runs. On Postgres they're unused leftovers from the first start. An
 arr or Bazarr in SQLite mode gets the consistent copy from its own backup
 zip, laid over the folder. Seerr has no supported SQLite backup here: a Seerr
 entry without a configured PostgreSQL database is marked incomplete. Run
@@ -58,6 +60,7 @@ they downloaded:
 | qBittorrent | the `.torrent` file of every torrent plus its resume data (`BT_backup/`: progress, save path, category, tags), and the settings |
 | SABnzbd | the queue and history, a copy of every NZB added (`nzb_backup_dir`, set to `nzb-backup` by `init.sh`), NZBs in a watched folder inside `/config`, and the settings. If `download_dir` is inside `/config`, only each job folder's `__ADMIN__` (its NZB) is kept |
 | NZBGet | the queue (`QueueDir`: each job's NZB and download state) and incoming NZBs (`NzbDir`) when they are inside `/config`, and the settings |
+| Weaver | its database (the queue with each job's NZB, the history, the settings and login), `encryption.key`, and the API key wranglarr uses ([Weaver](Service-Weaver.md)) |
 
 Download folders that sit inside `/config` are left out. The downloaded files
 live on the shared `/data` mount (`/data/torrents`, `/data/usenet`), the same
@@ -141,7 +144,7 @@ verified against the manifest first.
 | --- | --- | --- |
 | arrs | `pg_restore --clean --if-exists --single-transaction` into each database (created if missing). Docker control and `container` are required: the app must be confirmed stopped before any database write. A failed stop aborts the restore. It is restarted after success only if it was running before. | zip uploaded to `system/backup/restore/upload`, then the app is restarted to apply `config.xml`. The restored `config.xml` keeps this stack's Postgres connection (host, port, user and password, read from the app's current `config.xml`), so a backup from another install doesn't bring back that install's password; the database names stay as backed up. A changed API key is picked up again from the config file. |
 | Bazarr | same | `config.yaml` written into the mounted config dir (previous kept as `config.yaml.pre-wranglarr`), Bazarr restarted via API, because Bazarr's own restore refuses a zip without `bazarr.db` |
-| qBittorrent, SABnzbd, NZBGet | — | the version's `<app>/config/` is verified and staged **with the container stopped** (Docker control required). Every file must appear in the checksum list; extra files, links and special files are refused. Previous contents are retained in a unique recovery folder. |
+| qBittorrent, SABnzbd, NZBGet, Weaver | — | the version's `<app>/config/` is verified and staged **with the container stopped** (Docker control required). Every file must appear in the checksum list; extra files, links and special files are refused. Previous contents are retained in a unique recovery folder. |
 
 Config-directory restores stage all incoming files before replacing live entries. A complete recovery copy is retained beside the config directory as `<config-dir>.pre-wranglarr` (later restores use unique suffixes), or under `WRANGLARR_PRE_RESTORE` when the parent is not writable. These recovery copies are never overwritten automatically; remove old copies only after verifying the restored application.
 

@@ -57,12 +57,20 @@ pub trait AppConfigExt {
 
 /// The app's API key ([`AppConfigExt::api_key_blocking`]), its file read off the
 /// async threads. Read each time: a restore can change the key in the file.
+/// A key wranglarr creates itself ([`Credentials::MintedKey`]) is created here the
+/// first time it is asked for.
 pub async fn api_key(app: &AppConfig) -> Result<String> {
     if !app.api_key.is_empty() {
         return Ok(app.api_key.clone());
     }
-    let app = app.clone();
-    tokio::task::spawn_blocking(move || app.api_key_blocking()).await?
+    let read = {
+        let app = app.clone();
+        tokio::task::spawn_blocking(move || app.api_key_blocking()).await?
+    };
+    match (read, app.def().map(|d| d.credentials)) {
+        (Err(_), Some(Credentials::MintedKey { mint, .. })) if !app.api_key_file.is_empty() => mint(app, None).await,
+        (read, _) => read,
+    }
 }
 
 /// The app's username and password ([`AppConfigExt::credentials_blocking`]), its
@@ -106,7 +114,7 @@ impl AppConfigExt for AppConfig {
         match self.def().map(|d| d.credentials) {
             // it signs in with a username and password
             Some(Credentials::UserPassword { .. }) => Ok(String::new()),
-            Some(Credentials::ApiKey { file }) if !path.is_empty() => {
+            Some(Credentials::ApiKey { file } | Credentials::MintedKey { file, .. }) if !path.is_empty() => {
                 let text = std::fs::read_to_string(path).map_err(|e| Error::invalid(format!("{name}: {path}: {e}")))?;
                 file.read(&text).map_err(|e| match e {
                     KeyFileError::Unreadable(e) => Error::invalid(format!("{name}: {path}: {e}")),
@@ -114,7 +122,7 @@ impl AppConfigExt for AppConfig {
                 })
             }
             None => Err(Error::invalid(format!("{name}: unsupported app kind {:?}", self.kind))),
-            Some(Credentials::ApiKey { .. }) => {
+            Some(Credentials::ApiKey { .. } | Credentials::MintedKey { .. }) => {
                 Err(Error::invalid(format!("{name}: api_key or api_key_file is required")))
             }
         }

@@ -215,6 +215,28 @@ services:
       - ${DATA_ROOT:?set DATA_ROOT in .env}:/data
     networks: [arrs]
 
+  # Usenet client (github.com/scryer-media/weaver). The arrs take it as an NZBGet client;
+  # wranglarr signs in with WEAVER_USER / WEAVER_PASS to create the API key they use
+  # (kept in appdata/weaver/wranglarr-api-key.json, beside Weaver's database).
+  weaver:
+    profiles: [weaver]
+    image: ${WEAVER_IMAGE:-ghcr.io/scryer-media/weaver:latest}
+    container_name: weaver
+    restart: unless-stopped
+    environment:
+      <<: *arr-env
+      # its login and folders, taken on its first start only (settings in Weaver afterwards)
+      WEAVER_BOOTSTRAP_LOGIN_USERNAME: ${WEAVER_USER:-admin}
+      WEAVER_BOOTSTRAP_LOGIN_PASSWORD: ${WEAVER_PASS:-}
+      WEAVER_INTERMEDIATE_DIR: ${USENET_DIR:-/data/usenet}/incomplete
+      WEAVER_COMPLETE_DIR: ${USENET_DIR:-/data/usenet}/complete
+    ports:
+      - ${WEAVER_PORT:-9090}:9090
+    volumes:
+      - ${APPDATA:-./appdata}/weaver:/config
+      - ${DATA_ROOT:?set DATA_ROOT in .env}:/data
+    networks: [arrs]
+
   # One-shot, before wranglarr: hands wranglarr's own folders to PUID:PGID and
   # exits.  The only part of wranglarr that has root, with nothing but the
   # chown capabilities and no network.
@@ -275,6 +297,9 @@ services:
       # the linuxserver NZBGet image applies these at launch, not in nzbget.conf
       NZBGET_USER: ${NZBGET_USER:-nzbget}
       NZBGET_PASS: ${NZBGET_PASS:-tegbzn6789}
+      # Weaver's login: wranglarr signs in with it to create its API key
+      WEAVER_USER: ${WEAVER_USER:-admin}
+      WEAVER_PASS: ${WEAVER_PASS:-}
       # how the apps' logins are set up (wiki/App-Logins.md). Set by the setup
       # wizard and applied by ./scripts/init.sh --auth, never by wranglarr itself.
       APPS_AUTH: ${APPS_AUTH:-manual}
@@ -309,6 +334,8 @@ services:
       - ${APPDATA:-./appdata}/qbittorrent:/arrconfig/qbittorrent
       - ${APPDATA:-./appdata}/sabnzbd:/arrconfig/sabnzbd
       - ${APPDATA:-./appdata}/nzbget:/arrconfig/nzbget
+      # wranglarr also keeps the API key it creates in Weaver here
+      - ${APPDATA:-./appdata}/weaver:/arrconfig/weaver
       - ${APPDATA:-./appdata}/seerr:/arrconfig/seerr
       # Lets wranglarr stop/start an app around a database restore and pull /
       # recreate containers for image updates.  Remove this line (and [docker]
@@ -348,6 +375,8 @@ services:
       - ${APPDATA:-./appdata}/qbittorrent:/arrconfig/qbittorrent:ro
       - ${APPDATA:-./appdata}/sabnzbd:/arrconfig/sabnzbd:ro
       - ${APPDATA:-./appdata}/nzbget:/arrconfig/nzbget:ro
+      # it may create wranglarr's Weaver key, like wranglarr
+      - ${APPDATA:-./appdata}/weaver:/arrconfig/weaver
     networks: [arrs]
 
 networks:

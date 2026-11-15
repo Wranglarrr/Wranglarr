@@ -40,7 +40,7 @@ WRANGLARR_CMD = command("WRANGLARR_CMD", "serve")
 SETUP_CMD = command("WRANGLARR_SETUP_CMD", "setup")
 
 # variables from the developer's shell that would change the server's behaviour
-_STRIP_PREFIX = ("WRANGLARR_", "APPS_", "AUTH_", "COMPOSE_", "NZBGET_", "QBITTORRENT_", "POSTGRES_")
+_STRIP_PREFIX = ("WRANGLARR_", "APPS_", "AUTH_", "COMPOSE_", "NZBGET_", "WEAVER_", "QBITTORRENT_", "POSTGRES_")
 _STRIP = {"HOSTNAME", "PUID", "PGID", "UMASK", "DATA_ROOT", "DATA_ROOT_2", "TZ", "NO_COLOR", "VIRTUAL_ENV", "PYTHONPATH"}
 
 LIVE: list["Proc"] = []                # for the failure report in conftest.py

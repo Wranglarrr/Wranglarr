@@ -46,5 +46,5 @@
 </section>
 {% endfor %}
 <p class="muted small">Restoring databases {% if docker %}stops the app's container first (docker control is on){% else %}runs while the app is up, then restarts it (mount the docker socket for a stop/restore/start cycle){% endif %}.
-Arr config restores upload the zip to the app, which applies it and restarts itself; config-directory apps (qBittorrent, SABnzbd, NZBGet) are restored with the container stopped.</p>
+Arr config restores upload the zip to the app, which applies it and restarts itself; config-directory apps (qBittorrent, SABnzbd, NZBGet, Weaver) are restored with the container stopped.</p>
 {% endblock %}

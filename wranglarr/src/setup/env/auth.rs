@@ -96,8 +96,9 @@ pub(super) fn or<'a>(a: &'a str, b: &'a str) -> &'a str {
     if a.is_empty() { b } else { a }
 }
 
-/// The AUTH_KEYS values. apps: qBittorrent and NZBGet get the same login. tunnel: they keep
-/// theirs (wranglarr, the arrs and the gate use it) or get a random one. With
+/// The AUTH_KEYS values. apps: qBittorrent, NZBGet and Weaver get the same login. tunnel: they
+/// keep theirs (wranglarr, the arrs and the gate use it) or get a random one. Weaver always
+/// has one: wranglarr signs in with it to create its key. With
 /// AUTH_QBITTORRENT_LOGIN, qBittorrent's apps sign in with its login, so a weak password
 /// is replaced by a random one (unless AUTH_QBITTORRENT_ALLOW_WEAK is on in .env).
 pub fn auth_env(a: &Answers, old: &BTreeMap<String, String>) -> Result<Pairs> {
@@ -115,15 +116,18 @@ pub fn auth_env(a: &Answers, old: &BTreeMap<String, String>) -> Result<Pairs> {
     let (mut qu, mut qp) =
         (or(&a.qbittorrent_user, default_user(&service::qbittorrent::DEF)).to_string(), a.qbittorrent_password.clone());
     let (mut nu, mut np) = (or(&a.nzbget_user, default_user(&service::nzbget::DEF)).to_string(), a.nzbget_pass.clone());
+    let (mut wu, mut wp) = (or(&a.weaver_user, default_user(&service::weaver::DEF)).to_string(), a.weaver_pass.clone());
     if a.apps_auth == "apps" {
         let u = a.apps_login_user.trim().to_string();
         set(&mut out, "APPS_LOGIN_USER", u.clone());
         set(&mut out, "APPS_LOGIN_PASSWORD", a.apps_login_password.clone());
         set(&mut out, "APPS_AUTH_REQUIRED", a.apps_auth_required.clone());
         qu.clone_from(&u);
-        nu = u;
+        nu.clone_from(&u);
+        wu = u;
         qp.clone_from(&a.apps_login_password);
         np.clone_from(&a.apps_login_password);
+        wp.clone_from(&a.apps_login_password);
     } else if a.apps_auth == "tunnel" {
         set(&mut out, "AUTH_COOKIE_DOMAIN", a.auth_cookie_domain.trim().trim_start_matches('.').to_lowercase());
         set(&mut out, "AUTH_LOGIN_URL", a.auth_login_url.trim().trim_end_matches('/').to_string());
@@ -149,8 +153,26 @@ pub fn auth_env(a: &Answers, old: &BTreeMap<String, String>) -> Result<Pairs> {
     }
     set(&mut out, "QBITTORRENT_USER", qu);
     set(&mut out, "QBITTORRENT_PASSWORD", qp);
+    let weaver = a.services.iter().any(|s| s == service::weaver::DEF.id);
+    if a.apps_auth != "apps" {
+        wu = or(or(&wu, old("WEAVER_USER")), default_user(&service::weaver::DEF)).to_string();
+        wp = if !wp.is_empty() {
+            wp
+        } else if !old("WEAVER_PASS").is_empty() {
+            old("WEAVER_PASS").to_string()
+        } else if weaver {
+            crate::ids::random_token(18)
+        } else {
+            String::new()
+        };
+    }
+    if weaver && wp.chars().count() < 8 {
+        return Err(Error::invalid("Weaver's password (WEAVER_PASS) needs 8 characters or more"));
+    }
     set(&mut out, "NZBGET_USER", nu);
     set(&mut out, "NZBGET_PASS", np);
+    set(&mut out, "WEAVER_USER", wu);
+    set(&mut out, "WEAVER_PASS", wp);
     set(&mut out, "AUTH_QBITTORRENT_LOGIN", if qb_login { "on" } else { "off" }.into());
     Ok(out)
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Current downloads across qBittorrent / SABnzbd / NZBGet, for the Home page.
+//! Current downloads across qBittorrent / SABnzbd / NZBGet / Weaver, for the Home page.
 //!
 //! Each download is tagged with the arr that sent it, from its category:
 //! Connect apps gives every arr a category named after it (radarr, sonarr, ...).

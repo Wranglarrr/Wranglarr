@@ -119,6 +119,8 @@ pub struct Answers {
     pub gluetun_api_key: String,
     pub nzbget_user: String,
     pub nzbget_pass: String,
+    pub weaver_user: String,
+    pub weaver_pass: String,
     pub qbittorrent_user: String,
     pub qbittorrent_password: String,
     /// app logins (wiki/App-Logins.md): apps | tunnel | manual
@@ -160,6 +162,8 @@ impl Default for Answers {
             gluetun_api_key: String::new(),
             nzbget_user: default_user(&service::nzbget::DEF).into(),
             nzbget_pass: String::new(),
+            weaver_user: default_user(&service::weaver::DEF).into(),
+            weaver_pass: String::new(),
             qbittorrent_user: default_user(&service::qbittorrent::DEF).into(),
             qbittorrent_password: String::new(),
             apps_auth: "apps".into(),
@@ -179,7 +183,7 @@ impl Default for Answers {
 }
 
 impl Answers {
-    pub(super) fn strings(&self) -> [(&'static str, &str); 20] {
+    pub(super) fn strings(&self) -> [(&'static str, &str); 22] {
         [
             ("tz", &self.tz),
             ("umask", &self.umask),
@@ -191,6 +195,8 @@ impl Answers {
             ("gluetun_api_key", &self.gluetun_api_key),
             ("nzbget_user", &self.nzbget_user),
             ("nzbget_pass", &self.nzbget_pass),
+            ("weaver_user", &self.weaver_user),
+            ("weaver_pass", &self.weaver_pass),
             ("qbittorrent_user", &self.qbittorrent_user),
             ("qbittorrent_password", &self.qbittorrent_password),
             ("apps_auth", &self.apps_auth),
@@ -206,10 +212,11 @@ impl Answers {
 
     /// Put the .env values back wherever the browser sent KEEP.
     pub fn unmask(&mut self, env: &mut impl FnMut() -> BTreeMap<String, String>) {
-        let fields: [(&mut String, &[&str]); 5] = [
+        let fields: [(&mut String, &[&str]); 6] = [
             (&mut self.postgres_password, &["POSTGRES_PASSWORD"]),
             (&mut self.gluetun_api_key, &["GLUETUN_API_KEY"]),
             (&mut self.nzbget_pass, &["NZBGET_PASS"]),
+            (&mut self.weaver_pass, &["WEAVER_PASS"]),
             (&mut self.qbittorrent_password, &["QBITTORRENT_PASSWORD"]),
             (&mut self.apps_login_password, &["APPS_LOGIN_PASSWORD"]),
         ];

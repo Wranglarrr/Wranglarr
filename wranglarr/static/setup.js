@@ -13,6 +13,7 @@
     // this machine's address: the one this page was opened at, when that's one on the network
     host_ip: E.HOST_IP || (/^(\d+\.){3}\d+$|:/.test(location.hostname) && !/^(127\.|\[?::1)/.test(location.hostname) ? location.hostname.replace(/^\[|\]$/g, '') : ''),
     nzbget_user: E.NZBGET_USER || 'nzbget', nzbget_pass: E.NZBGET_PASS || '',
+    weaver_user: E.WEAVER_USER || 'admin', weaver_pass: E.WEAVER_PASS || '',
     qbittorrent_user: E.QBITTORRENT_USER || 'admin', qbittorrent_password: E.QBITTORRENT_PASSWORD || '',
     // app logins: an existing .env without APPS_AUTH has been manual all along
     apps_auth: E.APPS_AUTH || (D.env_exists ? 'manual' : 'apps'), apps_login_user: E.APPS_LOGIN_USER || 'admin',
@@ -152,7 +153,7 @@
 
   // ---- app logins ----
   const MODES = [
-    ['apps', 'One login for every app', 'init sets the same username and password in each app (the arrs, Prowlarr, Bazarr, SABnzbd, qBittorrent, NZBGet). You still sign in to each app, but it\'s always the same login.'],
+    ['apps', 'One login for every app', 'init sets the same username and password in each app (the arrs, Prowlarr, Bazarr, SABnzbd, qBittorrent, NZBGet, Weaver). You still sign in to each app, but it\'s always the same login.'],
     ['tunnel', 'AuthTunnel: sign in once, to wranglarr', 'The apps get no login of their own. Their ports belong to wranglarr-gate, which lets you through when you\'re signed in to wranglarr (with its two-factor and passkeys). API keys still work, so mobile apps and scripts for the arrs keep going.'],
     ['manual', 'Leave the apps\' logins to me', 'Each app asks you to create a login on first visit, the way it does without wranglarr.'],
   ];
@@ -179,6 +180,7 @@
         if (S.auth_qbittorrent_login) h += chk({ cls: 'warn', msg: 'That login skips wranglarr\'s two-factor and passkeys, and qBittorrent can be made to run programs, so its password needs 16 characters or more: a shorter one is replaced with a random one. Type QBITTORRENT_USER and QBITTORRENT_PASSWORD from .env into the app. Changing its settings, search plugins and shutting it down still need your wranglarr sign-in.' });
       }
     } else {
+      if (S.services.includes('weaver')) h += field('Weaver login', `${inp('weaver_user', S.weaver_user, 'placeholder="user"')} ${inp('weaver_pass', S.weaver_pass, 'placeholder="blank: a random one"')} <button class="btn small" data-gen="password:weaver_pass">generate</button>`, 'Weaver takes it on its first start only (8 characters or more); wranglarr signs in with it to create the API key the arrs use');
       if (S.services.includes('nzbget')) h += field('NZBGet login', `${inp('nzbget_user', S.nzbget_user, 'placeholder="user"')} ${inp('nzbget_pass', S.nzbget_pass, 'placeholder="password"')} <button class="btn small" data-gen="password:nzbget_pass">generate</button>`, 'the image applies it at every start');
       if (S.services.includes('qbittorrent')) h += field('qBittorrent login', `${inp('qbittorrent_user', S.qbittorrent_user, 'placeholder="user"')} ${inp('qbittorrent_password', S.qbittorrent_password, 'placeholder="blank: set it later"')}`,
         'Blank: qBittorrent prints a temporary password in its log on first start; set your own in its UI, then put it in .env as QBITTORRENT_PASSWORD.');
@@ -189,6 +191,7 @@
       if (S.apps_auth === 'tunnel') {          // wranglarr, the arrs and the gate use these; nobody types them
         if (!S.qbittorrent_password) S.qbittorrent_password = (await api('POST', '/api/setup/generate', {})).value;
         if (!S.nzbget_pass) S.nzbget_pass = (await api('POST', '/api/setup/generate', {})).value;
+        if (!S.weaver_pass) S.weaver_pass = (await api('POST', '/api/setup/generate', {})).value;
       }
       renderLogins();
     }));
@@ -239,7 +242,7 @@
       if (!hasP && v.scope === 'prowlarr') v.scope = 'all';
       h += field('In the tunnel', sel('vpn.scope', v.scope, [['all', 'every app'], ...(hasP ? [['prowlarr', 'download clients and Prowlarr']] : []), ['downloads', 'download clients only']]),
         v.scope === 'prowlarr' ? 'the arrs use your own connection and reach indexers only through Prowlarr: add every indexer in Prowlarr, with Redirect off. The dashboard warns about any that go around it.'
-        : v.scope === 'downloads' ? 'only qBittorrent, SABnzbd and NZBGet use the tunnel. The arrs and Prowlarr search indexers on your own connection.'
+        : v.scope === 'downloads' ? 'only the download clients (qBittorrent, SABnzbd, NZBGet, Weaver) use the tunnel. The arrs and Prowlarr search indexers on your own connection.'
         : 'the simplest: nothing the apps do leaves without the tunnel (Seerr stays outside: it only talks to your own apps and metadata servers)') +
         field('Protocol', sel('vpn.vpn_type', v.vpn_type, [['wireguard', 'WireGuard'], ['openvpn', 'OpenVPN (legacy)']])) +
         field('Provider', sel('vpn.provider', v.provider, providers)) +

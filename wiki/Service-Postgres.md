@@ -32,7 +32,7 @@ docker compose exec postgres /docker-entrypoint-initdb.d/01-create-arr-dbs.sh
 | radarr, sonarr, lidarr (also readarr, prowlarr, whisparr) | `<app>`, `<app>-log` |
 | bazarr | `bazarr` |
 | seerr | `seerr` |
-| qbittorrent, sabnzbd, nzbget | none |
+| qbittorrent, sabnzbd, nzbget, weaver | none |
 
 The apps create their own schema on first connect. wranglarr dumps each
 database with `pg_dump -Fc --no-owner` and restores with

@@ -120,6 +120,15 @@ fn credentials_match_how_it_signs_in() {
                 let e = built.err().map(|e| e.to_string());
                 assert_eq!(e, Some(format!("my{}: api_key or api_key_file is required", d.id)), "{}", d.id);
             }
+            Credentials::MintedKey { .. } => {
+                // the key is read or created when it is first needed
+                assert!(built.is_ok(), "{}: builds before it has a key", d.id);
+                assert!(
+                    matches!(d.login, Some(Login::Managed(m)) if m.source == LoginSource::Env),
+                    "{}: the login it creates the key with is .env's",
+                    d.id
+                );
+            }
             Credentials::UserPassword { .. } => {
                 assert!(built.is_ok(), "{}: signs in with a username and password", d.id);
                 assert!(

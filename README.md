@@ -176,7 +176,7 @@ Then open wranglarr at http://your-host:8787. After that it's plain `docker comp
 | Radarr · Sonarr · Lidarr | 7878 · 8989 · 8686 | movies · TV · music, on Postgres |
 | Prowlarr | 9696 | indexers for every arr, on Postgres |
 | Bazarr | 6767 | subtitles, on Postgres |
-| qBittorrent · SABnzbd · NZBGet | 8090 · 8085 · 6789 | download clients |
+| qBittorrent · SABnzbd · NZBGet · Weaver | 8090 · 8085 · 6789 · 9090 | download clients |
 | Seerr | 5055 | requests (Plex, Jellyfin, Emby), on Postgres |
 | Postgres 17 | – | one database server for all of them |
 | gluetun | – | optional VPN tunnel |
@@ -184,10 +184,10 @@ Then open wranglarr at http://your-host:8787. After that it's plain `docker comp
 Every service except Postgres and wranglarr is opt-in (`COMPOSE_PROFILES`). One `/data` mount everywhere, so imports are hardlinks, not copies.
 
 ```
- LAN ──▶ 7878 8989 8686 9696 6767 │ 8090 8085 6789 │ 5055 │ 8787
-          ┌───────────────────────┴────────────────┴──────┴─────────────┐
-          │  radarr  sonarr  lidarr  prowlarr  bazarr   qbittorrent sabnzbd nzbget   seerr
-          │     └───────┴───────┴───────┴────────┴────────────────────────────────┴──▶ postgres:17  (one db cluster)
+ LAN ──▶ 7878 8989 8686 9696 6767 │ 8090 8085 6789 9090 │ 5055 │ 8787
+          ┌───────────────────────┴─────────────────────┴──────┴─────────────┐
+          │  radarr  sonarr  lidarr  prowlarr  bazarr   qbittorrent sabnzbd nzbget weaver   seerr
+          │     └───────┴───────┴───────┴────────┴───────────────────────────────────────┴──▶ postgres:17  (one db cluster)
           │  wranglarr ──▶ app APIs · pg_dump/pg_restore · docker.sock
           │        └──▶ appdata/backups/<suite>/<version>/…
           └── optional: one gluetun WireGuard/OpenVPN tunnel for every app, or just the download clients (+ Prowlarr)
@@ -209,7 +209,7 @@ More in [Architecture](https://github.com/Wranglarrr/Wranglarr/wiki/Architecture
 | [App logins](https://github.com/Wranglarrr/Wranglarr/wiki/App-Logins) | [Community configs](https://github.com/Wranglarrr/Wranglarr/wiki/Community-Configs) | [Postgres](https://github.com/Wranglarrr/Wranglarr/wiki/Service-Postgres) |
 | [VPN: shared tunnel](https://github.com/Wranglarrr/Wranglarr/wiki/VPN-Shared-Tunnel) | [Notifications](https://github.com/Wranglarrr/Wranglarr/wiki/Notifications) | [Radarr, Sonarr, Lidarr](https://github.com/Wranglarrr/Wranglarr/wiki/Service-Radarr-Sonarr-Lidarr) |
 | [VPN: per app](https://github.com/Wranglarrr/Wranglarr/wiki/VPN-Per-App) | [Connections](https://github.com/Wranglarrr/Wranglarr/wiki/Connections) | [Prowlarr](https://github.com/Wranglarrr/Wranglarr/wiki/Service-Prowlarr) · [Bazarr](https://github.com/Wranglarrr/Wranglarr/wiki/Service-Bazarr) |
-| [Remote access](https://github.com/Wranglarrr/Wranglarr/wiki/Remote-Access) | [Reverse proxy](https://github.com/Wranglarrr/Wranglarr/wiki/Reverse-Proxy) | [qBittorrent](https://github.com/Wranglarrr/Wranglarr/wiki/Service-qBittorrent) · [SABnzbd](https://github.com/Wranglarrr/Wranglarr/wiki/Service-SABnzbd) · [NZBGet](https://github.com/Wranglarrr/Wranglarr/wiki/Service-NZBGet) |
+| [Remote access](https://github.com/Wranglarrr/Wranglarr/wiki/Remote-Access) | [Reverse proxy](https://github.com/Wranglarrr/Wranglarr/wiki/Reverse-Proxy) | [qBittorrent](https://github.com/Wranglarrr/Wranglarr/wiki/Service-qBittorrent) · [SABnzbd](https://github.com/Wranglarrr/Wranglarr/wiki/Service-SABnzbd) · [NZBGet](https://github.com/Wranglarrr/Wranglarr/wiki/Service-NZBGet) · [Weaver](https://github.com/Wranglarrr/Wranglarr/wiki/Service-Weaver) |
 | | [Shared settings](https://github.com/Wranglarrr/Wranglarr/wiki/Shared-Settings) | [Seerr](https://github.com/Wranglarrr/Wranglarr/wiki/Service-Seerr) · [wranglarr](https://github.com/Wranglarrr/Wranglarr/wiki/Service-wranglarr) |
 | | | [Development](https://github.com/Wranglarrr/Wranglarr/wiki/Development) |
 

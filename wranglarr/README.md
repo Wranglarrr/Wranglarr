@@ -2,7 +2,7 @@
 
 Backup, version and restore the configuration of your \*arr suite: Radarr,
 Sonarr, Lidarr, Readarr, Prowlarr, Whisparr and Bazarr (including their
-Postgres databases), Seerr, plus qBittorrent, SABnzbd and NZBGet (config directories). One click per suite, cron automation, retention, and a
+Postgres databases), Seerr, plus qBittorrent, SABnzbd, NZBGet and Weaver (config directories). One click per suite, cron automation, retention, and a
 "sync shared settings" button so a download client or notification is defined once.
 It also wires the apps together (download clients into every arr, Sonarr and
 Radarr into Bazarr, the arrs into Prowlarr) and pushes trackers and
@@ -97,7 +97,7 @@ and the wiki). It only writes into `/stack` (and `/appdata` if mounted).
   file, which is what a Postgres-mode backup is, so config.yaml is written
   into the mounted `config_dir` directly (the previous file is kept as
   `config.yaml.pre-wranglarr`) and Bazarr is restarted via its API.
-- **Config** (qBittorrent / SABnzbd / NZBGet): the version's plain
+- **Config** (qBittorrent / SABnzbd / NZBGet / Weaver): the version's plain
   `<app>/config/` copy (checksums verified) goes back over the mounted
   `config_dir` with the container stopped (Docker socket required); the
   previous contents are kept in `/config/pre-restore/<app>` (`appdata/wranglarr/pre-restore/`).
@@ -134,7 +134,7 @@ and the wiki). It only writes into `/stack` (and `/appdata` if mounted).
 ## App connections
 
 `connect.rs` wires every download client into every arr (category = the
-arr's name; SABnzbd/NZBGet categories and the per-arr folders are created
+arr's name; SABnzbd/NZBGet/Weaver categories and the per-arr folders are created
 first), Sonarr and Radarr into Bazarr, and every arr into Prowlarr as a
 Full Sync application. Hosts are the compose service names, or `localhost`
 for apps sharing one network namespace (the shared VPN tunnel). Each entry is

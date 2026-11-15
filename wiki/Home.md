@@ -23,6 +23,7 @@ app that backs up, versions and restores every app in it.
 | [Service: qBittorrent](Service-qBittorrent.md) | torrent client |
 | [Service: SABnzbd](Service-SABnzbd.md) | usenet client |
 | [Service: NZBGet](Service-NZBGet.md) | usenet client |
+| [Service: Weaver](Service-Weaver.md) | usenet client (NZBGet API) |
 | [Service: Seerr](Service-Seerr.md) | requests (opt-in): your Plex / Jellyfin / Emby users ask, Radarr and Sonarr get it |
 | [Service: wranglarr](Service-wranglarr.md) | the backup/restore app: environment, `wranglarr.toml`, HTTP API |
 | [VPN: Shared Tunnel](VPN-Shared-Tunnel.md) | one gluetun WireGuard/OpenVPN tunnel: every app, download clients and Prowlarr, or download clients only |

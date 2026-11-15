@@ -9,7 +9,7 @@ apps** on the System page (`src/connect.rs`).
 
 | App configured | Gets | Where it ends up | Entry |
 | --- | --- | --- | --- |
-| every arr (Radarr, Sonarr, Lidarr, Readarr, Whisparr) | every download client (qBittorrent, SABnzbd, NZBGet) | Settings → Download Clients | named `qBittorrent` / `SABnzbd` / `NZBGet`, enabled, priority 1, category = the arr's name |
+| every arr (Radarr, Sonarr, Lidarr, Readarr, Whisparr) | every download client (qBittorrent, SABnzbd, NZBGet, Weaver) | Settings → Download Clients | named `qBittorrent` / `SABnzbd` / `NZBGet` / `Weaver` (Weaver as an NZBGet client), enabled, priority 1, category = the arr's name |
 | Bazarr | Sonarr and Radarr (one of each) | Settings → Sonarr / Radarr | `use_sonarr` / `use_radarr` on, host, port, base URL, SSL, API key |
 | Prowlarr | every arr | Settings → Apps | an *application* named `Radarr`, `Sonarr`, … with sync level **Full Sync**, so Prowlarr pushes its indexers to the arr |
 | Prowlarr | every download client | Settings → Download Clients | the same entries, category `prowlarr`: for grabbing a release from Prowlarr's own search page. No arr imports those; they stay in `/data/torrents/prowlarr` or `/data/usenet/complete/prowlarr` |
@@ -27,7 +27,8 @@ Radarr called `radarr4k`, say) gets entries named after it instead.
 
 The credentials come from wranglarr's own config: SABnzbd's API key from
 `sabnzbd.ini`, qBittorrent's login from `QBITTORRENT_USER` /
-`QBITTORRENT_PASSWORD`, NZBGet's from `NZBGET_USER` / `NZBGET_PASS`, and
+`QBITTORRENT_PASSWORD`, NZBGet's from `NZBGET_USER` / `NZBGET_PASS`, Weaver's from the API key
+wranglarr created in it ([Weaver](Service-Weaver.md#the-api-key)), and
 each arr's API key from its `config.xml`.
 
 ## Categories and folders
@@ -41,6 +42,7 @@ arr:
 | qBittorrent | `/data/torrents/<arr>` (automatic torrent management, set up by `init.sh`) |
 | SABnzbd | `/data/usenet/complete/<arr>` |
 | NZBGet | `/data/usenet/complete/<arr>` |
+| Weaver | `/data/usenet/complete/<arr>` |
 
 The paths are under the shared `/data` mount that the arrs see at the same
 path, so imports can hardlink and no remote path mapping is needed. See
@@ -48,8 +50,8 @@ path, so imports can hardlink and no remote path mapping is needed. See
 
 Before wiring anything, a run:
 
-1. **Creates the category folders** inside each client's container: `mkdir -p <download folder>/<arr>` through the Docker socket, as the container's `PUID:PGID`. The download folder is the one the client reports (qBittorrent's save path, SABnzbd's `complete_dir`, NZBGet's `DestDir`). Without the socket, the run log says which folders to create by hand. The arrs warn about a client folder they can't see until the first download creates it, which is why this step exists.
-2. **Creates the categories in SABnzbd and NZBGet**, because the arrs refuse a category the client doesn't have. SABnzbd gets a category per arr (folder = its name, under `complete_dir`); NZBGet gets `Category<N>.Name = <arr>` with an empty `DestDir` (= `<DestDir>/<arr>`) and is reloaded. qBittorrent needs nothing here: the arr creates the category in it.
+1. **Creates the category folders** inside each client's container: `mkdir -p <download folder>/<arr>` through the Docker socket, as the container's `PUID:PGID`. The download folder is the one the client reports (qBittorrent's save path, SABnzbd's `complete_dir`, NZBGet's `DestDir`, Weaver's complete folder). Without the socket, the run log says which folders to create by hand. The arrs warn about a client folder they can't see until the first download creates it, which is why this step exists.
+2. **Creates the categories in SABnzbd, NZBGet and Weaver**, because the arrs refuse a category the client doesn't have. SABnzbd gets a category per arr (folder = its name, under `complete_dir`); NZBGet gets `Category<N>.Name = <arr>` with an empty `DestDir` (= `<DestDir>/<arr>`) and is reloaded; Weaver gets a category per arr through its API (folder `<complete>/<arr>`). qBittorrent needs nothing here: the arr creates the category in it.
 3. **Wires each link** (below).
 
 If `mkdir` fails, the run log says the download folder isn't writable by

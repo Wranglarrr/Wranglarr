@@ -62,7 +62,7 @@ PROFILES="$(envget COMPOSE_PROFILES)"; PROFILES="${PROFILES:-radarr,sonarr,lidar
 
 declare -A PORT=([radarr]=7878 [sonarr]=8989 [lidarr]=8686 [prowlarr]=9696)
 # the file each download client writes on first start
-declare -A DLCONF=([qbittorrent]=qBittorrent/qBittorrent.conf [sabnzbd]=sabnzbd.ini [nzbget]=nzbget.conf)
+declare -A DLCONF=([qbittorrent]=qBittorrent/qBittorrent.conf [sabnzbd]=sabnzbd.ini [nzbget]=nzbget.conf [weaver]=weaver.db)
 XML_APPS=(); DL=()
 for p in ${PROFILES//,/ }; do
   [[ -n "${PORT[$p]:-}" ]] && XML_APPS+=("$p")
@@ -118,6 +118,13 @@ check_auth() {
       && echo "init: note: QBITTORRENT_USER / QBITTORRENT_PASSWORD differ from the apps' login; qBittorrent gets those" >&2
     [[ ",$PROFILES," == *",nzbget,"* && ( "$(envget NZBGET_USER)" != "$u" || "$(envget NZBGET_PASS)" != "$(envget APPS_LOGIN_PASSWORD)" ) ]] \
       && echo "init: note: NZBGET_USER / NZBGET_PASS differ from the apps' login; NZBGet gets those" >&2
+    [[ ",$PROFILES," == *",weaver,"* && ( "$(envget WEAVER_USER)" != "$u" || "$(envget WEAVER_PASS)" != "$(envget APPS_LOGIN_PASSWORD)" ) ]] \
+      && echo "init: note: WEAVER_USER / WEAVER_PASS differ from the apps' login; Weaver gets those" >&2
+  fi
+  # Weaver creates its login from these on its first start, and wranglarr signs in with it
+  local wp; wp="$(envget WEAVER_PASS)"
+  if [[ ",$PROFILES," == *",weaver,"* ]] && (( ${#wp} < 8 )); then
+    echo "init: Weaver needs WEAVER_PASS in .env, 8 characters or more (its login; wranglarr signs in with it)" >&2; exit 1
   fi
   return 0
 }
@@ -253,7 +260,7 @@ if [[ -z "$(envget HOST_IP)" ]]; then
   fi
 fi
 
-mkdir -p "$APPDATA"/{postgres,backups,wranglarr,radarr,sonarr,lidarr,prowlarr,bazarr,qbittorrent,sabnzbd,nzbget,seerr,vpn/wireguard}
+mkdir -p "$APPDATA"/{postgres,backups,wranglarr,radarr,sonarr,lidarr,prowlarr,bazarr,qbittorrent,sabnzbd,nzbget,weaver,seerr,vpn/wireguard}
 # Seerr runs as PUID:PGID itself (no PUID variable of its own), so its folder must be theirs
 if [[ ",$PROFILES," == *",seerr,"* ]]; then
   PUID_="$(envget PUID)"; PGID_="$(envget PGID)"

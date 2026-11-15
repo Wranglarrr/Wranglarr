@@ -144,7 +144,7 @@ impl AnyClient {
         self.dl()?.download_root().await
     }
 
-    /// Create the missing categories (SABnzbd, NZBGet). Returns the ones created.
+    /// Create the missing categories (SABnzbd, NZBGet, Weaver). Returns the ones created.
     pub async fn ensure_categories(&self, names: &[String]) -> ArrResult<Vec<String>> {
         match self.0.download_client() {
             Some(d) => d.ensure_categories(names).await,

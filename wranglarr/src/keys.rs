@@ -11,6 +11,11 @@
 //! it saw. On a change it reconnects every app connected to that one, as
 //! **Connect apps** would, and when one had to be reconnected says so with the
 //! `api_key_changed` notification (info; a warning when one couldn't be).
+//!
+//! A key wranglarr created itself (Weaver's) lives in a file of wranglarr's, so
+//! a key revoked in the app changes nothing there: the minute's check uses it
+//! first, and a refusal makes the client create a new one, which the check then
+//! sees as a change.
 
 use std::collections::{BTreeSet, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -33,6 +38,8 @@ const EVERY: Duration = Duration::from_secs(60);
 /// After a failed repair the next try waits this long, doubling up to [`MAX_WAIT`].
 const FIRST_WAIT: Duration = Duration::from_secs(60);
 const MAX_WAIT: Duration = Duration::from_secs(3600);
+/// How long the minute's check waits on an app whose key wranglarr created.
+const MINTED_CHECK: Duration = Duration::from_secs(15);
 
 /// A repair that failed: when to try again, for which key.
 struct Retry {
@@ -126,7 +133,13 @@ impl App {
     pub(crate) fn key_apps(&self) -> Vec<AppConfig> {
         self.cfg()
             .all_apps()
-            .filter(|a| a.enabled && matches!(a.def().map(|d| &d.credentials), Some(Credentials::ApiKey { .. })))
+            .filter(|a| {
+                a.enabled
+                    && matches!(
+                        a.def().map(|d| &d.credentials),
+                        Some(Credentials::ApiKey { .. } | Credentials::MintedKey { .. })
+                    )
+            })
             .cloned()
             .collect()
     }
@@ -154,6 +167,13 @@ impl App {
         let mut now = seen.clone();
         let mut changed = vec![];
         for a in self.key_apps() {
+            if matches!(a.def().map(|d| &d.credentials), Some(Credentials::MintedKey { .. })) {
+                // A key wranglarr created is only found revoked by using it; the
+                // client answers a refusal by creating a new one.
+                if let Ok(c) = service::client(&a).await {
+                    let _ = tokio::time::timeout(MINTED_CHECK, c.status()).await;
+                }
+            }
             let Ok(key) = service::apps::api_key(&a).await else { continue };
             if key.is_empty() {
                 continue;

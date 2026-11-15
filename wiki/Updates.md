@@ -50,6 +50,7 @@ image explicitly switches from the pin to that tag; leaving it blank preserves t
 | Hotio Radarr, Lidarr, Prowlarr, SABnzbd | Stable (`release`), Testing (`testing`), Nightly (`nightly`) |
 | Hotio Sonarr, Bazarr | Stable (`release`), Nightly (`nightly`) |
 | Hotio qBittorrent, NZBGet | Stable (`release`) |
+| Weaver | Stable (`latest`) |
 | Gluetun | Development (`latest`); use a custom `vX.Y.Z` tag for a specific release |
 | Postgres | Keep the deployed major tag, or enter a custom tag; major upgrades remain refused |
 

@@ -41,7 +41,7 @@ Keep it off the internet even so:
 
 **With AuthTunnel, wranglarr's login guards every app too** ([App logins](App-Logins.md)).
 The apps have no login of their own then; wranglarr-gate lets a request through
-only with a wranglarr session, the app's own API key, NZBGet's login, or, with
+only with a wranglarr session, the app's own API key, NZBGet's login, Weaver's own credentials (checked by Weaver), or, with
 `AUTH_QBITTORRENT_LOGIN` on (off by default), qBittorrent's login, which skips
 wranglarr's two-factor and can't change qBittorrent's settings
 ([qBittorrent's apps](App-Logins.md#qbittorrents-apps-auth_qbittorrent_login)). So:

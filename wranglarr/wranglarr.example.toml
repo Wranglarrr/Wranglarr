@@ -171,6 +171,16 @@ keep_last = 7
   config_dir = "/arrconfig/nzbget"
   container = "nzbget"
 
+  [[suite.app]]
+  name = "weaver"
+  kind = "weaver"
+  url = "http://weaver:9090"
+  username = "${WEAVER_USER}"     # from .env: wranglarr signs in with them to create its API key,
+  password = "${WEAVER_PASS}"     # which it keeps in this file (created on first use)
+  api_key_file = "/arrconfig/weaver/wranglarr-api-key.json"
+  config_dir = "/arrconfig/weaver"
+  container = "weaver"
+
 # ---------------------------------------------------------------------------
 # Shared ("global") settings: define once, push to every app with the
 # "Sync shared settings" button (or POST /api/suites/<suite>/sync).  Matched by
