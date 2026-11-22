@@ -41,10 +41,11 @@ can be mounted back as `/config` as-is. Left out:
 
 On every app, `*.pid`, `*.lock` and `*.log` files are skipped too. Live
 SQLite files are never copied file by file, because copying one while the app
-writes to it can tear it. Weaver's `weaver.db` is copied by SQLite itself
-(`VACUUM INTO`), which gives a consistent copy while Weaver runs. On Postgres they're unused leftovers from the first start. An
-arr or Bazarr in SQLite mode gets the consistent copy from its own backup
-zip, laid over the folder. Seerr has no supported SQLite backup here: a Seerr
+writes to it can tear it. On Postgres they're unused leftovers from the first
+start. An arr or Bazarr in SQLite mode gets the consistent copy from its own
+backup zip, laid over the folder. Weaver's `weaver.db` is copied by SQLite
+itself (`VACUUM INTO`), which gives a consistent copy while Weaver runs.
+Seerr has no supported SQLite backup here: a Seerr
 entry without a configured PostgreSQL database is marked incomplete. Run
 Seerr on PostgreSQL and list its database in wranglarr, or back up its SQLite
 database separately while Seerr is stopped. The Seerr status API does not report
