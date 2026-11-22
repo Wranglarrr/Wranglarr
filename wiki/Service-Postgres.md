@@ -7,7 +7,7 @@
 | Profile | always on |
 | Port | not published (uncomment `ports:` + `POSTGRES_HOST_PORT` for pgAdmin etc.) |
 | Volume | `${APPDATA}/postgres:/var/lib/postgresql/data`, `./postgres/initdb:/docker-entrypoint-initdb.d:ro` |
-| Healthcheck | `pg_isready -U $POSTGRES_USER -d postgres` every 10 s |
+| Healthcheck | `pg_isready -h 127.0.0.1 -U $POSTGRES_USER -d postgres` every 10 s, over TCP so the temporary server of the first start (socket only) doesn't count |
 
 ## Environment
 
