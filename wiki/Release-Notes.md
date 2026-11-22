@@ -22,6 +22,33 @@ How to write an entry:
   do, not how the code changed.
 -->
 
+## 1.1.4 — not released yet
+
+### New
+
+- **`init.sh --truenas` installs the stack on TrueNAS's Apps screen.** It
+  sets the stack up as usual, then stops it in the shell and creates the
+  custom app `arrs` through TrueNAS's API, or updates it when it's already
+  there. Nothing to copy and paste ([TrueNAS](TrueNAS.md#optional-the-apps-screen)).
+
+### Fixed
+
+- **A first start on slow storage no longer reports "creating the apps'
+  databases failed".** On a new install, Postgres counted as ready while it
+  was still setting itself up, so `init.sh` could reach it just as it
+  restarted (`the database system is shutting down`). The databases were made
+  anyway; the error was only the second attempt. It now counts as ready once
+  it really is. On an existing install, update `compose.yaml`; nothing else
+  changes.
+- **TrueNAS: an app installed from the Apps screen starts every service.**
+  The YAML the TrueNAS page had you make kept each service's `profiles:`,
+  and the app runs without `COMPOSE_PROFILES`, so only Postgres and wranglarr
+  started and every app showed offline. Its command also failed with
+  `permission denied`. If you installed the app that way, stop it and run
+  `sudo ./scripts/init.sh --truenas`: it updates the app.
+- **The commands `init.sh` prints at the end include `sudo`** when you ran it
+  with `sudo`.
+
 ## 1.1.3 — 2026-11-15
 
 ### New

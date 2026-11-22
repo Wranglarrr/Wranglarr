@@ -36,7 +36,7 @@ pub fn next_steps(a: &Answers, env: &Env, target: &Path, scan: &Value, restore_c
         steps.push("DATA_ROOT should be an absolute host path (it is bind-mounted by Docker).".into());
     }
     if host::looks_truenas(env, target, &a.data_root) {
-        steps.push("TrueNAS SCALE: in System > Shell (or over SSH), cd to the stack dataset and run: sudo ./scripts/init.sh  (it generates and patches the arr configs, creates the databases and starts everything). Use sudo docker compose ... for later commands. See the TrueNAS wiki page.".into());
+        steps.push("TrueNAS SCALE: in System > Shell (or over SSH), cd to the stack dataset and run: sudo ./scripts/init.sh  (it generates and patches the arr configs, creates the databases and starts everything). Use sudo docker compose ... for later commands. To run the stack from the Apps screen instead, run sudo ./scripts/init.sh --truenas: it installs it there as the app arrs. See the TrueNAS wiki page.".into());
     } else {
         steps.push("In the stack directory run: ./scripts/init.sh  (POSIX shell / WSL; it generates and patches the arr configs, creates the databases and starts everything).".into());
     }

@@ -7,10 +7,11 @@ supported.
 There are two ways to run it:
 
 - **From the TrueNAS shell (recommended).** It's the same as any Linux host, with `sudo` in front. `init.sh`, the VPN overlays, profiles and wranglarr's updates all work as documented. The containers don't appear on the Apps screen.
-- **From the Apps screen** ("Install via YAML"). Optional, after the shell route. The stack then shows up as one app that you can start and stop there. See [the Apps screen](#optional-the-apps-screen).
+- **From the Apps screen.** `init.sh --truenas` sets the stack up from the shell, then installs it as one app that you start and stop there. See [the Apps screen](#optional-the-apps-screen).
 
-> This page follows TrueNAS's documented behaviour, but it has not yet been
-> run on a TrueNAS machine. If something differs on yours, please report it.
+> The shell route and an app installed with *Install via YAML* have been run
+> on TrueNAS SCALE. `init.sh --truenas` follows TrueNAS's API documentation.
+> If something differs on yours, please report it.
 
 ## 1. Datasets
 
@@ -83,8 +84,10 @@ sudo ./scripts/init.sh
 It does the same as on any other host (see [Setup](Setup.md)). Running as
 root, it also gives the download folders it creates (`torrents/radarr`,
 `usenet/complete/sonarr`, …) to `PUID:PGID`, so the apps can write them.
+To run the stack from the Apps screen instead, use
+`sudo ./scripts/init.sh --truenas` ([the Apps screen](#optional-the-apps-screen)).
 
-Later commands are the usual ones with `sudo`:
+Later commands, when the stack runs from the shell, are the usual ones with `sudo`:
 
 ```sh
 sudo docker compose ps
@@ -115,32 +118,37 @@ again, or a second reboot, has fixed it for others
 
 ## Optional: the Apps screen
 
-TrueNAS's **Apps → Discover Apps → ⋮ → Install via YAML** takes one compose
-file. That screen doesn't read `.env` and runs no `init.sh`. So set the stack
-up from the shell first (steps 1–4), then hand TrueNAS the finished
-configuration:
+An app on TrueNAS's Apps screen runs one compose file, and doesn't read
+`.env` or run `init.sh`. So run `init.sh` with `--truenas` in step 4, in place
+of the plain command:
 
 ```sh
 cd /mnt/tank/apps/arrs
-sudo docker compose down
-sudo docker compose config > truenas-app.yaml
+sudo ./scripts/init.sh --truenas
 ```
 
-`config` reads `COMPOSE_FILE` from `.env`, so a VPN layout is included.
+It sets the stack up as usual, then stops it in the shell and installs it as
+the custom app `arrs` through TrueNAS's API (`midclt`): the same as
+*Install via YAML*, with nothing to copy and paste. `--truenas=NAME` gives the
+app another name (lowercase letters, digits and hyphens).
 
-The result is the stack as it runs now:
+The app gets the stack as it runs now:
 
-- only the services enabled in `COMPOSE_PROFILES`;
-- every value from `.env` filled in;
+- only the services enabled in `COMPOSE_PROFILES`, without their `profiles:`, so the app starts all of them;
+- every value from `.env` filled in, and the `COMPOSE_FILE` overlays (VPN, AuthTunnel);
 - absolute paths;
 - wranglarr's image as `WRANGLARR_IMAGE` names it. The Apps screen can pull the published image; one you built (`wranglarr:local`) must stay on this machine.
 
-Paste it into *Install via YAML*, give the app a name (`arrs`) and save.
+Then:
 
-- `truenas-app.yaml` contains your Postgres password and API keys, and so does the YAML TrueNAS stores. Delete the file once the app is saved.
-- After changing `.env` (a new service, a password), run the three commands again and paste the result into the app's **Edit**.
-- Don't start the stack from the shell as well. Use the app's Stop and Start.
-- TrueNAS names the compose project `ix-arrs`. Containers keep the names from `compose.yaml` (`radarr`, `wranglarr`, …), which is what wranglarr looks for.
+- Start and stop the stack from **Apps → Installed**, not with `docker compose` in the shell.
+- After changing `.env` (a new service, a password), stop the app and run `sudo ./scripts/init.sh --truenas` again. It updates the app and starts it. While the app runs, `init.sh` refuses to start, since both would use the same container names.
+- The configuration TrueNAS stores holds your Postgres password and API keys, like `.env`.
+- TrueNAS names the compose project `ix-arrs`. Containers keep the names from `compose.yaml` (`radarr`, `wranglarr`, …), which is what wranglarr looks for. Logs: `sudo docker logs wranglarr`.
+
+Pasting into **Install via YAML** by hand works too, but copy the YAML from a
+file opened in an editor, not from a terminal: copying out of a terminal can
+change the whitespace YAML depends on.
 
 ## Sources
 

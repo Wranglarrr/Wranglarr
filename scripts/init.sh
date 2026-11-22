@@ -22,6 +22,9 @@
 #
 #   ./scripts/init.sh --auth    only step 6: after changing APPS_AUTH and the
 #                               logins (wranglarr-setup --auth writes them)
+#   ./scripts/init.sh --truenas[=NAME]  then hand the stack to TrueNAS's Apps
+#                               screen: stop it here and create (or update) the
+#                               custom app NAME (default arrs) through TrueNAS's API
 set -euo pipefail
 
 if ((BASH_VERSINFO[0] < 4)); then
@@ -32,9 +35,13 @@ fi
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 AUTH_ONLY=no
+TRUENAS=no
+APP_NAME=arrs
 for arg in "$@"; do
   case "$arg" in
     --auth) AUTH_ONLY=yes ;;
+    --truenas) TRUENAS=yes ;;
+    --truenas=*) TRUENAS=yes; APP_NAME="${arg#*=}" ;;
     -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
     *) echo "init: unknown option $arg (try --help)" >&2; exit 2 ;;
   esac
@@ -49,6 +56,65 @@ if [[ -z "${COMPOSE:-}" ]]; then
 fi
 export PODMAN_COMPOSE_WARNING_LOGS=false
 dc() { $COMPOSE "$@"; }
+# the commands this prints for later need sudo too when it ran with sudo
+SUDO="${SUDO_USER:+sudo }"
+
+# The stack installed on TrueNAS's Apps screen (compose project ix-<app name>)
+# has the same container names: setting it up from here too would clash.
+ENGINE="${COMPOSE%% *}"; [[ "$ENGINE" == podman-compose ]] && ENGINE=podman; [[ "$ENGINE" == docker-compose ]] && ENGINE=docker
+APP_PROJECT="$($ENGINE inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' wranglarr 2>/dev/null || :)"
+if [[ "$APP_PROJECT" == ix-* && "$($ENGINE inspect -f '{{.State.Running}}' wranglarr 2>/dev/null)" == true ]]; then
+  echo "init: the stack is running as the TrueNAS app \"${APP_PROJECT#ix-}\": stop it on the Apps screen first, then run this again" >&2
+  exit 1
+fi
+
+# --truenas: the stack moves to the Apps screen. It's checked before any work:
+# TrueNAS's API client (midclt), and a name TrueNAS takes for an app.
+if [[ "$TRUENAS" == yes ]]; then
+  if ! command -v midclt >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+    echo "init: --truenas runs in the TrueNAS shell (it needs TrueNAS's midclt and python3)" >&2; exit 2
+  fi
+  if [[ ! "$APP_NAME" =~ ^[a-z]([-a-z0-9]*[a-z0-9])?$ || ${#APP_NAME} -gt 40 ]]; then
+    echo "init: --truenas=$APP_NAME: an app name is lowercase letters, digits and hyphens, up to 40, starting with a letter" >&2; exit 2
+  fi
+fi
+
+# Stop the stack here and give it to TrueNAS as the custom app $APP_NAME,
+# created or updated through TrueNAS's API. The compose file goes as JSON,
+# straight from `config`: nothing to copy and paste, so no whitespace to lose.
+# `config` fills in .env and the COMPOSE_FILE overlays and keeps only the
+# enabled services, but each still has its `profiles:`, and the app runs
+# without COMPOSE_PROFILES: they come out.
+truenas_app() {
+  local cfg found state
+  cfg="$(dc config --format json | python3 -I -c 'import json, sys
+d = json.load(sys.stdin)
+d.pop("name", None)  # TrueNAS names the project itself (ix-<app>)
+for s in d.get("services", {}).values():
+    s.pop("profiles", None)
+print(json.dumps(d, separators=(",", ":")))')" || { echo "init: couldn't read the stack's compose config" >&2; return 1; }
+  echo "init: stopping the stack here; the TrueNAS app \"$APP_NAME\" runs it from now on"
+  dc down || return 1
+  found="$(midclt call app.query "[[\"name\", \"=\", \"$APP_NAME\"]]")" || return 1
+  if [[ "$found" == "[]" ]]; then
+    echo "init: creating the TrueNAS app \"$APP_NAME\""
+    midclt call -j app.create "{\"app_name\": \"$APP_NAME\", \"custom_app\": true, \"custom_compose_config\": $cfg}" >/dev/null || return 1
+  else
+    echo "init: updating the TrueNAS app \"$APP_NAME\""
+    midclt call -j app.update "$APP_NAME" "{\"custom_compose_config\": $cfg}" >/dev/null || return 1
+  fi
+  state="$(midclt call app.query "[[\"name\", \"=\", \"$APP_NAME\"]]" '{"get": true, "select": ["state"]}' 2>/dev/null || :)"
+  if [[ "$state" != *RUNNING* && "$state" != *DEPLOYING* ]]; then
+    echo "init: starting the TrueNAS app \"$APP_NAME\""
+    midclt call -j app.start "$APP_NAME" >/dev/null || echo "init: couldn't start it: start it on the Apps screen" >&2
+  fi
+  cat <<MSG
+
+The stack is the TrueNAS app "$APP_NAME" now: Apps > Installed. Start and stop it
+there, not with docker compose here. After changing .env, stop the app and run
+${SUDO}./scripts/init.sh --truenas$([[ "$APP_NAME" != arrs ]] && echo "=$APP_NAME") again: it updates the app. See wiki/TrueNAS.md.
+MSG
+}
 
 if [[ ! -f .env ]]; then
   echo "init: no .env found; copy .env.example to .env and edit it first" >&2
@@ -195,6 +261,9 @@ if [[ "$AUTH_ONLY" == yes ]]; then
 
 Done: APPS_AUTH=$APPS_AUTH. wranglarr's home page shows each app's login.
 MSG
+  if [[ "$TRUENAS" == yes ]] && ! truenas_app; then
+    echo "init: problem: handing the stack to TrueNAS failed (above)" >&2; exit 1
+  fi
   exit 0
 fi
 tunnel_files
@@ -378,7 +447,6 @@ fi
 # without a registry, e.g. wranglarr:local) is built from ./wranglarr if it isn't there yet
 WIMG="$(envget WRANGLARR_IMAGE)"
 if [[ -n "$WIMG" && "${WIMG%%[:@]*}" != */* ]]; then
-  ENGINE="${COMPOSE%% *}"; [[ "$ENGINE" == podman-compose ]] && ENGINE=podman; [[ "$ENGINE" == docker-compose ]] && ENGINE=docker
   if ! $ENGINE image inspect "$WIMG" >/dev/null 2>&1; then
     echo "init: building $WIMG from ./wranglarr"
     $ENGINE build -t "$WIMG" ./wranglarr
@@ -415,8 +483,8 @@ cat <<MSG
 $( ((${#PROBLEMS[@]})) && echo "Started, but not everything worked (see the end)." || echo "Done.")  wranglarr: http://$WHOST:$WPORT
 
 Check the apps came up on Postgres:
-  $COMPOSE logs ${XML_APPS[*]}$([[ ",$PROFILES," == *",bazarr,"* ]] && echo " bazarr") 2>/dev/null | grep -i postgres | head -20
-  $COMPOSE exec postgres psql -U "$POSTGRES_USER" -l
+  $SUDO$COMPOSE logs ${XML_APPS[*]}$([[ ",$PROFILES," == *",bazarr,"* ]] && echo " bazarr") 2>/dev/null | grep -i postgres | head -20
+  $SUDO$COMPOSE exec postgres psql -U "$POSTGRES_USER" -l
 
 The SQLite files the init run created (e.g. $APPDATA/radarr/radarr.db) are
 unused now and can be deleted.
@@ -425,5 +493,10 @@ MSG
 if ((${#PROBLEMS[@]})); then
   echo >&2
   for p in "${PROBLEMS[@]}"; do echo "init: problem: $p" >&2; done
+  [[ "$TRUENAS" == yes ]] && echo "init: the stack stays here, not on the Apps screen, until these are fixed: run ${SUDO}./scripts/init.sh --truenas again then" >&2
   exit 1
 fi
+if [[ "$TRUENAS" == yes ]] && ! truenas_app; then
+  echo "init: problem: handing the stack to TrueNAS failed (above)" >&2; exit 1
+fi
+exit 0
