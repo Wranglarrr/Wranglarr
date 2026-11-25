@@ -2,7 +2,7 @@
 # embedded) on Alpine with the Postgres 17 client tools.
 #   docker build -t wranglarr:local wranglarr
 # pinned by tag and digest; Dependabot (.github/dependabot.yml) proposes the updates
-FROM rust:1.99.1-alpine3.24@sha256:7e9e2d068a107a2adafd19930011178d14a78326053cd4c3a9f7ad3fd049557d AS build
+FROM rust:1.100.0-alpine3.24@sha256:8d0e82abfdf9a38071e07cabc5afba4ddbe077631a80e4e742a760c38beadc33 AS build
 RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconf
 ENV OPENSSL_STATIC=1
 WORKDIR /src
